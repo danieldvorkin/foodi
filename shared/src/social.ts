@@ -1,12 +1,15 @@
 import { z } from 'zod';
-import { DIFFICULTY, MEAL_TYPES, RecipeContentSchema } from './recipe.js';
+import { DIFFICULTY, MEAL_TYPES, MediaItemSchema, RecipeContentSchema } from './recipe.js';
 
 export const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
+
+export const AVATAR_EMOJI = ['🧑‍🍳', '👩‍🍳', '👨‍🍳', '🥑', '🌶️', '🍋', '🍄', '🧄', '🥐', '🍜', '🍣', '🌮', '🍕', '🥞', '🍩', '🫐', '🥦', '🍤', '🧀', '🍯'] as const;
 
 export const PublicProfileSchema = z.object({
   id: z.string(),
   handle: z.string(),
   displayName: z.string(),
+  avatar: z.string(),
   bio: z.string(),
   createdAt: z.string(),
   postCount: z.number(),
@@ -18,15 +21,19 @@ export type PublicProfile = z.infer<typeof PublicProfileSchema>;
 export const UpdateSocialProfileSchema = z.object({
   handle: z.string().trim().toLowerCase().regex(HANDLE_RE, 'Use 3–20 letters, numbers or underscores'),
   bio: z.string().trim().max(240),
+  avatar: z.string().trim().min(1).max(8),
 });
 
 export const PostSchema = z.object({
   id: z.string(),
   caption: z.string(),
   createdAt: z.string(),
-  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string() }),
+  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string(), avatar: z.string() }),
+  media: z.array(MediaItemSchema),
   recipe: z.object({
     id: z.string(),
+    emoji: z.string(),
+    cover: MediaItemSchema.nullable(),
     title: z.string(),
     summary: z.string(),
     mealType: z.enum(MEAL_TYPES),
@@ -47,7 +54,7 @@ export const CommentSchema = z.object({
   id: z.string(),
   body: z.string(),
   createdAt: z.string(),
-  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string() }),
+  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string(), avatar: z.string() }),
   isMine: z.boolean(),
 });
 export type Comment = z.infer<typeof CommentSchema>;
@@ -55,6 +62,7 @@ export type Comment = z.infer<typeof CommentSchema>;
 export const CreatePostSchema = z.object({
   recipeId: z.string().min(1),
   caption: z.string().trim().max(1000),
+  mediaIds: z.array(z.string().min(1)).max(6).default([]),
 });
 
 export const CreateCommentSchema = z.object({

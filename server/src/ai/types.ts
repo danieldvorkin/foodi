@@ -10,6 +10,9 @@ export interface GenerateInput {
   mealType: string | null;
   /** When tweaking an existing recipe. */
   basedOn: RecipeContent | null;
+  /** Randomize: dishes already seen for this request. */
+  avoidTitles: string[];
+  seed: string | null;
 }
 
 export interface GenerateOutput {

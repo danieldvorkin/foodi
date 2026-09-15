@@ -289,3 +289,67 @@ describe('recipes', () => {
     expect(bad.body.error.code).toBe('validation');
   });
 });
+
+describe('media', () => {
+  let b: Booted;
+  let session: string;
+  beforeEach(async () => {
+    b = await boot();
+    session = await signIn(b);
+    await request(b.base).put('/api/profile').set('cookie', session).set('origin', ORIGIN).send(PROFILE);
+  });
+  afterEach(() => {
+    b.server.close();
+    b.close();
+  });
+
+  /** A 1×1 PNG with a tEXt chunk that a scrubber must remove. */
+  function pngWithText(): Buffer {
+    const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const chunk = (type: string, data: Buffer) => {
+      const len = Buffer.alloc(4);
+      len.writeUInt32BE(data.length);
+      return Buffer.concat([len, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)]);
+    };
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(1, 0);
+    ihdr.writeUInt32BE(1, 4);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+    return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('tEXt', Buffer.from('Comment\0secret location')), chunk('IDAT', Buffer.from([0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01])), chunk('IEND', Buffer.alloc(0))]);
+  }
+
+  it('sniffs type, strips metadata, enforces ownership and visibility', async () => {
+    const gen = await request(b.base).post('/api/recipes/generate').set('cookie', session).set('origin', ORIGIN).send({ prompt: 'soup' });
+    const recipeId = gen.body.recipe.id;
+
+    const junk = await request(b.base).post('/api/media').set('cookie', session).set('origin', ORIGIN).set('content-type', 'image/png').send(Buffer.from('definitely not an image, just text'));
+    expect(junk.status).toBe(400);
+
+    const up = await request(b.base).post(`/api/media?recipeId=${recipeId}`).set('cookie', session).set('origin', ORIGIN).set('content-type', 'application/octet-stream').send(pngWithText());
+    expect(up.status).toBe(201);
+    expect(up.body.media.mime).toBe('image/png');
+    expect(up.body.media.width).toBe(1);
+
+    const file = await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', session).buffer(true).parse((res, cb) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(file.status).toBe(200);
+    expect(file.headers['content-type']).toBe('image/png');
+    expect((file.body as Buffer).includes('secret location')).toBe(false);
+
+    const detail = await request(b.base).get(`/api/recipes/${recipeId}`).set('cookie', session);
+    expect(detail.body.recipe.media).toHaveLength(1);
+
+    // Private recipe → media hidden from others until it is shared.
+    const other = await signIn(b, 'mock-sam');
+    expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', other)).status).toBe(404);
+    await request(b.base).post('/api/social/posts').set('cookie', session).set('origin', ORIGIN).send({ recipeId, caption: '' });
+    expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', other)).status).toBe(200);
+    expect((await request(b.base).delete(`/api/media/${up.body.media.id}`).set('cookie', other).set('origin', ORIGIN)).status).toBe(403);
+    expect((await request(b.base).delete(`/api/media/${up.body.media.id}`).set('cookie', session).set('origin', ORIGIN)).status).toBe(200);
+    expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', session)).status).toBe(404);
+  });
+});

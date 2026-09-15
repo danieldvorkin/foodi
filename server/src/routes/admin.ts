@@ -19,6 +19,7 @@ import { requireRole } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import type { Audit } from '../services/audit.js';
 import type { Settings } from '../services/settings.js';
+import type { MediaStore } from './media.js';
 
 interface Deps {
   db: Db;
@@ -27,9 +28,10 @@ interface Deps {
   settings: Settings;
   audit: Audit;
   providerIds: string[];
+  mediaStore: MediaStore;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -56,6 +58,8 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds }:
       admins: count(`SELECT COUNT(*) AS n FROM users WHERE role = 'admin'`),
       disabledUsers: count('SELECT COUNT(*) AS n FROM users WHERE disabled_at IS NOT NULL'),
       recipes: count('SELECT COUNT(*) AS n FROM recipes'),
+      mediaCount: count('SELECT COUNT(*) AS n FROM media'),
+      mediaBytes: one<{ n: number }>(db, 'SELECT COALESCE(SUM(bytes), 0) AS n FROM media')!.n,
       generations7d: count(`SELECT COUNT(*) AS n FROM generations WHERE created_at > ?`, since7),
       failures7d: count(`SELECT COUNT(*) AS n FROM generations WHERE created_at > ? AND status = 'failed'`, since7),
       medianLatencyMs7d: median,
@@ -209,6 +213,27 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds }:
     res.json({ ok: true });
   });
 
+  // ---- media (moderation) -----------------------------------------------------------------
+  r.get('/media', (_req, res) => {
+    const rows = all<{ id: string; owner_id: string; handle: string; kind: string; mime: string; bytes: number; recipe_id: string | null; post_id: string | null; created_at: string }>(
+      db,
+      `SELECT m.id, m.owner_id, u.handle, m.kind, m.mime, m.bytes, m.recipe_id, m.post_id, m.created_at FROM media m JOIN users u ON u.id = m.owner_id ORDER BY m.created_at DESC LIMIT 300`,
+    );
+    res.json({ media: rows.map((x) => ({ id: x.id, ownerId: x.owner_id, handle: x.handle, kind: x.kind, mime: x.mime, bytes: x.bytes, recipeId: x.recipe_id, postId: x.post_id, createdAt: x.created_at })) });
+  });
+
+  r.delete('/media/:id', async (req, res, next) => {
+    try {
+      const row = one<{ id: string; owner_id: string }>(db, 'SELECT id, owner_id FROM media WHERE id = ?', req.params['id']);
+      if (!row) throw notFound('No such file.');
+      await mediaStore.remove(row.id);
+      audit.record(req.user!.id, 'media.delete', 'media', row.id, { owner: row.owner_id });
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
+  });
+
   // ---- generations ------------------------------------------------------------------------
   interface GenRow { id: string; user_id: string; display_name: string | null; vendor: string; model: string; status: 'ok' | 'failed'; latency_ms: number; input_tokens: number | null; output_tokens: number | null; error_code: string | null; recipe_id: string | null; created_at: string }
   const GEN_SELECT = `SELECT g.*, u.display_name FROM generations g LEFT JOIN users u ON u.id = g.user_id`;
@@ -234,6 +259,7 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds }:
         providers: providerIds,
         mockEnabled: config.enableMockProvider,
         models: { anthropic: config.anthropic.model, openai: config.openai.model },
+        uploadDir: mediaStore.root,
         bootstrapFirstAdmin: config.bootstrapFirstAdmin,
         adminEmails: config.adminEmails,
         cookieSecure: config.cookieSecure,

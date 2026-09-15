@@ -136,3 +136,28 @@
     flex-wrap: wrap;
   }
 }
+.media-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-4);
+}
+.media-admin-item {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--plate);
+}
+.media-admin-item img,
+.media-admin-item video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: var(--flour);
+}
+.media-admin-item figcaption {
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}

@@ -21,6 +21,7 @@ import { AdminCommunity, adminCommunityLoader } from './routes/admin/community';
 import { AdminGenerations, adminGenerationsLoader } from './routes/admin/generations';
 import { AdminSettings, adminSettingsLoader } from './routes/admin/settings';
 import { AdminAudit, adminAuditLoader } from './routes/admin/audit';
+import { AdminMedia, adminMediaLoader } from './routes/admin/media';
 
 export const router = createBrowserRouter([
   {
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
           { path: 'users/:id', element: <AdminUser />, loader: adminUserLoader },
           { path: 'recipes', element: <AdminRecipes />, loader: adminRecipesLoader },
           { path: 'community', element: <AdminCommunity />, loader: adminCommunityLoader },
+          { path: 'media', element: <AdminMedia />, loader: adminMediaLoader },
           { path: 'generations', element: <AdminGenerations />, loader: adminGenerationsLoader },
           { path: 'settings', element: <AdminSettings />, loader: adminSettingsLoader },
           { path: 'audit', element: <AdminAudit />, loader: adminAuditLoader },

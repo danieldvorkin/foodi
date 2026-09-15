@@ -14,6 +14,7 @@ const EnvSchema = z.object({
   /** Origin of this API server, used to build OAuth redirect URIs. */
   FOODI_API_ORIGIN: z.string().url().default('http://localhost:4100'),
   FOODI_DB_PATH: z.string().default('./data/foodi.db'),
+  FOODI_UPLOAD_DIR: z.string().default('./data/uploads'),
   FOODI_SESSION_SECRET: z.string().min(32),
   /** 32 bytes, hex encoded. Encrypts provider tokens and API keys at rest. */
   FOODI_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/),
@@ -69,6 +70,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     appOrigin: e.FOODI_APP_ORIGIN.replace(/\/$/, ''),
     apiOrigin: e.FOODI_API_ORIGIN.replace(/\/$/, ''),
     dbPath: e.FOODI_DB_PATH,
+    uploadDir: e.FOODI_UPLOAD_DIR,
     sessionSecret: e.FOODI_SESSION_SECRET,
     encryptionKey: Buffer.from(e.FOODI_ENCRYPTION_KEY, 'hex'),
     cookieSecure: e.FOODI_COOKIE_SECURE ?? isProd,

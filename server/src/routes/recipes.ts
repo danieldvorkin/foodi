@@ -18,6 +18,7 @@ import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { getProfile } from './profile.js';
+import { coverForRecipe, mediaForRecipe } from './media.js';
 
 export interface RecipeRow {
   id: string;
@@ -35,7 +36,11 @@ export interface RecipeRow {
   updated_at: string;
 }
 
-export function toRecipe(row: RecipeRow, warnings: string[]): Recipe {
+export function parseContent(row: Pick<RecipeRow, 'content'>): RecipeContent {
+  return RecipeContentSchema.parse(JSON.parse(row.content));
+}
+
+export function toRecipe(db: Db, row: RecipeRow, warnings: string[]): Recipe {
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -45,16 +50,19 @@ export function toRecipe(row: RecipeRow, warnings: string[]): Recipe {
     provider: row.provider,
     model: row.model,
     warnings,
-    content: JSON.parse(row.content) as RecipeContent,
+    media: mediaForRecipe(db, row.id),
+    content: parseContent(row),
   };
 }
 
-export function toSummary(row: RecipeRow, warnings: string[]): RecipeSummary {
-  const c = JSON.parse(row.content) as RecipeContent;
+export function toSummary(db: Db, row: RecipeRow, warnings: string[]): RecipeSummary {
+  const c = parseContent(row);
   return {
     id: row.id,
     createdAt: row.created_at,
     favorite: Boolean(row.favorite),
+    emoji: c.emoji,
+    cover: coverForRecipe(db, row.id),
     title: c.title,
     summary: c.summary,
     mealType: c.mealType,
@@ -104,7 +112,7 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
   r.get('/', (req, res) => {
     const profile = getProfile(db, req.user!.id);
     const rows = all<RecipeRow>(db, 'SELECT * FROM recipes WHERE user_id = ? ORDER BY favorite DESC, created_at DESC LIMIT 200', req.user!.id);
-    res.json({ recipes: rows.map((row) => toSummary(row, allergenWarnings(JSON.parse(row.content), profile))) });
+    res.json({ recipes: rows.map((row) => toSummary(db, row, allergenWarnings(parseContent(row), profile))) });
   });
 
   r.post('/generate', async (req, res, next) => {
@@ -113,19 +121,21 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
       const userId = req.user!.id;
       const profile = getProfile(db, userId);
       if (!profile) throw badRequest('Finish onboarding before generating recipes.');
-      if (!body.prompt && body.ingredientIds.length === 0 && !body.basedOnRecipeId) throw badRequest('Tell us what you feel like, or pick some ingredients.');
+      if (!body.prompt && body.ingredientIds.length === 0 && !body.basedOnRecipeId && body.avoidTitles.length === 0) throw badRequest('Tell us what you feel like, or pick some ingredients.');
 
       const requested = body.ingredientIds.map((id) => getIngredient(id)).filter((i): i is NonNullable<typeof i> => Boolean(i));
-      const basedOn = body.basedOnRecipeId ? (JSON.parse(loadVisible(body.basedOnRecipeId, userId).content) as RecipeContent) : null;
+      const basedOn = body.basedOnRecipeId ? parseContent(loadVisible(body.basedOnRecipeId, userId)) : null;
 
       const result = await ai.generate(userId, {
         profile,
-        prompt: body.prompt || (requested.length ? `Something good with what I picked.` : 'Adjust this recipe.'),
+        prompt: body.prompt || (requested.length ? 'Something good with what I picked.' : basedOn ? 'Adjust this recipe.' : 'Surprise me with something different.'),
         requestedIngredients: requested,
         servings: body.servings ?? basedOn?.servings ?? profile.householdSize,
         timeBudgetMinutes: body.timeBudgetMinutes ?? profile.timeBudgetMinutes,
         mealType: body.mealType ?? null,
         basedOn,
+        avoidTitles: body.avoidTitles,
+        seed: body.seed ?? null,
       });
 
       const id = newId('rcp');
@@ -147,7 +157,7 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
       );
       ai.linkRecipeId(result.generationId, id);
       const row = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', id)!;
-      res.status(201).json({ recipe: toRecipe(row, allergenWarnings(result.content, profile)) });
+      res.status(201).json({ recipe: toRecipe(db, row, allergenWarnings(result.content, profile)) });
     } catch (e) {
       next(e);
     }
@@ -170,19 +180,19 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
       t,
     );
     const row = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', id)!;
-    res.status(201).json({ recipe: toRecipe(row, allergenWarnings(content, getProfile(db, userId))) });
+    res.status(201).json({ recipe: toRecipe(db, row, allergenWarnings(content, getProfile(db, userId))) });
   });
 
   r.get('/:id', (req, res) => {
     const userId = req.user!.id;
     const row = loadVisible(req.params['id']!, userId);
-    const author = one<{ handle: string; display_name: string | null }>(db, 'SELECT handle, display_name FROM users WHERE id = ?', row.user_id);
+    const author = one<{ handle: string; display_name: string | null; avatar_emoji: string }>(db, 'SELECT handle, display_name, avatar_emoji FROM users WHERE id = ?', row.user_id);
     res.json({
-      recipe: toRecipe(row, allergenWarnings(JSON.parse(row.content), getProfile(db, userId))),
+      recipe: toRecipe(db, row, allergenWarnings(parseContent(row), getProfile(db, userId))),
       isMine: row.user_id === userId,
       source: row.source,
       visibility: row.visibility,
-      author: author ? { handle: author.handle, displayName: author.display_name ?? author.handle } : null,
+      author: author ? { handle: author.handle, displayName: author.display_name ?? author.handle, avatar: author.avatar_emoji } : null,
     });
   });
 
@@ -193,7 +203,7 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
     const content = postProcess(completeAuthored(parse(AuthoredRecipeSchema, req.body)), getProfile(db, userId) ?? ({} as never));
     run(db, 'UPDATE recipes SET title = ?, content = ?, updated_at = ? WHERE id = ?', content.title, JSON.stringify(content), now(), row.id);
     const fresh = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', row.id)!;
-    res.json({ recipe: toRecipe(fresh, allergenWarnings(content, getProfile(db, userId))) });
+    res.json({ recipe: toRecipe(db, fresh, allergenWarnings(content, getProfile(db, userId))) });
   });
 
   r.post('/:id/favorite', (req, res) => {

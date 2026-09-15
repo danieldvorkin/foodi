@@ -23,6 +23,43 @@ export const INGREDIENT_CATEGORIES = [
 ] as const;
 export type IngredientCategory = (typeof INGREDIENT_CATEGORIES)[number];
 
+export const CATEGORY_EMOJI: Record<IngredientCategory, string> = {
+  vegetables: '🥬',
+  fruit: '🍎',
+  meat: '🥩',
+  poultry: '🍗',
+  seafood: '🐟',
+  'eggs & dairy': '🥚',
+  'grains & pasta': '🌾',
+  legumes: '🫘',
+  'nuts & seeds': '🥜',
+  'herbs & spices': '🌿',
+  'oils & condiments': '🫒',
+  baking: '🧁',
+};
+
+/** Specific emoji where one exists; everything else falls back to its category. */
+const INGREDIENT_EMOJI: Record<string, string> = {
+  onion: '🧅', 'red-onion': '🧅', shallot: '🧅', garlic: '🧄', ginger: '🫚', tomato: '🍅', 'cherry-tomato': '🍅', 'canned-tomatoes': '🥫', 'tomato-paste': '🥫',
+  'bell-pepper': '🫑', chili: '🌶️', carrot: '🥕', potato: '🥔', 'sweet-potato': '🍠', 'butternut-squash': '🎃', pumpkin: '🎃', zucchini: '🥒', eggplant: '🍆', cucumber: '🥒',
+  broccoli: '🥦', cauliflower: '🥦', cabbage: '🥬', kale: '🥬', spinach: '🥬', lettuce: '🥬', mushroom: '🍄', corn: '🌽', peas: '🫛', 'green-beans': '🫛', avocado: '🥑', olives: '🫒', leek: '🧅',
+  lemon: '🍋', lime: '🍋‍🟩', orange: '🍊', apple: '🍎', pear: '🍐', banana: '🍌', berries: '🫐', mango: '🥭', pineapple: '🍍', grapes: '🍇', dates: '🌴', 'coconut-milk': '🥥',
+  'ground-beef': '🥩', 'beef-steak': '🥩', 'beef-stew': '🥩', 'pork-chop': '🥩', 'pork-shoulder': '🥩', bacon: '🥓', pancetta: '🥓', sausage: '🌭', chorizo: '🌭', lamb: '🍖',
+  'chicken-breast': '🍗', 'chicken-thigh': '🍗', 'whole-chicken': '🍗', 'chicken-wings': '🍗', 'ground-turkey': '🦃', 'ground-chicken': '🍗', 'duck-breast': '🦆',
+  salmon: '🐟', cod: '🐟', trout: '🐟', 'tuna-canned': '🥫', shrimp: '🍤', mussels: '🦪', squid: '🦑', anchovies: '🐟',
+  egg: '🥚', butter: '🧈', milk: '🥛', 'oat-milk': '🥛', 'heavy-cream': '🥛', yogurt: '🥣', 'sour-cream': '🥣', parmesan: '🧀', cheddar: '🧀', mozzarella: '🧀', feta: '🧀', 'goat-cheese': '🧀', gruyere: '🧀', 'cream-cheese': '🧀', ricotta: '🧀', tofu: '🧊', tempeh: '🧊',
+  rice: '🍚', 'arborio-rice': '🍚', 'brown-rice': '🍚', quinoa: '🌾', pasta: '🍝', 'gf-pasta': '🍝', 'egg-noodles': '🍜', 'rice-noodles': '🍜', couscous: '🌾', bulgur: '🌾', oats: '🥣', bread: '🍞', tortilla: '🌮', pita: '🫓', breadcrumbs: '🍞', polenta: '🌽',
+  chickpeas: '🫘', 'black-beans': '🫘', 'kidney-beans': '🫘', 'pinto-beans': '🫘', 'white-beans': '🫘', lentils: '🫘', edamame: '🫛',
+  almonds: '🌰', walnuts: '🌰', pecans: '🌰', cashews: '🌰', peanuts: '🥜', 'peanut-butter': '🥜', 'almond-butter': '🌰', 'pine-nuts': '🌰', 'sesame-seeds': '🌱', tahini: '🌱', 'sunflower-seeds': '🌻', 'chia-seeds': '🌱', 'pumpkin-seeds': '🎃',
+  salt: '🧂', 'black-pepper': '🌶️', 'chili-flakes': '🌶️', cayenne: '🌶️', 'chili-powder': '🌶️', basil: '🌿', parsley: '🌿', cilantro: '🌿', mint: '🌿', dill: '🌿', chives: '🌿', rosemary: '🌿', thyme: '🌿', 'bay-leaf': '🍃', cinnamon: '🪵', vanilla: '🌼',
+  'olive-oil': '🫒', 'vegetable-oil': '🫙', 'sesame-oil': '🫙', 'coconut-oil': '🥥', 'soy-sauce': '🍶', tamari: '🍶', 'fish-sauce': '🐟', vinegar: '🍶', 'rice-vinegar': '🍶', balsamic: '🍶', dijon: '🟡', mayonnaise: '🥚', ketchup: '🍅', 'hot-sauce': '🌶️', miso: '🍲', gochujang: '🌶️', harissa: '🌶️', 'curry-paste': '🍛', honey: '🍯', 'maple-syrup': '🍁', stock: '🍲', capers: '🫙', 'white-wine': '🍷',
+  flour: '🌾', 'gf-flour': '🌾', 'almond-flour': '🌰', cornstarch: '🌽', sugar: '🍬', 'brown-sugar': '🍬', 'baking-powder': '🧁', 'baking-soda': '🧁', yeast: '🍞', cocoa: '🍫', 'dark-chocolate': '🍫', 'puff-pastry': '🥐',
+};
+
+export function ingredientEmoji(i: { id: string; category: IngredientCategory }): string {
+  return INGREDIENT_EMOJI[i.id] ?? CATEGORY_EMOJI[i.category];
+}
+
 export type AnimalSource =
   | 'beef'
   | 'pork'
@@ -38,6 +75,7 @@ export type Storage = 'pantry' | 'fridge' | 'freezer' | 'counter';
 
 export interface Ingredient {
   id: string;
+  emoji: string;
   name: string;
   plural: string;
   category: IngredientCategory;
@@ -107,6 +145,7 @@ function build(d: Def): Ingredient {
   if (gluten && !allergens.includes('gluten')) allergens.push('gluten');
   return {
     id: d.id,
+    emoji: INGREDIENT_EMOJI[d.id] ?? CATEGORY_EMOJI[d.cat],
     name: d.name,
     plural: d.plural ?? d.name,
     category: d.cat,

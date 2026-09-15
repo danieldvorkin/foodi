@@ -43,6 +43,8 @@ export function authRoutes({ config, log, store, providers, settings, audit }: D
       role: user.role,
       displayName: user.display_name,
       email: user.email,
+      avatar: user.avatar_emoji,
+      handle: user.handle,
       vendor: cred?.vendor ?? 'mock',
       credentialKind: cred?.kind ?? 'api_key',
       hasProfile: store.hasProfile(user.id),

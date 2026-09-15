@@ -12,6 +12,7 @@ export interface UserRow {
   email: string | null;
   handle: string;
   bio: string;
+  avatar_emoji: string;
   disabled_at: string | null;
   created_at: string;
   last_seen_at: string | null;

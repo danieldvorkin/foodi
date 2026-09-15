@@ -51,6 +51,11 @@ export function AdminSettings() {
             <p className="hint">0 means no limit. Each person pays their own vendor bill; this only caps runaway use.</p>
           </div>
           <div className="field">
+            <label htmlFor="upload">Upload space per person (MB)</label>
+            <input id="upload" className="input" type="number" min={0} max={100000} value={s.maxUploadMbPerUser} onChange={(e) => setS({ ...s, maxUploadMbPerUser: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />
+            <p className="hint">0 turns uploads off. Files are stored on this server’s disk.</p>
+          </div>
+          <div className="field">
             <label htmlFor="maint">Banner on the sign-in page</label>
             <input id="maint" className="input" value={s.maintenanceMessage} onChange={(e) => setS({ ...s, maintenanceMessage: e.target.value })} maxLength={300} placeholder="e.g. Down for maintenance tonight 10–11pm" />
           </div>
@@ -83,6 +88,8 @@ export function AdminSettings() {
             <dd>{server.models.anthropic}</dd>
             <dt>OpenAI model</dt>
             <dd>{server.models.openai}</dd>
+            <dt>Uploads folder</dt>
+            <dd style={{ wordBreak: 'break-all' }}>{server.uploadDir}</dd>
             <dt>First sign-in becomes admin</dt>
             <dd>{server.bootstrapFirstAdmin ? 'yes' : 'no'}</dd>
             <dt>Admin emails</dt>

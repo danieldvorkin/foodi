@@ -7,15 +7,16 @@ import type {
   Comment,
   GenerationLog,
   Me,
+  MediaItem,
   Post,
   Profile,
   PublicProfile,
   Recipe,
   RecipeSummary,
 } from '@foodi/shared';
-import { api } from './client';
+import { api, ApiError } from './client';
 
-export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, Comment, GenerationLog, Me, Post, Profile, PublicProfile, Recipe, RecipeSummary };
+export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, Comment, GenerationLog, Me, MediaItem, Post, Profile, PublicProfile, Recipe, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -38,13 +39,13 @@ export interface RecipeDetail {
   isMine: boolean;
   source: 'ai' | 'user';
   visibility: 'private' | 'public';
-  author: { handle: string; displayName: string } | null;
+  author: { handle: string; displayName: string; avatar: string } | null;
 }
 
 export const recipes = {
   list: () => api<{ recipes: RecipeSummary[] }>('/recipes'),
   get: (id: string) => api<RecipeDetail>(`/recipes/${encodeURIComponent(id)}`),
-  generate: (body: { prompt: string; ingredientIds: string[]; basedOnRecipeId?: string; servings?: number; timeBudgetMinutes?: number; mealType?: string }) =>
+  generate: (body: { prompt: string; ingredientIds: string[]; basedOnRecipeId?: string; servings?: number; timeBudgetMinutes?: number; mealType?: string; avoidTitles?: string[]; seed?: string }) =>
     api<{ recipe: Recipe }>('/recipes/generate', { method: 'POST', body }),
   create: (body: unknown) => api<{ recipe: Recipe }>('/recipes', { method: 'POST', body }),
   update: (id: string, body: unknown) => api<{ recipe: Recipe }>(`/recipes/${encodeURIComponent(id)}`, { method: 'PUT', body }),
@@ -56,14 +57,45 @@ export const recipes = {
 export const social = {
   feed: (before?: string) => api<{ posts: Post[]; nextBefore: string | null }>(`/social/feed${before ? `?before=${encodeURIComponent(before)}` : ''}`),
   post: (id: string) => api<{ post: Post; comments: Comment[] }>(`/social/posts/${encodeURIComponent(id)}`),
-  createPost: (recipeId: string, caption: string) => api<{ post: Post }>('/social/posts', { method: 'POST', body: { recipeId, caption } }),
+  createPost: (recipeId: string, caption: string, mediaIds: string[] = []) => api<{ post: Post }>('/social/posts', { method: 'POST', body: { recipeId, caption, mediaIds } }),
   deletePost: (id: string) => api<{ ok: true }>(`/social/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   like: (id: string, liked: boolean) => api<{ liked: boolean; likeCount: number }>(`/social/posts/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } }),
   comment: (id: string, body: string) => api<{ comment: Comment }>(`/social/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
   deleteComment: (id: string) => api<{ ok: true }>(`/social/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   profile: (handle: string) => api<{ profile: PublicProfile; posts: Post[] }>(`/social/profiles/${encodeURIComponent(handle)}`),
   myProfile: () => api<{ profile: PublicProfile }>('/social/profile'),
-  updateProfile: (handle: string, bio: string) => api<{ profile: PublicProfile }>('/social/profile', { method: 'PUT', body: { handle, bio } }),
+  updateProfile: (handle: string, bio: string, avatar: string) => api<{ profile: PublicProfile }>('/social/profile', { method: 'PUT', body: { handle, bio, avatar } }),
+};
+
+export const media = {
+  url: (id: string) => `/api/media/${encodeURIComponent(id)}`,
+  mine: () => api<{ media: MediaItem[]; usedBytes: number; capBytes: number }>('/media'),
+  remove: (id: string) => api<{ ok: true }>(`/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Raw-body upload with progress (fetch can't report upload progress). */
+  upload: (file: File, opts: { recipeId?: string; onProgress?: (fraction: number) => void; signal?: AbortSignal } = {}) =>
+    new Promise<MediaItem>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const url = `/api/media${opts.recipeId ? `?recipeId=${encodeURIComponent(opts.recipeId)}` : ''}`;
+      xhr.open('POST', url);
+      xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+      xhr.setRequestHeader('accept', 'application/json');
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) opts.onProgress?.(e.loaded / e.total);
+      };
+      xhr.onerror = () => reject(new ApiError(0, 'network', 'Upload failed. Check your connection and try again.'));
+      xhr.onload = () => {
+        let data: { media?: MediaItem; error?: { code?: string; message?: string } } = {};
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch {
+          /* fallthrough */
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && data.media) resolve(data.media);
+        else reject(new ApiError(xhr.status, data.error?.code ?? 'upload_failed', data.error?.message ?? `Upload failed (${xhr.status})`));
+      };
+      opts.signal?.addEventListener('abort', () => xhr.abort());
+      xhr.send(file);
+    }),
 };
 
 export interface AdminUserDetail {
@@ -91,8 +123,10 @@ export const admin = {
   deleteComment: (id: string) => api<{ ok: true }>(`/admin/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generations: (status?: 'ok' | 'failed') => api<{ generations: GenerationLog[] }>(`/admin/generations${status ? `?status=${status}` : ''}`),
   settings: () =>
-    api<{ settings: AppSettings; server: { env: string; providers: string[]; mockEnabled: boolean; models: { anthropic: string; openai: string }; bootstrapFirstAdmin: boolean; adminEmails: string[]; cookieSecure: boolean } }>('/admin/settings'),
+    api<{ settings: AppSettings; server: { env: string; providers: string[]; mockEnabled: boolean; models: { anthropic: string; openai: string }; uploadDir: string; bootstrapFirstAdmin: boolean; adminEmails: string[]; cookieSecure: boolean } }>('/admin/settings'),
   updateSettings: (patch: Partial<AppSettings>) => api<{ settings: AppSettings }>('/admin/settings', { method: 'PUT', body: patch }),
   audit: () => api<{ entries: AuditEntry[] }>('/admin/audit'),
+  media: () => api<{ media: { id: string; ownerId: string; handle: string; kind: string; mime: string; bytes: number; recipeId: string | null; postId: string | null; createdAt: string }[] }>('/admin/media'),
+  deleteMedia: (id: string) => api<{ ok: true }>(`/admin/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   purgeSessions: () => api<{ ok: true }>('/admin/maintenance/purge-sessions', { method: 'POST' }),
 };

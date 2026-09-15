@@ -114,3 +114,23 @@
     position: static;
   }
 }
+
+.recipe-hero {
+  margin-bottom: var(--s-5);
+}
+.recipe-hero .gallery-hero {
+  max-height: 440px;
+}
+.recipe-title {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+}
+.recipe-photos {
+  margin-bottom: var(--s-6);
+}
+@media (max-width: 640px) {
+  .recipe-title {
+    flex-direction: column;
+  }
+}

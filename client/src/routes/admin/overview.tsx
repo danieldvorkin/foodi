@@ -29,6 +29,10 @@ export function AdminOverview() {
           <div className="l">recipes, all time</div>
         </div>
         <div>
+          <div className="n num">{stats.mediaCount}</div>
+          <div className="l">photos & videos ({(stats.mediaBytes / 1024 / 1024).toFixed(0)} MB)</div>
+        </div>
+        <div>
           <div className="n num">{stats.generations7d}</div>
           <div className="l">generations</div>
         </div>

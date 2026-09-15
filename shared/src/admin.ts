@@ -22,6 +22,8 @@ export const AdminStatsSchema = z.object({
   admins: z.number(),
   disabledUsers: z.number(),
   recipes: z.number(),
+  mediaCount: z.number(),
+  mediaBytes: z.number(),
   generations7d: z.number(),
   failures7d: z.number(),
   medianLatencyMs7d: z.number().nullable(),
@@ -63,6 +65,8 @@ export const AppSettingsSchema = z.object({
   allowSignups: z.boolean(),
   maintenanceMessage: z.string().max(300),
   maxGenerationsPerUserPerDay: z.number().int().min(0).max(10000),
+  /** Per-person upload cap in megabytes. 0 = uploads off. */
+  maxUploadMbPerUser: z.number().int().min(0).max(100000),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

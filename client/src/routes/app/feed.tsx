@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
-import type { Post } from '@foodi/shared';
+import type { MediaItem, Post } from '@foodi/shared';
+import { MediaThumb, MediaUploader } from '../../components/Media';
+import { media as mediaApi } from '../../api/types';
 import { errorMessage } from '../../api/client';
 import { recipes as recipesApi, social } from '../../api/types';
 import { PostCard } from '../../components/PostCard';
@@ -22,6 +24,7 @@ export function FeedPage() {
   const [open, setOpen] = useState(false);
   const [recipeId, setRecipeId] = useState(data.mine[0]?.id ?? '');
   const [caption, setCaption] = useState('');
+  const [attachments, setAttachments] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState(false);
   const posts = [...data.posts, ...more];
 
@@ -36,9 +39,10 @@ export function FeedPage() {
     if (!recipeId) return;
     setBusy(true);
     try {
-      await social.createPost(recipeId, caption.trim());
+      await social.createPost(recipeId, caption.trim(), attachments.map((m) => m.id));
       setOpen(false);
       setCaption('');
+      setAttachments([]);
       toast('Shared');
       setMore([]);
       revalidate();
@@ -57,12 +61,12 @@ export function FeedPage() {
           <p className="muted">What people here are cooking.</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setOpen(true)} disabled={data.mine.length === 0}>
-          Share a recipe
+          📣 Share a recipe
         </button>
       </header>
 
       {posts.length === 0 ? (
-        <Empty title="Quiet in here" action={data.mine.length ? <button type="button" className="btn" onClick={() => setOpen(true)}>Share the first one</button> : <Link to="/app" className="btn">Write a recipe first</Link>}>
+        <Empty title="🦗 Quiet in here" action={data.mine.length ? <button type="button" className="btn" onClick={() => setOpen(true)}>Share the first one</button> : <Link to="/app" className="btn">Write a recipe first</Link>}>
           Nobody has shared a recipe yet.
         </Empty>
       ) : (
@@ -93,6 +97,27 @@ export function FeedPage() {
           <label htmlFor="caption">Caption</label>
           <textarea id="caption" className="textarea" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="How did it go? Anything you changed?" maxLength={1000} />
         </div>
+        <MediaUploader compact onUploaded={(m) => setAttachments((a) => [...a, m])} label="Add a photo of how it turned out" />
+        {attachments.length > 0 && (
+          <div className="gallery gallery-strip">
+            {attachments.map((m) => (
+              <div key={m.id} className="gallery-item">
+                <MediaThumb m={m} size="sm" />
+                <button
+                  type="button"
+                  className="gallery-del"
+                  aria-label="Remove"
+                  onClick={async () => {
+                    await mediaApi.remove(m.id).catch(() => {});
+                    setAttachments((a) => a.filter((x) => x.id !== m.id));
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="row">
           <button type="button" className="btn btn-primary" onClick={share} disabled={busy || !recipeId}>
             {busy ? 'Sharing…' : 'Share'}

@@ -95,21 +95,21 @@ export function Landing() {
             <li>
               <span className="how-n num">1</span>
               <div>
-                <h3>Connect the AI you already pay for</h3>
+                <h3>🔌 Connect the AI you already pay for</h3>
                 <p className="muted">Sign in with ChatGPT, or connect a Claude or OpenAI API key. foodi never bills you for generation — your account does the writing.</p>
               </div>
             </li>
             <li>
               <span className="how-n num">2</span>
               <div>
-                <h3>Answer a few questions once</h3>
+                <h3>📝 Answer a few questions once</h3>
                 <p className="muted">Diet, allergies, dislikes, skill, time, equipment. Every recipe is written against these — allergens are a hard rule, not a suggestion.</p>
               </div>
             </li>
             <li>
               <span className="how-n num">3</span>
               <div>
-                <h3>Ask, drag, cook</h3>
+                <h3>🧺 Ask, drag, cook</h3>
                 <p className="muted">Describe what you feel like or drag ingredients from the library. Then cook mode shows one step at a time with timers, big enough to read from across the counter.</p>
               </div>
             </li>
@@ -118,15 +118,15 @@ export function Landing() {
 
         <section className="also">
           <div>
-            <h3>Share what you make</h3>
-            <p className="muted">Post a recipe you cooked (or wrote yourself), see what other people are making, save the ones you want to try.</p>
+            <h3>📷 Share what you make</h3>
+            <p className="muted">Post photos and videos of what you cooked (or a recipe you wrote yourself), see what other people are making, save the ones you want to try.</p>
           </div>
           <div>
-            <h3>Yours to run</h3>
+            <h3>💻 Yours to run</h3>
             <p className="muted">One SQLite file, one Node process. Runs on your laptop; the admin panel is built in.</p>
           </div>
           <div>
-            <h3>Honest about Claude</h3>
+            <h3>🤝 Honest about Claude</h3>
             <p className="muted">
               Anthropic doesn’t allow apps to sign you in with a Claude account, so “Continue with Claude” uses a Console API key. The OAuth layer is ready the day that changes.
             </p>

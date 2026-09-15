@@ -89,7 +89,7 @@ export function CookPage() {
     return (
       <main className="cook cook-done">
         <div className="cook-done-card">
-          <h1>That’s it. Eat.</h1>
+          <h1>🎉 That’s it. Eat.</h1>
           <p className="muted">
             {c.title} — {c.steps.length} steps, done.
           </p>
@@ -97,8 +97,8 @@ export function CookPage() {
             <Link to={`/app/recipes/${recipe.id}`} className="btn btn-primary btn-lg">
               Back to the recipe
             </Link>
-            <Link to="/app/feed" className="btn btn-lg">
-              Share how it went
+            <Link to={`/app/recipes/${recipe.id}`} className="btn btn-lg" state={{ share: true }}>
+              📷 Share how it went
             </Link>
           </div>
         </div>
@@ -119,7 +119,7 @@ export function CookPage() {
           Step {i + 1} of {c.steps.length}
         </span>
         <button type="button" className="btn btn-quiet" onClick={() => setIngOpen(true)}>
-          Ingredients
+          🧺 Ingredients
         </button>
       </header>
 

@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { getIngredient, INGREDIENT_CATEGORIES, INGREDIENTS, searchIngredients, type Ingredient, type IngredientCategory } from '@foodi/shared';
+import { CATEGORY_EMOJI, getIngredient, INGREDIENT_CATEGORIES, INGREDIENTS, searchIngredients, type Ingredient, type IngredientCategory } from '@foodi/shared';
 
 const BASKET = 'basket';
 
@@ -87,12 +87,12 @@ export function IngredientPicker({ selected, onChange, pantry = [], basketTitle 
             <div className="chips picker-cats" role="tablist" aria-label="Categories">
               {pantry.length > 0 && (
                 <button type="button" role="tab" className="chip" aria-selected={category === 'pantry'} aria-pressed={category === 'pantry'} onClick={() => setCategory('pantry')}>
-                  My pantry
+                  🧺 My pantry
                 </button>
               )}
               {INGREDIENT_CATEGORIES.map((c) => (
                 <button key={c} type="button" role="tab" className="chip" aria-selected={category === c} aria-pressed={category === c} onClick={() => setCategory(c)}>
-                  {c}
+                  {CATEGORY_EMOJI[c]} {c}
                 </button>
               ))}
             </div>
@@ -117,7 +117,12 @@ export function IngredientPicker({ selected, onChange, pantry = [], basketTitle 
           {basketHint && <p className="hint" style={{ marginBottom: 'var(--s-3)' }}>{basketHint}</p>}
           <BasketZone>
             {selected.length === 0 ? (
-              <div className="basket-empty">Drag ingredients here, or tap the + on any tile.</div>
+              <div className="basket-empty">
+                <div style={{ fontSize: 28, marginBottom: 6 }} aria-hidden="true">
+                  🧺
+                </div>
+                Drag ingredients here, or tap the + on any tile.
+              </div>
             ) : (
               <div className="basket-items">
                 {selected.map((id) => {
@@ -147,7 +152,9 @@ type TileProps = React.HTMLAttributes<HTMLDivElement> & {
 function Tile({ ingredient, overlay, inBasket, action, style, className, ...rest }: TileProps) {
   return (
     <div className={`ing-tile${overlay ? ' is-overlay' : ''}${inBasket ? ' in-basket' : ''}${className ? ` ${className}` : ''}`} style={style} {...rest}>
-      <span className="ing-dot" data-cat={ingredient.category} />
+      <span className="ing-emoji" aria-hidden="true">
+        {ingredient.emoji}
+      </span>
       <span className="name">{ingredient.name}</span>
       {action}
     </div>

@@ -2,6 +2,16 @@ import { z } from 'zod';
 
 export const DIFFICULTY = ['easy', 'medium', 'hard'] as const;
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack', 'dessert', 'side', 'drink'] as const;
+export const MEAL_EMOJI: Record<(typeof MEAL_TYPES)[number], string> = {
+  breakfast: '🍳',
+  lunch: '🥪',
+  dinner: '🍽️',
+  snack: '🍿',
+  dessert: '🍰',
+  side: '🥗',
+  drink: '🥤',
+};
+export const DIFFICULTY_EMOJI = { easy: '🟢', medium: '🟡', hard: '🔴' } as const;
 export const DIET_LABELS = [
   'vegan',
   'vegetarian',
@@ -77,6 +87,8 @@ export const SubstitutionSchema = z.object({
 /** What the model must produce. Every field is required (nullable where optional) so the
  *  same JSON schema works for OpenAI strict mode and Anthropic tool input. */
 export const RecipeContentSchema = z.object({
+  /** One emoji that best represents the dish. Shown wherever the recipe appears. */
+  emoji: z.string().trim().min(1).max(8).default('🍽️'),
   title: z.string().trim().min(1).max(120),
   summary: z.string().trim().min(1).max(400),
   cuisine: z.string().trim().max(40).nullable(),
@@ -103,6 +115,17 @@ export type RecipeIngredient = z.infer<typeof RecipeIngredientSchema>;
 export type Step = z.infer<typeof StepSchema>;
 export type Nutrition = z.infer<typeof NutritionSchema>;
 
+export const MediaItemSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['image', 'video']),
+  mime: z.string(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  bytes: z.number(),
+  createdAt: z.string(),
+});
+export type MediaItem = z.infer<typeof MediaItemSchema>;
+
 export const RecipeSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -114,6 +137,7 @@ export const RecipeSchema = z.object({
   model: z.string(),
   /** Allergens in this recipe that intersect the person's profile. Computed server-side. */
   warnings: z.array(z.string()),
+  media: z.array(MediaItemSchema),
   content: RecipeContentSchema,
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
@@ -122,6 +146,8 @@ export const RecipeSummarySchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   favorite: z.boolean(),
+  emoji: z.string(),
+  cover: MediaItemSchema.nullable(),
   title: z.string(),
   summary: z.string(),
   mealType: z.enum(MEAL_TYPES),
@@ -141,6 +167,9 @@ export const GenerateRequestSchema = z.object({
   servings: z.number().int().min(1).max(24).optional(),
   timeBudgetMinutes: z.number().int().min(10).max(240).optional(),
   mealType: z.enum(MEAL_TYPES).optional(),
+  /** For "randomize": dishes to steer away from, and a salt so the offline chef re-rolls. */
+  avoidTitles: z.array(z.string().trim().max(120)).max(5).default([]),
+  seed: z.string().trim().max(40).optional(),
 });
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
 

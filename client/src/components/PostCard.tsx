@@ -6,6 +6,8 @@ import { social } from '../api/types';
 import { minutes, servingsLabel, timeAgo } from '../lib/format';
 import { useToast } from './Toast';
 import { Avatar } from './ui';
+import { MediaGallery } from './Media';
+import { media as mediaApi } from '../api/types';
 
 export function PostCard({ post, detail = false, onDeleted }: { post: Post; detail?: boolean; onDeleted?: () => void }) {
   const toast = useToast();
@@ -40,7 +42,7 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
   return (
     <article className="post">
       <header className="post-head">
-        <Avatar name={post.author.displayName} />
+        <Avatar name={post.author.displayName} emoji={post.author.avatar} />
         <div className="grow" style={{ minWidth: 0 }}>
           <Link to={`/app/u/${post.author.handle}`} className="post-author">
             {post.author.displayName}
@@ -57,26 +59,34 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
         )}
       </header>
       {post.caption && <p className="post-caption">{post.caption}</p>}
+      {post.media.length > 0 && <MediaGallery items={post.media} layout="grid" />}
       <Link to={`/app/recipes/${post.recipe.id}`} className="post-recipe">
-        <div className="stack" style={{ gap: 4 }}>
+        {post.recipe.cover ? (
+          <img className="post-cover" src={mediaApi.url(post.recipe.cover.id)} alt="" loading="lazy" />
+        ) : (
+          <span className="emoji-tile" aria-hidden="true">
+            {post.recipe.emoji}
+          </span>
+        )}
+        <div className="stack grow" style={{ gap: 4, minWidth: 0 }}>
           <h3>{post.recipe.title}</h3>
           <p className="muted small">{post.recipe.summary}</p>
           <p className="muted small num">
-            {minutes(post.recipe.totalMinutes)} · {servingsLabel(post.recipe.servings)} · {post.recipe.difficulty} · {post.recipe.ingredientCount} ingredients
-            {post.recipe.source === 'user' ? ' · written by hand' : ''}
+            ⏱ {minutes(post.recipe.totalMinutes)} · 👥 {servingsLabel(post.recipe.servings)} · {post.recipe.difficulty} · {post.recipe.ingredientCount} ingredients
+            {post.recipe.source === 'user' ? ' · ✍️ written by hand' : ''}
           </p>
         </div>
         <span className="btn btn-sm">Open</span>
       </Link>
       <footer className="post-foot">
         <button type="button" className="chip" aria-pressed={liked} onClick={toggleLike}>
-          {liked ? '♥' : '♡'} {likes}
+          {liked ? '❤️' : '🤍'} {likes}
         </button>
         {detail ? (
-          <span className="chip chip-static">{post.commentCount} comments</span>
+          <span className="chip chip-static">💬 {post.commentCount} comments</span>
         ) : (
           <Link to={`/app/posts/${post.id}`} className="chip">
-            {post.commentCount} {post.commentCount === 1 ? 'comment' : 'comments'}
+            💬 {post.commentCount} {post.commentCount === 1 ? 'comment' : 'comments'}
           </Link>
         )}
       </footer>

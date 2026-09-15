@@ -46,7 +46,7 @@ export function PostPage() {
         <ul className="stack" style={{ gap: 'var(--s-3)' }}>
           {comments.map((c) => (
             <li key={c.id} className="comment">
-              <Avatar name={c.author.displayName} />
+              <Avatar name={c.author.displayName} emoji={c.author.avatar} />
               <div className="grow">
                 <p className="small">
                   <Link to={`/app/u/${c.author.handle}`} className="post-author">

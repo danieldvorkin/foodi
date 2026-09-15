@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, useLoaderData, useNavigate, useRevalidator } from 'react-router';
 import { errorMessage } from '../../api/client';
 import { auth, profile as profileApi, social } from '../../api/types';
+import { AVATAR_EMOJI } from '@foodi/shared';
 import { ProfileForm } from '../../components/ProfileForm';
+import { Avatar, EmojiPicker } from '../../components/ui';
 import { useToast } from '../../components/Toast';
 import { useMe } from './layout';
 
@@ -22,6 +24,7 @@ export function SettingsPage() {
   const [tab, setTab] = useState<'answers' | 'profile' | 'account'>('answers');
   const [handle, setHandle] = useState(data.social.handle);
   const [bio, setBio] = useState(data.social.bio);
+  const [avatar, setAvatar] = useState(data.social.avatar);
   const [busy, setBusy] = useState(false);
 
   async function saveAnswers(p: NonNullable<typeof data.profile>) {
@@ -40,7 +43,7 @@ export function SettingsPage() {
   async function saveSocial() {
     setBusy(true);
     try {
-      await social.updateProfile(handle.trim().toLowerCase(), bio.trim());
+      await social.updateProfile(handle.trim().toLowerCase(), bio.trim(), avatar);
       toast('Profile saved');
       revalidate();
     } catch (e) {
@@ -84,6 +87,13 @@ export function SettingsPage() {
             What others see on the feed. Your page:{' '}
             <Link to={`/app/u/${data.social.handle}`}>@{data.social.handle}</Link>
           </p>
+          <div className="field">
+            <span className="label">Avatar</span>
+            <div className="row" style={{ gap: 'var(--s-4)' }}>
+              <Avatar name={me.displayName ?? ''} emoji={avatar} size="lg" />
+              <EmojiPicker options={AVATAR_EMOJI} value={avatar} onChange={setAvatar} allowCustom />
+            </div>
+          </div>
           <div className="field">
             <label htmlFor="handle">Handle</label>
             <input id="handle" className="input" value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={20} pattern="[a-z0-9_]{3,20}" />

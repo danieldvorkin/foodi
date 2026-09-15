@@ -4,6 +4,7 @@ import { AuthoredRecipeSchema, DIFFICULTY, getIngredient, MEAL_TYPES, type Autho
 import { errorMessage } from '../../api/client';
 import { recipes as recipesApi } from '../../api/types';
 import { IngredientPicker } from '../../components/IngredientPicker';
+import { EmojiPicker } from '../../components/ui';
 import { useToast } from '../../components/Toast';
 import '../../styles/editor.css';
 
@@ -13,6 +14,8 @@ export async function editorLoader({ params }: LoaderFunctionArgs) {
   if (!data.isMine || data.source !== 'user') throw redirect(`/app/recipes/${params['id']}`);
   return { existing: data.recipe };
 }
+
+const RECIPE_EMOJI = ['🍝', '🍲', '🥘', '🍛', '🍜', '🥗', '🍳', '🥙', '🌮', '🍕', '🍔', '🥩', '🍗', '🐟', '🍤', '🥞', '🧁', '🍰', '🍪', '🥐', '🍞', '🥣', '🍚', '🥟', '🍱', '🥪', '🍹', '🍽️'] as const;
 
 const blankStep = (): Step => ({ title: '', text: '', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null });
 const lineFor = (id: string): RecipeIngredient => {
@@ -29,7 +32,7 @@ export function EditorPage() {
   const [d, setD] = useState<Draft>(() =>
     existing
       ? { ...existing.content }
-      : { title: '', summary: '', mealType: 'dinner', servings: 2, totalMinutes: 30, activeMinutes: 20, difficulty: 'easy', cuisine: null, ingredients: [], steps: [blankStep()] },
+      : { emoji: '🍽️', title: '', summary: '', mealType: 'dinner', servings: 2, totalMinutes: 30, activeMinutes: 20, difficulty: 'easy', cuisine: null, ingredients: [], steps: [blankStep()] },
   );
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -87,7 +90,16 @@ export function EditorPage() {
       <section className="editor-meta">
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label htmlFor="title">Title</label>
-          <input id="title" className="input input-lg" value={d.title} onChange={(e) => set('title', e.target.value)} placeholder="Grandma’s Sunday ragù" maxLength={120} />
+          <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'stretch' }}>
+            <span className="emoji-tile" aria-hidden="true" style={{ height: 56 }}>
+              {d.emoji}
+            </span>
+            <input id="title" className="input input-lg" value={d.title} onChange={(e) => set('title', e.target.value)} placeholder="Grandma’s Sunday ragù" maxLength={120} />
+          </div>
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <span className="label">Emoji</span>
+          <EmojiPicker options={RECIPE_EMOJI} value={d.emoji} onChange={(v) => set('emoji', v)} allowCustom />
         </div>
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label htmlFor="summary">One-line summary</label>

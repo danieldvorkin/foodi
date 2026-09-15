@@ -22,6 +22,7 @@ import { errorHandler, notFoundHandler } from './middleware/errors.js';
 import { createMockAuthorizationServer } from './mock/authorization-server.js';
 import { adminRoutes } from './routes/admin.js';
 import { ingredientRoutes } from './routes/ingredients.js';
+import { createMediaStore, mediaRoutes } from './routes/media.js';
 import { profileRoutes } from './routes/profile.js';
 import { recipeRoutes } from './routes/recipes.js';
 import { socialRoutes } from './routes/social.js';
@@ -41,6 +42,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const settings = createSettings(db);
   const audit = createAudit(db);
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
+  const mediaStore = createMediaStore(db, config.uploadDir, log);
 
   // ---- providers --------------------------------------------------------------------------
   const providers: AuthProvider[] = [];
@@ -75,7 +77,8 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
           'default-src': ["'self'"],
           'script-src': ["'self'"],
           'style-src': ["'self'", "'unsafe-inline'"],
-          'img-src': ["'self'", 'data:'],
+          'img-src': ["'self'", 'data:', 'blob:'],
+          'media-src': ["'self'", 'blob:'],
           'font-src': ["'self'"],
           'connect-src': ["'self'"],
           'frame-ancestors': ["'none'"],
@@ -139,7 +142,8 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/recipes/generate', generateLimiter);
   api.use('/recipes', writeLimiter, recipeRoutes(db, ai));
   api.use('/social', writeLimiter, socialRoutes(db));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id) }));
+  api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore }));
   api.use(notFoundHandler);
   app.use('/api', api);
 
@@ -152,7 +156,10 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
 
   app.use(errorHandler(log));
 
-  const sweeper = setInterval(() => store.purgeExpiredSessions(), 6 * 3600_000);
+  const sweeper = setInterval(() => {
+    store.purgeExpiredSessions();
+    void mediaStore.sweepOrphans();
+  }, 6 * 3600_000);
   sweeper.unref();
 
   return {

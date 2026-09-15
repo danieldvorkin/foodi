@@ -3,7 +3,7 @@ import type { Db } from '../db/index.js';
 import { all, run } from '../db/index.js';
 import { now } from '../lib/time.js';
 
-const DEFAULTS: AppSettings = { allowSignups: true, maintenanceMessage: '', maxGenerationsPerUserPerDay: 50 };
+const DEFAULTS: AppSettings = { allowSignups: true, maintenanceMessage: '', maxGenerationsPerUserPerDay: 50, maxUploadMbPerUser: 500 };
 
 export function createSettings(db: Db) {
   function get(): AppSettings {

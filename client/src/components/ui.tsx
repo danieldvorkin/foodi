@@ -1,11 +1,36 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { initials } from '../lib/format';
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
+export function Avatar({ name, emoji, size = 'md' }: { name: string; emoji?: string | null; size?: 'md' | 'lg' }) {
   return (
-    <span className={`avatar${size === 'lg' ? ' avatar-lg' : ''}`} aria-hidden="true">
-      {initials(name) || '·'}
+    <span className={`avatar${size === 'lg' ? ' avatar-lg' : ''}${emoji ? ' avatar-emoji' : ''}`} aria-hidden="true">
+      {emoji || initials(name) || '·'}
     </span>
+  );
+}
+
+export function EmojiPicker({ options, value, onChange, allowCustom }: { options: readonly string[]; value: string; onChange: (v: string) => void; allowCustom?: boolean }) {
+  return (
+    <div className="row" style={{ gap: 'var(--s-3)' }}>
+      <div className="emoji-pick" role="radiogroup">
+        {options.map((e) => (
+          <button key={e} type="button" role="radio" aria-checked={value === e} aria-pressed={value === e} onClick={() => onChange(e)} aria-label={e}>
+            {e}
+          </button>
+        ))}
+      </div>
+      {allowCustom && (
+        <input
+          className="input"
+          style={{ width: 72, minHeight: 40, textAlign: 'center', fontSize: 20 }}
+          value={options.includes(value) ? '' : value}
+          placeholder="✨"
+          maxLength={8}
+          aria-label="Custom emoji"
+          onChange={(e) => e.target.value && onChange(e.target.value)}
+        />
+      )}
+    </div>
   );
 }
 

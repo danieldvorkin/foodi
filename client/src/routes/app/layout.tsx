@@ -25,21 +25,21 @@ export function AppLayout() {
           <Wordmark to="/app" />
           <nav aria-label="Main">
             <NavLink to="/app" end className="navlink">
-              Cook
+              🍳 Cook
             </NavLink>
             <NavLink to="/app/feed" className="navlink">
-              Feed
+              📣 Feed
             </NavLink>
             <NavLink to="/app/recipes/new" className="navlink">
-              Write a recipe
+              ✍️ Write
             </NavLink>
             {me.role === 'admin' && (
               <NavLink to="/admin" className="navlink">
                 Admin
               </NavLink>
             )}
-            <NavLink to="/app/settings" className="navlink" aria-label="Settings" title={me.displayName ?? 'Settings'}>
-              <Avatar name={me.displayName ?? '?'} />
+            <NavLink to={`/app/u/${me.handle}`} className="navlink" aria-label="Your profile" title={me.displayName ?? 'Profile'}>
+              <Avatar name={me.displayName ?? '?'} emoji={me.avatar} />
             </NavLink>
             <button
               type="button"

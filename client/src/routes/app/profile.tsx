@@ -15,7 +15,7 @@ export function ProfilePage() {
   return (
     <main className="page-narrow stack-lg feed">
       <header className="profile-head">
-        <Avatar name={profile.displayName} size="lg" />
+        <Avatar name={profile.displayName} emoji={profile.avatar} size="lg" />
         <div className="grow stack" style={{ gap: 4 }}>
           <h1>{profile.displayName}</h1>
           <p className="muted">

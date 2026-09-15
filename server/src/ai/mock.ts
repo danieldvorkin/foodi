@@ -1,4 +1,4 @@
-import { getIngredient, INGREDIENTS, type Ingredient, type Profile, type RecipeContent, type RecipeIngredient, type Step } from '@foodi/shared';
+import { getIngredient, INGREDIENTS, matchIngredient, type Ingredient, type Profile, type RecipeContent, type RecipeIngredient, type Step } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import type { AiClient, GenerateInput, GenerateOutput } from './types.js';
 
@@ -12,7 +12,7 @@ export function createMockClient(): AiClient {
     vendor: 'mock',
     model: 'mock-chef-1',
     async generate(input: GenerateInput, _credential: CredentialPayload): Promise<GenerateOutput> {
-      await new Promise((r) => setTimeout(r, 400 + hash(input.prompt) % 600));
+      await new Promise((r) => setTimeout(r, 400 + (hash(input.prompt + (input.seed ?? '')) % 600)));
       return { content: compose(input), model: 'mock-chef-1', usage: { inputTokens: 900, outputTokens: 1400 } };
     },
   };
@@ -23,13 +23,14 @@ type Style = 'skillet' | 'traybake' | 'soup' | 'bowl' | 'pasta' | 'stir-fry' | '
 function pickStyle(prompt: string, seed: number): Style {
   const p = prompt.toLowerCase();
   const table: [RegExp, Style][] = [
-    [/pasta|spaghetti|noodle|penne/, 'pasta'],
+    [/pasta|spaghetti|noodle|penne|mac\b|macaroni|lasagn|carbonara|ragu|bolognese/, 'pasta'],
     [/soup|broth|stew|chowder/, 'soup'],
     [/curry|coconut|dal|masala/, 'curry'],
     [/stir.?fry|wok|asian|thai|chinese|korean/, 'stir-fry'],
     [/salad|fresh|light|cold/, 'salad'],
     [/bowl|grain|quinoa|rice bowl/, 'bowl'],
     [/roast|tray|sheet.?pan|oven|bake/, 'traybake'],
+    [/taco|burrito|fajita|quesadilla|wrap|skillet|pan\b|fry|saut/, 'skillet'],
   ];
   for (const [re, s] of table) if (re.test(p)) return s;
   const styles: Style[] = ['skillet', 'traybake', 'bowl', 'pasta', 'stir-fry', 'curry'];
@@ -73,14 +74,19 @@ function firstAllowed(profile: Profile, ids: string[], fallback: string | null =
 
 function compose(input: GenerateInput): RecipeContent {
   const { profile } = input;
-  const seed = hash(input.prompt + input.requestedIngredients.map((i) => i.id).join(','));
-  const style = pickStyle(input.prompt, seed);
+  const seed = hash(input.prompt + input.requestedIngredients.map((i) => i.id).join(',') + (input.seed ?? ''));
+  const keyworded = pickStyle(input.prompt, seed);
+  const styles: Style[] = ['skillet', 'traybake', 'soup', 'bowl', 'pasta', 'stir-fry', 'salad', 'curry'];
+  // A re-roll must land somewhere new: rotate away from the styles already shown.
+  const style: Style = input.avoidTitles.length ? styles[(styles.indexOf(keyworded) + 1 + (seed % (styles.length - 1))) % styles.length]! : keyworded;
   const metric = profile.units === 'metric';
   const servings = input.servings;
   const mult = servings / 2;
   const q = (n: number) => String(Math.round(n * mult * 2) / 2).replace(/\.0$/, '');
 
-  const requested = input.requestedIngredients.filter((i) => allowed(profile, i));
+  // Ingredients the person named in the request count as requested too ("mac n cheese" → pasta, cheddar).
+  const mentioned = mentionedIngredients(input.prompt).filter((i) => !input.requestedIngredients.some((r) => r.id === i.id));
+  const requested = [...input.requestedIngredients, ...mentioned].filter((i) => allowed(profile, i));
   const protein =
     requested.find((i) => ['meat', 'poultry', 'seafood', 'legumes'].includes(i.category) || ['tofu', 'tempeh', 'egg'].includes(i.id)) ??
     (profile.diet === 'vegan'
@@ -223,7 +229,11 @@ function compose(input: GenerateInput): RecipeContent {
   const kcal = Math.round(all.reduce((a, i) => a + i.nutritionPer100g.kcal, 0) / Math.max(1, all.length) * 3.2);
   const protG = Math.round(all.reduce((a, i) => a + i.nutritionPer100g.protein, 0) / Math.max(1, all.length) * 3);
 
+  const emojiByStyle: Record<Style, string> = { skillet: '🍳', traybake: '🥘', soup: '🍲', bowl: '🥣', pasta: '🍝', 'stir-fry': '🥡', salad: '🥗', curry: '🍛' };
+  const emoji = protein?.id === 'salmon' && style === 'traybake' ? '🐟' : protein?.category === 'poultry' && style === 'skillet' ? '🍗' : emojiByStyle[style];
+
   return {
+    emoji,
     title: input.basedOn ? `${input.basedOn.title} (adjusted)` : names[style],
     summary: input.basedOn
       ? `A reworked version of the original to match: “${input.prompt}”.`
@@ -249,6 +259,26 @@ function compose(input: GenerateInput): RecipeContent {
     storage: 'Keeps 3 days in the fridge. Reheat gently with a splash of water.',
     nutritionPerServing: { calories: kcal, proteinGrams: protG, carbsGrams: Math.round(kcal * 0.12), fatGrams: Math.round(kcal * 0.04), fiberGrams: 6, sugarGrams: null, sodiumMg: null },
   };
+}
+
+const MENTION_SYNONYMS: Record<string, string> = { cheese: 'cheddar', cheesy: 'cheddar', mac: 'pasta', macaroni: 'pasta', noodles: 'egg-noodles', greens: 'kale', fish: 'cod', chicken: 'chicken-thigh', beef: 'ground-beef', steak: 'beef-steak', prawns: 'shrimp', beans: 'black-beans', eggs: 'egg', potatoes: 'potato', tomatoes: 'tomato', mushrooms: 'mushroom', peppers: 'bell-pepper', spuds: 'potato' };
+
+function mentionedIngredients(prompt: string): Ingredient[] {
+  const words = prompt.toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter(Boolean);
+  const found = new Map<string, Ingredient>();
+  for (let i = 0; i < words.length; i++) {
+    for (const len of [3, 2, 1]) {
+      const phrase = words.slice(i, i + len).join(' ');
+      if (!phrase) continue;
+      const syn = MENTION_SYNONYMS[phrase];
+      const ing = syn ? getIngredient(syn) : matchIngredient(phrase);
+      if (ing && !found.has(ing.id)) {
+        found.set(ing.id, ing);
+        break;
+      }
+    }
+  }
+  return [...found.values()].filter((i) => i.category !== 'herbs & spices' || ['basil', 'cilantro', 'mint', 'dill'].includes(i.id)).slice(0, 6);
 }
 
 function cap(s: string) {

@@ -23,6 +23,8 @@ export const MeSchema = z.object({
   role: z.enum(ROLES),
   displayName: z.string().nullable(),
   email: z.string().nullable(),
+  avatar: z.string(),
+  handle: z.string(),
   vendor: z.enum(VENDORS),
   credentialKind: z.enum(['oauth', 'api_key']),
   hasProfile: z.boolean(),

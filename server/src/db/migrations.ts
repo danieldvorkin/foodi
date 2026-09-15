@@ -137,4 +137,29 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: 'media-and-avatars',
+    sql: `
+      ALTER TABLE users ADD COLUMN avatar_emoji TEXT NOT NULL DEFAULT '🧑‍🍳';
+
+      -- Uploaded photos and videos. Bytes live on disk under the uploads dir, named by id.
+      CREATE TABLE media (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('image','video')),
+        mime TEXT NOT NULL,
+        ext TEXT NOT NULL,
+        bytes INTEGER NOT NULL,
+        width INTEGER,
+        height INTEGER,
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE CASCADE,
+        post_id TEXT REFERENCES posts(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX media_owner ON media(owner_id);
+      CREATE INDEX media_recipe ON media(recipe_id, position);
+      CREATE INDEX media_post ON media(post_id, position);
+    `,
+  },
 ];
