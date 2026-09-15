@@ -1,0 +1,70 @@
+.feed h1 {
+  font-size: var(--t-31);
+}
+.post {
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  display: grid;
+  gap: var(--s-4);
+}
+.post-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.post-author {
+  font-weight: 500;
+}
+.post-caption {
+  white-space: pre-wrap;
+  max-width: var(--measure);
+}
+.post-recipe {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--ground);
+}
+.post-recipe:hover {
+  text-decoration: none;
+  border-color: var(--line-strong);
+}
+.post-recipe h3 {
+  font-size: var(--t-18);
+}
+.post-foot {
+  display: flex;
+  gap: var(--s-2);
+}
+.comment {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--line);
+}
+.comment p + p {
+  margin-top: 2px;
+  white-space: pre-wrap;
+}
+.comment-box {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: end;
+}
+.comment-box .textarea {
+  min-height: 64px;
+}
+.profile-head {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}

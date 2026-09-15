@@ -79,7 +79,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
           'font-src': ["'self'"],
           'connect-src': ["'self'"],
           'frame-ancestors': ["'none'"],
-          'form-action': ["'self'"],
+          'form-action': ["'self'", config.appOrigin],
           'base-uri': ["'self'"],
           'object-src': ["'none'"],
           ...(config.cookieSecure ? { 'upgrade-insecure-requests': [] } : {}),

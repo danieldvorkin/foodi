@@ -1,0 +1,602 @@
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--plate);
+  color: var(--ink);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), transform var(--fast) var(--ease);
+  text-decoration: none;
+}
+.btn:hover {
+  background: var(--flour);
+  text-decoration: none;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+.btn-primary {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--sage-ink);
+}
+.btn-primary:hover {
+  background: color-mix(in oklab, var(--sage) 88%, var(--ink));
+  border-color: color-mix(in oklab, var(--sage) 88%, var(--ink));
+}
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--stone);
+}
+.btn-quiet:hover {
+  background: var(--flour);
+  color: var(--ink);
+}
+.btn-danger {
+  color: var(--clay);
+  border-color: color-mix(in oklab, var(--clay) 40%, var(--line));
+}
+.btn-danger:hover {
+  background: var(--clay-soft);
+}
+.btn-lg {
+  min-height: 52px;
+  padding: 0 var(--s-5);
+  font-size: var(--t-18);
+  border-radius: var(--r-lg);
+}
+.btn-sm {
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  font-size: var(--t-14);
+  border-radius: var(--r-sm);
+}
+.btn-block {
+  width: 100%;
+}
+.btn-icon {
+  width: 40px;
+  padding: 0;
+}
+
+/* ---------- fields ---------- */
+.field {
+  display: grid;
+  gap: var(--s-2);
+}
+.field > label,
+.label {
+  font-size: var(--t-14);
+  color: var(--stone);
+}
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--plate);
+  color: var(--ink);
+  transition: border-color var(--fast) var(--ease);
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  border-color: var(--sage);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--sage-soft);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--mute);
+}
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.input-lg {
+  min-height: 56px;
+  font-size: var(--t-18);
+  padding-inline: 18px;
+}
+.hint {
+  font-size: var(--t-13);
+  color: var(--stone);
+}
+.error-text {
+  font-size: var(--t-14);
+  color: var(--clay);
+}
+
+/* ---------- chips (toggles) ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--plate);
+  color: var(--ink);
+  font-size: var(--t-14);
+  line-height: 1;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  user-select: none;
+}
+.chip:hover {
+  background: var(--flour);
+}
+.chip[aria-pressed='true'],
+.chip[aria-checked='true'],
+.chip[aria-selected='true'],
+.chip.is-on {
+  background: var(--sage-soft);
+  border-color: var(--sage);
+}
+.chip-static {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--t-13);
+  background: var(--flour);
+  border-color: transparent;
+  color: var(--stone);
+  cursor: default;
+}
+.chip-warn {
+  background: var(--clay-soft);
+  color: var(--clay);
+  border-color: transparent;
+}
+.chip-sage {
+  background: var(--sage-soft);
+  color: var(--sage);
+  border-color: transparent;
+}
+
+/* ---------- surfaces & rules ---------- */
+.card {
+  background: var(--plate);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+.ruled > * {
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.ruled > *:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.notice {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--flour);
+  color: var(--stone);
+  font-size: var(--t-14);
+}
+.notice-warn {
+  background: var(--clay-soft);
+  color: var(--clay);
+}
+.notice-sage {
+  background: var(--sage-soft);
+  color: var(--ink);
+}
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in oklab, var(--ground) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+.topbar nav {
+  display: flex;
+  gap: var(--s-1);
+  margin-left: auto;
+}
+.navlink {
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  color: var(--stone);
+  font-size: var(--t-14);
+  font-weight: 500;
+}
+.navlink:hover {
+  background: var(--flour);
+  color: var(--ink);
+  text-decoration: none;
+}
+.navlink[aria-current='page'] {
+  color: var(--ink);
+  background: var(--flour);
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: var(--t-20);
+  letter-spacing: -0.02em;
+  font-variation-settings: 'opsz' 40;
+}
+.wordmark:hover {
+  text-decoration: none;
+}
+.wordmark svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* ---------- avatar ---------- */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--flour);
+  color: var(--stone);
+  font-size: var(--t-13);
+  font-weight: 600;
+  flex: none;
+}
+.avatar-lg {
+  width: 64px;
+  height: 64px;
+  font-size: var(--t-20);
+}
+
+/* ---------- meta line (time · servings · difficulty) ---------- */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  color: var(--stone);
+  font-size: var(--t-14);
+}
+.meta b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ---------- ruled recipe list ---------- */
+.rlist {
+  display: grid;
+}
+.rlist-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-2) var(--s-5);
+  align-items: baseline;
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--line);
+}
+.rlist-item:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.rlist-item h3 {
+  font-size: var(--t-18);
+}
+.rlist-item a:hover {
+  text-decoration: none;
+}
+.rlist-item .when {
+  color: var(--stone);
+  font-size: var(--t-14);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-14);
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.table th {
+  color: var(--stone);
+  font-weight: 500;
+  font-size: var(--t-13);
+}
+.table tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr:hover td {
+  background: var(--flour);
+}
+.table td.wrap {
+  white-space: normal;
+  min-width: 240px;
+}
+.table .num {
+  text-align: right;
+}
+
+/* ---------- dialog ---------- */
+dialog.sheet {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  color: var(--ink);
+  padding: var(--s-5);
+  width: min(92vw, 520px);
+  margin: auto;
+}
+dialog.sheet::backdrop {
+  background: color-mix(in oklab, var(--ink) 40%, transparent);
+}
+
+/* ---------- toast ---------- */
+.toasts {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  pointer-events: none;
+  z-index: 50;
+}
+.toast {
+  pointer-events: auto;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ground);
+  font-size: var(--t-14);
+  box-shadow: 0 6px 24px color-mix(in oklab, var(--ink) 20%, transparent);
+  animation: toast-in var(--slow) var(--ease);
+}
+.toast-error {
+  background: var(--clay);
+  color: #fff;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- empty / loading ---------- */
+.empty {
+  padding: var(--s-7) var(--s-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  text-align: center;
+  color: var(--stone);
+}
+.empty h3 {
+  color: var(--ink);
+  margin-bottom: var(--s-2);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--sage);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- section headings ---------- */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+.section-head h2 {
+  font-size: var(--t-20);
+}
+
+/* ---------- ingredient tiles (library + basket) ---------- */
+.ing-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--plate);
+  font-size: var(--t-14);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.ing-tile:hover {
+  border-color: var(--line-strong);
+}
+.ing-tile.is-dragging {
+  opacity: 0.35;
+}
+.ing-tile.is-overlay {
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--ink) 18%, transparent);
+  border-color: var(--sage);
+  cursor: grabbing;
+}
+.ing-tile .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ing-tile .add {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--plate);
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--stone);
+}
+.ing-tile .add:hover {
+  background: var(--sage-soft);
+  border-color: var(--sage);
+  color: var(--sage);
+}
+.ing-tile.in-basket {
+  background: var(--sage-soft);
+  border-color: color-mix(in oklab, var(--sage) 50%, var(--line));
+}
+.ing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--mute);
+}
+.ing-dot[data-cat='vegetables'] { background: #7ea35f; }
+.ing-dot[data-cat='fruit'] { background: #d9a441; }
+.ing-dot[data-cat='meat'] { background: #b8635a; }
+.ing-dot[data-cat='poultry'] { background: #d3a17a; }
+.ing-dot[data-cat='seafood'] { background: #6b98b5; }
+.ing-dot[data-cat='eggs & dairy'] { background: #e5d38a; }
+.ing-dot[data-cat='grains & pasta'] { background: #c9b48a; }
+.ing-dot[data-cat='legumes'] { background: #a58c5a; }
+.ing-dot[data-cat='nuts & seeds'] { background: #8f6f4e; }
+.ing-dot[data-cat='herbs & spices'] { background: #5f8a5a; }
+.ing-dot[data-cat='oils & condiments'] { background: #b3a26a; }
+.ing-dot[data-cat='baking'] { background: #b9a7a0; }
+
+.basket {
+  min-height: 140px;
+  padding: var(--s-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.basket.is-over {
+  border-color: var(--sage);
+  border-style: solid;
+  background: var(--sage-soft);
+}
+.basket-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.basket-empty {
+  color: var(--stone);
+  font-size: var(--t-14);
+  text-align: center;
+  padding: var(--s-4) 0;
+}
+
+/* ---------- allergen / diet badges ---------- */
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---------- ingredient picker layout ---------- */
+.picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--s-5);
+  align-items: start;
+}
+.picker-basket {
+  position: sticky;
+  top: 76px;
+}
+.picker-search {
+  margin-bottom: var(--s-3);
+}
+.picker-cats {
+  margin-bottom: var(--s-3);
+}
+.picker-cats .chip {
+  min-height: 32px;
+  font-size: var(--t-13);
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--s-2);
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 2px;
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-3);
+}
+.picker-compact .picker-grid {
+  max-height: 300px;
+}
+@media (max-width: 840px) {
+  .picker {
+    grid-template-columns: 1fr;
+  }
+  .picker-basket {
+    position: static;
+    order: -1;
+  }
+  .picker-grid {
+    max-height: 320px;
+  }
+}

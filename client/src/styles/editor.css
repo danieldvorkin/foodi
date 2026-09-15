@@ -1,0 +1,65 @@
+.editor h1 {
+  font-size: var(--t-31);
+}
+.editor-meta {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.ing-editor {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.ing-line {
+  display: grid;
+  grid-template-columns: 70px 90px minmax(0, 2fr) minmax(0, 1.2fr) auto auto;
+  gap: var(--s-2);
+  align-items: center;
+}
+.ing-line .input {
+  min-height: 38px;
+  padding: 6px 10px;
+}
+.step-editor {
+  display: grid;
+  gap: var(--s-4);
+}
+.step-edit {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+}
+.step-edit-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+}
+.step-edit-extras {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.editor-foot {
+  position: sticky;
+  bottom: 0;
+  padding: var(--s-4) 0;
+  background: color-mix(in oklab, var(--ground) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 900px) {
+  .editor-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ing-line {
+    grid-template-columns: 1fr 1fr;
+  }
+  .step-edit-extras {
+    grid-template-columns: 1fr 1fr;
+  }
+}

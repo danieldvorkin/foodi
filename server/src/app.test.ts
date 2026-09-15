@@ -45,7 +45,7 @@ async function signIn(b: Booted, sub = 'mock-ada'): Promise<string> {
   const cb = new URL(approve.headers['location']!);
   const done = await request(b.base).get(cb.pathname + cb.search).set('cookie', oauthCookie);
   expect(done.status).toBe(302);
-  const session = done.headers['set-cookie']!.map((c: string) => c.split(';')[0]!).find((c: string) => c.startsWith('foodi_session='))!;
+  const session = (done.headers['set-cookie'] as unknown as string[]).map((c) => c.split(';')[0]!).find((c) => c.startsWith('foodi_session='))!;
   expect(session).toBeTruthy();
   return session;
 }
@@ -103,7 +103,7 @@ describe('auth', () => {
     const res = await request(b.base).get('/api/auth/mock/callback?code=abc&state=wrong').set('cookie', oauthCookie);
     expect(res.status).toBe(302);
     expect(res.headers['location']).toContain('/?error=');
-    expect(res.headers['set-cookie']?.some((c: string) => c.startsWith('foodi_session='))).toBeFalsy();
+    expect((res.headers['set-cookie'] as unknown as string[] | undefined)?.some((c) => c.startsWith('foodi_session='))).toBeFalsy();
   });
 
   it('signs in through OAuth+PKCE, first user becomes admin, session cookie is httpOnly', async () => {

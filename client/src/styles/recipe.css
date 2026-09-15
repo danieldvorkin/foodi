@@ -1,0 +1,116 @@
+.recipe-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-6);
+  align-items: start;
+  padding-bottom: var(--s-6);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s-6);
+}
+.recipe-head h1 {
+  font-size: clamp(1.8rem, 4vw, var(--t-49));
+}
+.lede-sm {
+  font-size: var(--t-18);
+  color: var(--stone);
+}
+.recipe-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 200px;
+}
+.recipe-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr);
+  gap: var(--s-7);
+  align-items: start;
+}
+.recipe-ings {
+  position: sticky;
+  top: 76px;
+}
+.ing-list {
+  display: grid;
+}
+.ing-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.ing-row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.ing-row.is-done .ing-text {
+  color: var(--mute);
+  text-decoration: line-through;
+}
+.ing-check {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  cursor: pointer;
+}
+.ing-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sage);
+  transform: translateY(3px);
+  flex: none;
+}
+.step-list {
+  display: grid;
+}
+.step-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--line);
+}
+.step-row:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.step-row h3 {
+  font-size: var(--t-20);
+}
+.step-row p {
+  max-width: var(--measure);
+}
+.step-n {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+  font-size: var(--t-14);
+  color: var(--stone);
+}
+.recipe-notes {
+  margin-top: var(--s-5);
+  display: grid;
+  gap: var(--s-2);
+  max-width: var(--measure);
+}
+.recipe-notes b {
+  font-weight: 500;
+}
+@media (max-width: 900px) {
+  .recipe-head {
+    grid-template-columns: 1fr;
+  }
+  .recipe-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .recipe-body {
+    grid-template-columns: 1fr;
+  }
+  .recipe-ings {
+    position: static;
+  }
+}

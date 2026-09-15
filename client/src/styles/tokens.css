@@ -1,0 +1,103 @@
+/* foodi tokens — neutral, low-glare. See docs/DESIGN.md */
+:root {
+  color-scheme: light dark;
+
+  --ground: #fafaf8;
+  --plate: #ffffff;
+  --flour: #f2f1ed;
+  --line: #e3e1da;
+  --line-strong: #cfccc3;
+  --ink: #2a2926;
+  --stone: #6f6c66;
+  --mute: #9a9791;
+  --sage: #5a6b4b;
+  --sage-ink: #ffffff;
+  --sage-soft: #eef1ea;
+  --clay: #b4432a;
+  --clay-soft: #f8ece8;
+
+  --font: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --t-13: 0.8125rem;
+  --t-14: 0.875rem;
+  --t-16: 1rem;
+  --t-18: 1.125rem;
+  --t-20: 1.25rem;
+  --t-25: 1.5625rem;
+  --t-31: 1.9375rem;
+  --t-39: 2.4375rem;
+  --t-49: 3.0625rem;
+  --t-61: 3.8125rem;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  --measure: 66ch;
+  --page: 1120px;
+  --gutter: clamp(16px, 4vw, 40px);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 140ms;
+  --slow: 320ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #1c1b19;
+    --plate: #242320;
+    --flour: #2c2b27;
+    --line: #3a3833;
+    --line-strong: #4d4a43;
+    --ink: #eceae4;
+    --stone: #a29f97;
+    --mute: #7d7a73;
+    --sage: #8fa57c;
+    --sage-ink: #1c1b19;
+    --sage-soft: #2a3025;
+    --clay: #d9775f;
+    --clay-soft: #3a2822;
+  }
+}
+
+/* Explicit overrides win over the system preference. */
+:root[data-theme='light'] {
+  --ground: #fafaf8;
+  --plate: #ffffff;
+  --flour: #f2f1ed;
+  --line: #e3e1da;
+  --line-strong: #cfccc3;
+  --ink: #2a2926;
+  --stone: #6f6c66;
+  --mute: #9a9791;
+  --sage: #5a6b4b;
+  --sage-ink: #ffffff;
+  --sage-soft: #eef1ea;
+  --clay: #b4432a;
+  --clay-soft: #f8ece8;
+}
+:root[data-theme='dark'] {
+  --ground: #1c1b19;
+  --plate: #242320;
+  --flour: #2c2b27;
+  --line: #3a3833;
+  --line-strong: #4d4a43;
+  --ink: #eceae4;
+  --stone: #a29f97;
+  --mute: #7d7a73;
+  --sage: #8fa57c;
+  --sage-ink: #1c1b19;
+  --sage-soft: #2a3025;
+  --clay: #d9775f;
+  --clay-soft: #3a2822;
+}

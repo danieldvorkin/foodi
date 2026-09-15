@@ -1,0 +1,52 @@
+.onb {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+}
+.onb-top {
+  width: min(100% - 2 * var(--gutter), 760px);
+  margin-inline: auto;
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.onb-progress {
+  height: 2px;
+  background: var(--line);
+}
+.onb-progress span {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  transition: width var(--slow) var(--ease);
+}
+.onb-main {
+  width: min(100% - 2 * var(--gutter), 760px);
+  margin-inline: auto;
+  padding-block: clamp(32px, 6vw, 72px) var(--s-8);
+}
+.onb-card {
+  animation: step-in var(--slow) var(--ease);
+}
+.onb-card h1 {
+  font-size: clamp(1.8rem, 4vw, var(--t-39));
+  margin-bottom: var(--s-2);
+}
+.onb-body {
+  margin-block: var(--s-6);
+}
+.onb-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
