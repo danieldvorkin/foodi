@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="foodi — guided recipes, your AI">
+  <defs>
+    <style>
+      .f { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="1200" height="360" fill="#FAFAF8"/>
+  <!-- wordmark -->
+  <rect x="72" y="72" width="44" height="44" rx="11" fill="#5A6B4B"/>
+  <circle cx="94" cy="94" r="11" fill="none" stroke="#FAFAF8" stroke-width="3.5"/>
+  <circle cx="94" cy="94" r="3.4" fill="#FAFAF8"/>
+  <text x="130" y="108" class="f" font-size="40" font-weight="600" fill="#2A2926" letter-spacing="-1">foodi</text>
+  <text x="72" y="188" class="f" font-size="46" font-weight="600" fill="#2A2926" letter-spacing="-1.2">Cook something tonight.</text>
+  <text x="72" y="238" class="f" font-size="46" font-weight="600" fill="#2A2926" letter-spacing="-1.2">We’ll walk you through it.</text>
+  <text x="72" y="290" class="f" font-size="19" fill="#6F6C66">Recipes written around your answers, by the AI account you already have. One step at a time, with timers.</text>
+  <!-- step card -->
+  <rect x="770" y="58" width="360" height="244" rx="20" fill="#FFFFFF" stroke="#E3E1DA"/>
+  <text x="796" y="94" class="f" font-size="13" fill="#6F6C66">Step 2 of 4</text>
+  <text x="1104" y="94" class="f" font-size="13" fill="#9A9791" text-anchor="end">Crispy chicken thighs</text>
+  <text x="796" y="136" class="f" font-size="26" font-weight="600" fill="#2A2926" letter-spacing="-0.6">Sear skin-side down</text>
+  <text x="796" y="168" class="f" font-size="15" fill="#2A2926">Lay them in a cold pan, skin down. Turn the heat</text>
+  <text x="796" y="190" class="f" font-size="15" fill="#2A2926">to medium and don’t move them until the skin</text>
+  <text x="796" y="212" class="f" font-size="15" fill="#2A2926">releases on its own.</text>
+  <rect x="796" y="236" width="118" height="28" rx="14" fill="#F2F1ED"/>
+  <text x="855" y="255" class="f" font-size="12.5" fill="#6F6C66" text-anchor="middle">chicken thighs</text>
+  <rect x="922" y="236" width="74" height="28" rx="14" fill="#F2F1ED"/>
+  <text x="959" y="255" class="f" font-size="12.5" fill="#6F6C66" text-anchor="middle">olive oil</text>
+  <!-- timer pill -->
+  <rect x="1024" y="232" width="82" height="36" rx="18" fill="#F2F1ED"/>
+  <circle cx="1044" cy="250" r="10" fill="none" stroke="#CFCCC3" stroke-width="3"/>
+  <circle cx="1044" cy="250" r="10" fill="none" stroke="#5A6B4B" stroke-width="3" stroke-dasharray="62.8" stroke-dashoffset="24" stroke-linecap="round" transform="rotate(-90 1044 250)"/>
+  <text x="1062" y="255" class="f" font-size="14" fill="#2A2926">7:48</text>
+  <!-- progress dots -->
+  <rect x="796" y="282" width="22" height="4" rx="2" fill="#CFCCC3"/>
+  <rect x="824" y="282" width="22" height="4" rx="2" fill="#5A6B4B"/>
+  <rect x="852" y="282" width="22" height="4" rx="2" fill="#E3E1DA"/>
+  <rect x="880" y="282" width="22" height="4" rx="2" fill="#E3E1DA"/>
+</svg>

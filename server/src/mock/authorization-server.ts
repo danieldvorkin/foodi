@@ -9,11 +9,13 @@ import { randomToken } from '../lib/crypto.js';
  * external accounts. It is never mounted in production.
  */
 export const MOCK_PERSONAS = [
-  { sub: 'mock-ada', name: 'Ada Lovelace', email: 'ada@example.com' },
-  { sub: 'mock-sam', name: 'Sam Rivera', email: 'sam@example.com' },
-  { sub: 'mock-priya', name: 'Priya Natarajan', email: 'priya@example.com' },
-  { sub: 'mock-jo', name: 'Jo Okafor', email: 'jo@example.com' },
-];
+  { sub: 'mock-ada', name: 'Ada Lovelace', email: 'ada@example.com', role: 'admin' },
+  { sub: 'mock-sam', name: 'Sam Rivera', email: 'sam@example.com', role: 'consumer' },
+  { sub: 'mock-priya', name: 'Priya Natarajan', email: 'priya@example.com', role: 'consumer' },
+  { sub: 'mock-jo', name: 'Jo Okafor', email: 'jo@example.com', role: 'consumer' },
+] as const;
+/** Emails the app treats as admins while the mock provider is enabled. */
+export const MOCK_ADMIN_EMAILS = MOCK_PERSONAS.filter((p) => p.role === 'admin').map((p) => p.email);
 
 interface PendingCode {
   sub: string;
@@ -57,11 +59,17 @@ export async function createMockAuthorizationServer(opts: { issuer: string; clie
       res.status(400).type('text').send('mock-oauth: expected response_type=code with S256 PKCE and state');
       return;
     }
+    // login_hint=<sub> skips the chooser — the one-click "mock admin / mock user" buttons use it.
+    const hinted = MOCK_PERSONAS.find((p) => p.sub === q['login_hint']);
+    if (hinted) {
+      res.redirect(303, issueCode(hinted, q as Record<string, string>));
+      return;
+    }
     const hidden = ['state', 'nonce', 'code_challenge', 'redirect_uri', 'client_id']
       .map((k) => `<input type="hidden" name="${k}" value="${esc(q[k] ?? '')}">`)
       .join('');
     const personas = MOCK_PERSONAS.map(
-      (p) => `<button name="sub" value="${p.sub}"><strong>${esc(p.name)}</strong><span>${esc(p.email)}</span></button>`,
+      (p) => `<button name="sub" value="${p.sub}"><strong>${esc(p.name)}${p.role === 'admin' ? ' · admin' : ''}</strong><span>${esc(p.email)}</span></button>`,
     ).join('');
     res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mock sign-in</title>
 <style>
@@ -80,7 +88,7 @@ small{display:block;margin-top:16px;color:#6F6C66}
 </style></head><body><main>
 <h1>Mock sign-in</h1><p>A pretend identity provider for local development. Pick who to sign in as.</p>
 <form method="post" action="${opts.issuer}/approve">${hidden}${personas}</form>
-<small>Runs the same OAuth + PKCE + OIDC code path as a real provider. First sign-in becomes admin.</small>
+<small>Runs the same OAuth + PKCE + OIDC code path as a real provider. Ada is an admin; everyone else is a consumer.</small>
 </main></body></html>`);
   });
 
@@ -91,22 +99,26 @@ small{display:block;margin-top:16px;color:#6F6C66}
       res.status(400).type('text').send('mock-oauth: bad approval');
       return;
     }
+    res.redirect(303, issueCode(persona, b as Record<string, string>));
+  });
+
+  function issueCode(persona: (typeof MOCK_PERSONAS)[number], q: Record<string, string>): string {
     const code = randomToken(24);
     codes.set(code, {
       sub: persona.sub,
       name: persona.name,
       email: persona.email,
-      nonce: b['nonce'] ?? '',
-      codeChallenge: b['code_challenge'],
-      redirectUri: b['redirect_uri'],
-      clientId: b['client_id'],
+      nonce: q['nonce'] ?? '',
+      codeChallenge: q['code_challenge']!,
+      redirectUri: q['redirect_uri']!,
+      clientId: q['client_id']!,
       expiresAt: Date.now() + 5 * 60_000,
     });
-    const url = new URL(b['redirect_uri']);
+    const url = new URL(q['redirect_uri']!);
     url.searchParams.set('code', code);
-    url.searchParams.set('state', b['state']);
-    res.redirect(303, url.toString());
-  });
+    url.searchParams.set('state', q['state']!);
+    return url.toString();
+  }
 
   router.post('/token', async (req, res) => {
     const b = (req.body ?? {}) as Record<string, string | undefined>;

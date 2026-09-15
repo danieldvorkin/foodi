@@ -19,7 +19,7 @@ import type { Logger } from './lib/logger.js';
 import { attachUser } from './middleware/auth.js';
 import { csrfOriginCheck } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
-import { createMockAuthorizationServer } from './mock/authorization-server.js';
+import { createMockAuthorizationServer, MOCK_ADMIN_EMAILS } from './mock/authorization-server.js';
 import { adminRoutes } from './routes/admin.js';
 import { ingredientRoutes } from './routes/ingredients.js';
 import { createMediaStore, mediaRoutes } from './routes/media.js';
@@ -38,7 +38,12 @@ export interface AppDeps {
 
 export async function createApp({ config, log, aiClients }: AppDeps) {
   const db = openDb(config.dbPath);
-  const store = createAuthStore(db, { encryptionKey: config.encryptionKey, bootstrapFirstAdmin: config.bootstrapFirstAdmin, adminEmails: config.adminEmails });
+  const store = createAuthStore(db, {
+    encryptionKey: config.encryptionKey,
+    bootstrapFirstAdmin: config.bootstrapFirstAdmin,
+    // The mock admin persona is only an admin while the (dev-only) mock provider is on.
+    adminEmails: config.enableMockProvider ? [...config.adminEmails, ...MOCK_ADMIN_EMAILS] : config.adminEmails,
+  });
   const settings = createSettings(db);
   const audit = createAudit(db);
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });

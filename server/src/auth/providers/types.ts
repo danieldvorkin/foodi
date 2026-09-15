@@ -25,7 +25,7 @@ export interface OAuthProvider {
   label: string;
   kind: 'oauth';
   note: string | null;
-  start(input: { state: string; redirectUri: string }): Promise<OAuthStartResult>;
+  start(input: { state: string; redirectUri: string; loginHint?: string | undefined }): Promise<OAuthStartResult>;
   callback(input: {
     code: string;
     redirectUri: string;

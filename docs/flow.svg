@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="220" viewBox="0 0 1200 220" role="img" aria-label="Sign in, answer, connect, cook, share">
+  <defs><style>.f{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}</style></defs>
+  <rect width="1200" height="220" fill="#FAFAF8"/>
+  <g class="f">
+    <!-- 5 tiles -->
+    <g>
+      <rect x="40" y="40" width="200" height="140" rx="16" fill="#FFFFFF" stroke="#E3E1DA"/>
+      <text x="64" y="86" font-size="30">🔑</text>
+      <text x="64" y="124" font-size="16" font-weight="600" fill="#2A2926">Sign in</text>
+      <text x="64" y="148" font-size="13" fill="#6F6C66">Email + password, or SSO</text>
+    </g>
+    <path d="M244 110h30" stroke="#CFCCC3" stroke-width="2"/>
+    <g>
+      <rect x="280" y="40" width="200" height="140" rx="16" fill="#FFFFFF" stroke="#E3E1DA"/>
+      <text x="304" y="86" font-size="30">📝</text>
+      <text x="304" y="124" font-size="16" font-weight="600" fill="#2A2926">Answer once</text>
+      <text x="304" y="148" font-size="13" fill="#6F6C66">Allergies, diet, skill, gear</text>
+    </g>
+    <path d="M484 110h30" stroke="#CFCCC3" stroke-width="2"/>
+    <g>
+      <rect x="520" y="40" width="200" height="140" rx="16" fill="#FFFFFF" stroke="#E3E1DA"/>
+      <text x="544" y="86" font-size="30">🔌</text>
+      <text x="544" y="124" font-size="16" font-weight="600" fill="#2A2926">Connect your AI</text>
+      <text x="544" y="148" font-size="13" fill="#6F6C66">Claude or OpenAI key, or link ChatGPT</text>
+    </g>
+    <path d="M724 110h30" stroke="#CFCCC3" stroke-width="2"/>
+    <g>
+      <rect x="760" y="40" width="200" height="140" rx="16" fill="#FFFFFF" stroke="#E3E1DA"/>
+      <text x="784" y="86" font-size="30">🧺</text>
+      <text x="784" y="124" font-size="16" font-weight="600" fill="#2A2926">Ask, drag, cook</text>
+      <text x="784" y="148" font-size="13" fill="#6F6C66">One step at a time, with timers</text>
+    </g>
+    <path d="M964 110h30" stroke="#CFCCC3" stroke-width="2"/>
+    <g>
+      <rect x="1000" y="40" width="160" height="140" rx="16" fill="#FFFFFF" stroke="#E3E1DA"/>
+      <text x="1024" y="86" font-size="30">📷</text>
+      <text x="1024" y="124" font-size="16" font-weight="600" fill="#2A2926">Share it</text>
+      <text x="1024" y="148" font-size="13" fill="#6F6C66">Photos, feed, saves</text>
+    </g>
+  </g>
+</svg>

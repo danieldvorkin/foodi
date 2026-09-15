@@ -96,7 +96,7 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
     kind: 'oauth',
     note: opts.note ?? null,
 
-    async start({ state, redirectUri }) {
+    async start({ state, redirectUri, loginHint }) {
       const d = await discover();
       const { verifier, challenge } = pkcePair();
       const nonce = randomToken(16);
@@ -109,6 +109,7 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
       url.searchParams.set('nonce', nonce);
       url.searchParams.set('code_challenge', challenge);
       url.searchParams.set('code_challenge_method', 'S256');
+      if (loginHint) url.searchParams.set('login_hint', loginHint);
       for (const [k, v] of Object.entries(opts.extraAuthParams ?? {})) url.searchParams.set(k, v);
       return { url: url.toString(), transaction: { verifier, nonce } };
     },

@@ -428,6 +428,28 @@ describe('password auth', () => {
   });
 });
 
+describe('mock admin button', () => {
+  it('login_hint skips the chooser and Ada is an admin even when she is not the first user', async () => {
+    const b = await boot();
+    try {
+      await signIn(b, 'mock-sam'); // first user → admin by bootstrap
+      const start = await request(b.base).get('/api/auth/mock/start?login_hint=mock-ada&returnTo=/app');
+      const oauthCookie = (start.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
+      const authz = await request(b.base).get(new URL(start.headers['location']!).pathname + new URL(start.headers['location']!).search);
+      expect(authz.status).toBe(303); // no chooser page
+      const cb = new URL(authz.headers['location']!);
+      const done = await request(b.base).get(cb.pathname + cb.search).set('cookie', oauthCookie);
+      const session = (done.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('foodi_session='))!.split(';')[0]!;
+      const me = await request(b.base).get('/api/auth/me').set('cookie', session);
+      expect(me.body.email).toBe('ada@example.com');
+      expect(me.body.role).toBe('admin');
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
 describe('sso-only accounts', () => {
   it('can add an email + password login, then sign in with it', async () => {
     const b = await boot();

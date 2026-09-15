@@ -80,7 +80,8 @@ export function authRoutes({ config, log, store, providers, settings, audit }: D
       const p = byId.get(req.params['provider'] ?? '');
       if (!p || p.kind !== 'oauth') throw notFound('Unknown sign-in provider.');
       const state = randomToken(24);
-      const { url, transaction } = await p.start({ state, redirectUri: redirectUriFor(p) });
+      const hint = typeof req.query['login_hint'] === 'string' ? req.query['login_hint'].slice(0, 100) : undefined;
+      const { url, transaction } = await p.start({ state, redirectUri: redirectUriFor(p), loginHint: hint });
       setOAuthCookie(res, { ...transaction, state, provider: p.id, returnTo: safeReturnTo(req.query['returnTo']) }, config.encryptionKey, cookieOpts);
       res.redirect(302, url);
     } catch (e) {

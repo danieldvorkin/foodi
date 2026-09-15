@@ -60,9 +60,17 @@ export function Landing() {
                     </a>
                   ))}
                   {mock && (
-                    <a className="btn" href={`/api/auth/mock/start?returnTo=${encodeURIComponent(data.returnTo)}`}>
-                      🧪 Mock account <span className="muted small">(dev)</span>
-                    </a>
+                    <>
+                      <a className="btn" href={`/api/auth/mock/start?login_hint=mock-ada&returnTo=${encodeURIComponent(data.returnTo)}`}>
+                        🧪 Mock admin
+                      </a>
+                      <a className="btn" href={`/api/auth/mock/start?login_hint=mock-sam&returnTo=${encodeURIComponent(data.returnTo)}`}>
+                        🧪 Mock user
+                      </a>
+                      <a className="btn btn-quiet" href={`/api/auth/mock/start?returnTo=${encodeURIComponent(data.returnTo)}`}>
+                        Other mock people…
+                      </a>
+                    </>
                   )}
                 </div>
               </div>
