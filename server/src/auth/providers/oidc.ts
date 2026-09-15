@@ -153,6 +153,7 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
         provider: opts.id,
         subject,
         email: typeof claims['email'] === 'string' ? claims['email'] : null,
+        emailVerified: claims['email_verified'] === true,
         displayName:
           (typeof claims['name'] === 'string' && claims['name']) ||
           (typeof claims['preferred_username'] === 'string' && claims['preferred_username']) ||

@@ -71,6 +71,13 @@ function toPost(db: Db, row: PostRow, me: string): Post {
   };
 }
 
+/** After a post is removed, make its recipe private again unless another post still shares it. */
+export function unshareIfOrphan(db: Db, recipeId: string) {
+  if (!one(db, 'SELECT 1 FROM posts WHERE recipe_id = ?', recipeId)) {
+    run(db, `UPDATE recipes SET visibility = 'private', updated_at = ? WHERE id = ?`, now(), recipeId);
+  }
+}
+
 export function socialRoutes(db: Db) {
   const r = Router();
   r.use(requireAuth);
@@ -131,9 +138,7 @@ export function socialRoutes(db: Db) {
     if (post.author_id !== me) throw forbidden('Only the author can delete this post.');
     tx(db, () => {
       run(db, 'DELETE FROM posts WHERE id = ?', post.id);
-      // If nothing else shares the recipe, make it private again.
-      const still = one(db, 'SELECT 1 FROM posts WHERE recipe_id = ?', post.recipe_id);
-      if (!still) run(db, `UPDATE recipes SET visibility = 'private' WHERE id = ?`, post.recipe_id);
+      unshareIfOrphan(db, post.recipe_id);
     });
     res.json({ ok: true });
   });

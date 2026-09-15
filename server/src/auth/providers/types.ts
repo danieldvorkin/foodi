@@ -5,6 +5,8 @@ export interface Identity {
   provider: string;
   subject: string;
   email: string | null;
+  /** True only when the provider itself vouches for the address (OIDC email_verified). */
+  emailVerified: boolean;
   displayName: string | null;
 }
 

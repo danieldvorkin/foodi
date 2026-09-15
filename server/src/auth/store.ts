@@ -55,8 +55,13 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     return candidate;
   }
 
-  function initialRole(email: string | null): Role {
-    if (email && opts.adminEmails.includes(email.toLowerCase())) return 'admin';
+  /** Admin by email list only when the provider verified the address; never from a self-typed email. */
+  function isListedAdmin(identity: Identity): boolean {
+    return Boolean(identity.email && identity.emailVerified && opts.adminEmails.includes(identity.email.toLowerCase()));
+  }
+
+  function initialRole(identity: Identity): Role {
+    if (isListedAdmin(identity)) return 'admin';
     if (opts.bootstrapFirstAdmin) {
       const anyAdmin = one(db, `SELECT 1 FROM users WHERE role = 'admin' LIMIT 1`);
       if (!anyAdmin) return 'admin';
@@ -71,7 +76,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
       db,
       `INSERT INTO users (id, role, display_name, email, handle, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       id,
-      initialRole(identity.email),
+      initialRole(identity),
       identity.displayName,
       identity.email,
       uniqueHandle(identity.displayName ?? identity.email),
@@ -104,7 +109,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
         user = insertUser(identity);
       } else {
         // Promote by email list on every sign-in so ops can add admins without a restart.
-        if (identity.email && opts.adminEmails.includes(identity.email.toLowerCase()) && user.role !== 'admin') {
+        if (isListedAdmin(identity) && user.role !== 'admin') {
           run(db, `UPDATE users SET role = 'admin' WHERE id = ?`, user.id);
           user.role = 'admin';
         }
@@ -138,7 +143,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   function register(input: { email: string; displayName: string; passwordHash: string }): UserRow | null {
     return tx(db, () => {
       if (one(db, `SELECT 1 FROM identities WHERE provider = 'password' AND subject = ?`, input.email)) return null;
-      const user = insertUser({ provider: 'password', subject: input.email, email: input.email, displayName: input.displayName });
+      const user = insertUser({ provider: 'password', subject: input.email, email: input.email, emailVerified: false, displayName: input.displayName });
       run(db, 'INSERT INTO passwords (user_id, hash, updated_at) VALUES (?, ?, ?)', user.id, input.passwordHash, now());
       return user;
     });
@@ -147,9 +152,16 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   /** Give an SSO-only account an email + password login. */
   function addPasswordLogin(userId: string, email: string, hash: string): { ok: true } | { ok: false; reason: 'taken' } {
     return tx(db, () => {
-      const taken = one<{ user_id: string }>(db, `SELECT user_id FROM identities WHERE provider = 'password' AND subject = ?`, email);
+      const taken = one<{ user_id: string }>(
+        db,
+        `SELECT user_id FROM identities WHERE (provider = 'password' AND subject = ?) OR lower(email) = ? UNION SELECT id AS user_id FROM users WHERE lower(email) = ?`,
+        email,
+        email,
+        email,
+      );
       if (taken && taken.user_id !== userId) return { ok: false, reason: 'taken' as const };
-      if (!taken) addIdentity(userId, { provider: 'password', subject: email, email, displayName: null });
+      const havePassword = one(db, `SELECT 1 FROM identities WHERE provider = 'password' AND user_id = ?`, userId);
+      if (!havePassword) addIdentity(userId, { provider: 'password', subject: email, email, emailVerified: false, displayName: null });
       run(db, 'UPDATE users SET email = COALESCE(email, ?) WHERE id = ?', email, userId);
       setPasswordHash(userId, hash);
       return { ok: true as const };

@@ -12,7 +12,7 @@ import {
 import type { AuthStore } from '../auth/store.js';
 import type { Config } from '../config.js';
 import type { Db } from '../db/index.js';
-import { all, one, run } from '../db/index.js';
+import { all, one, run, tx } from '../db/index.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { now } from '../lib/time.js';
 import { requireRole } from '../middleware/auth.js';
@@ -20,6 +20,7 @@ import { parse } from '../middleware/validate.js';
 import type { Audit } from '../services/audit.js';
 import type { Settings } from '../services/settings.js';
 import type { MediaStore } from './media.js';
+import { unshareIfOrphan } from './social.js';
 
 interface Deps {
   db: Db;
@@ -190,9 +191,12 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
   });
 
   r.delete('/posts/:id', (req, res) => {
-    const row = one<{ id: string; author_id: string }>(db, 'SELECT id, author_id FROM posts WHERE id = ?', req.params['id']);
+    const row = one<{ id: string; author_id: string; recipe_id: string }>(db, 'SELECT id, author_id, recipe_id FROM posts WHERE id = ?', req.params['id']);
     if (!row) throw notFound('No such post.');
-    run(db, 'DELETE FROM posts WHERE id = ?', row.id);
+    tx(db, () => {
+      run(db, 'DELETE FROM posts WHERE id = ?', row.id);
+      unshareIfOrphan(db, row.recipe_id);
+    });
     audit.record(req.user!.id, 'post.delete', 'post', row.id, { author: row.author_id });
     res.json({ ok: true });
   });

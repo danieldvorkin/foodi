@@ -21,7 +21,7 @@ const EnvSchema = z.object({
   FOODI_COOKIE_SECURE: bool.optional(),
   FOODI_LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   FOODI_TRUST_PROXY: boolDefault(false),
-  /** First person to sign in becomes admin when no admin exists yet. */
+  /** First person to sign in becomes admin when no admin exists yet. Development only. */
   FOODI_BOOTSTRAP_FIRST_ADMIN: bool.optional(),
   /** Comma-separated emails auto-promoted to admin on sign-in. */
   FOODI_ADMIN_EMAILS: z.string().default(''),
@@ -76,7 +76,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     cookieSecure: e.FOODI_COOKIE_SECURE ?? isProd,
     logLevel: e.FOODI_LOG_LEVEL ?? (e.NODE_ENV === 'test' ? 'silent' : 'info'),
     trustProxy: e.FOODI_TRUST_PROXY,
-    bootstrapFirstAdmin: e.FOODI_BOOTSTRAP_FIRST_ADMIN ?? !isProd,
+    // Never in production, whatever the env says: the first registrant must not become admin.
+    bootstrapFirstAdmin: !isProd && (e.FOODI_BOOTSTRAP_FIRST_ADMIN ?? true),
     adminEmails: e.FOODI_ADMIN_EMAILS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     // The mock provider must never be reachable in production.
     enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? e.NODE_ENV !== 'production'),

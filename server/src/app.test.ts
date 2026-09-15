@@ -466,3 +466,73 @@ describe('sso-only accounts', () => {
     }
   });
 });
+
+describe('security review fixes', () => {
+  it('a self-typed admin email at registration does not grant admin; a verified OIDC email does', async () => {
+    const config = loadConfig({ ...process.env, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0', FOODI_ADMIN_EMAILS: 'boss@example.com,ada@example.com', FOODI_BOOTSTRAP_FIRST_ADMIN: 'false' });
+    const log = createLogger('silent', false);
+    const probe = await createApp({ config, log });
+    const srv = probe.app.listen(0);
+    const port = (srv.address() as { port: number }).port;
+    srv.close();
+    probe.close();
+    const cfg2 = loadConfig({ ...process.env, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: `http://127.0.0.1:${port}`, FOODI_ADMIN_EMAILS: 'boss@example.com,ada@example.com', FOODI_BOOTSTRAP_FIRST_ADMIN: 'false' });
+    const built = await createApp({ config: cfg2, log });
+    const server = built.app.listen(port);
+    const b = { ...built, server, base: `http://127.0.0.1:${port}`, config: cfg2 } as Booted;
+    try {
+      const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'boss@example.com', password: 'a long enough passphrase', displayName: 'Impostor' });
+      expect(reg.status).toBe(201);
+      expect(reg.body.role).toBe('consumer');
+      const ada = await signIn(b, 'mock-ada');
+      const me = await request(b.base).get('/api/auth/me').set('cookie', ada);
+      expect(me.body.role).toBe('admin');
+    } finally {
+      server.close();
+      built.close();
+    }
+  });
+
+  it('production never bootstraps the first registrant as admin', () => {
+    const cfg = loadConfig({ ...process.env, NODE_ENV: 'production', FOODI_BOOTSTRAP_FIRST_ADMIN: 'true', FOODI_COOKIE_SECURE: 'true' });
+    expect(cfg.bootstrapFirstAdmin).toBe(false);
+    expect(cfg.enableMockProvider).toBe(false);
+  });
+
+  it('an SSO account cannot squat an email another account uses', async () => {
+    const b = await boot();
+    try {
+      const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'victim@example.com', password: 'a long enough passphrase', displayName: 'Victim' });
+      expect(reg.status).toBe(201);
+      const sso = await signIn(b, 'mock-jo');
+      const squat = await request(b.base).post('/api/auth/password').set('cookie', sso).set('origin', ORIGIN).send({ next: 'another long passphrase', email: 'victim@example.com' });
+      expect(squat.status).toBe(409);
+      await signIn(b, 'mock-sam');
+      const squat2 = await request(b.base).post('/api/auth/password').set('cookie', sso).set('origin', ORIGIN).send({ next: 'another long passphrase', email: 'sam@example.com' });
+      expect(squat2.status).toBe(409); // sam's OIDC email
+      const own = await request(b.base).post('/api/auth/password').set('cookie', sso).set('origin', ORIGIN).send({ next: 'another long passphrase' });
+      expect(own.status).toBe(200); // jo's own verified email is fine
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('admin post removal makes the recipe private again', async () => {
+    const b = await boot();
+    try {
+      const admin = await signIn(b, 'mock-ada');
+      const author = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', author).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
+      const post = await request(b.base).post('/api/social/posts').set('cookie', author).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: 'x' });
+      const viewer = await signIn(b, 'mock-priya');
+      expect((await request(b.base).get(`/api/recipes/${gen.body.recipe.id}`).set('cookie', viewer)).status).toBe(200);
+      await request(b.base).delete(`/api/admin/posts/${post.body.post.id}`).set('cookie', admin).set('origin', ORIGIN);
+      expect((await request(b.base).get(`/api/recipes/${gen.body.recipe.id}`).set('cookie', viewer)).status).toBe(403);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

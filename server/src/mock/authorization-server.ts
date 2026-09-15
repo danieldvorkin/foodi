@@ -139,7 +139,7 @@ small{display:block;margin-top:16px;color:#6F6C66}
       res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE or redirect mismatch' });
       return;
     }
-    const idToken = await new SignJWT({ nonce: pending.nonce, email: pending.email, name: pending.name })
+    const idToken = await new SignJWT({ nonce: pending.nonce, email: pending.email, email_verified: true, name: pending.name })
       .setProtectedHeader({ alg: 'RS256', kid: 'mock-1' })
       .setIssuer(opts.issuer)
       .setAudience(opts.clientId)

@@ -23,7 +23,7 @@ export function createApiKeyProviders(config: Config): ApiKeyProvider[] {
       });
       if (res.status === 401 || res.status === 403) return { ok: false, reason: 'Anthropic rejected that key. Check it and try again.' };
       if (!res.ok) return { ok: false, reason: `Anthropic responded with ${res.status}. Try again in a moment.` };
-      return { ok: true, identity: { provider: 'anthropic', subject: subjectFor('anthropic', apiKey), email: null, displayName: null } };
+      return { ok: true, identity: { provider: 'anthropic', subject: subjectFor('anthropic', apiKey), email: null, emailVerified: false, displayName: null } };
     },
   };
 
@@ -40,7 +40,7 @@ export function createApiKeyProviders(config: Config): ApiKeyProvider[] {
       });
       if (res.status === 401 || res.status === 403) return { ok: false, reason: 'OpenAI rejected that key. Check it and try again.' };
       if (!res.ok) return { ok: false, reason: `OpenAI responded with ${res.status}. Try again in a moment.` };
-      return { ok: true, identity: { provider: 'openai-key', subject: subjectFor('openai', apiKey), email: null, displayName: null } };
+      return { ok: true, identity: { provider: 'openai-key', subject: subjectFor('openai', apiKey), email: null, emailVerified: false, displayName: null } };
     },
   };
 
