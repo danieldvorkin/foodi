@@ -1,0 +1,109 @@
+import { z } from 'zod';
+
+const bool = z.preprocess(
+  (v) => (v === undefined || v === '' ? undefined : v === 'true' || v === '1'),
+  z.boolean(),
+);
+const boolDefault = (d: boolean) => z.preprocess((v) => (v === undefined || v === '' ? d : v === 'true' || v === '1'), z.boolean());
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  /** Public origin of the app as the browser sees it (Vite in dev, this server in prod). */
+  FOODI_APP_ORIGIN: z.string().url().default('http://localhost:5100'),
+  /** Origin of this API server, used to build OAuth redirect URIs. */
+  FOODI_API_ORIGIN: z.string().url().default('http://localhost:4100'),
+  FOODI_DB_PATH: z.string().default('./data/foodi.db'),
+  FOODI_SESSION_SECRET: z.string().min(32),
+  /** 32 bytes, hex encoded. Encrypts provider tokens and API keys at rest. */
+  FOODI_ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/),
+  FOODI_COOKIE_SECURE: bool.optional(),
+  FOODI_LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
+  FOODI_TRUST_PROXY: boolDefault(false),
+  /** First person to sign in becomes admin when no admin exists yet. */
+  FOODI_BOOTSTRAP_FIRST_ADMIN: bool.optional(),
+  /** Comma-separated emails auto-promoted to admin on sign-in. */
+  FOODI_ADMIN_EMAILS: z.string().default(''),
+  FOODI_ENABLE_MOCK_PROVIDER: bool.optional(),
+
+  // OpenAI — "Sign in with ChatGPT" (OAuth 2.0 + PKCE + OIDC)
+  OPENAI_OAUTH_CLIENT_ID: z.string().optional(),
+  OPENAI_OAUTH_CLIENT_SECRET: z.string().optional(),
+  OPENAI_OAUTH_ISSUER: z.string().url().default('https://auth.openai.com'),
+  OPENAI_OAUTH_AUTHORIZATION_URL: z.string().url().optional(),
+  OPENAI_OAUTH_TOKEN_URL: z.string().url().optional(),
+  OPENAI_OAUTH_JWKS_URL: z.string().url().optional(),
+  OPENAI_OAUTH_SCOPES: z.string().default('openid profile email offline_access'),
+  /** After sign-in, exchange the id_token for an API key (RFC 8693 token exchange). */
+  OPENAI_OAUTH_EXCHANGE_API_KEY: boolDefault(true),
+  OPENAI_API_BASE: z.string().url().default('https://api.openai.com'),
+  OPENAI_MODEL: z.string().default('gpt-5'),
+
+  // Anthropic — API key only (third-party Claude.ai sign-in is not permitted by Anthropic)
+  ANTHROPIC_API_BASE: z.string().url().default('https://api.anthropic.com'),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-5'),
+
+  /** Optional: a generic OIDC provider for a future sanctioned Claude sign-in, or any other. */
+  GENERIC_OAUTH_VENDOR: z.enum(['anthropic', 'openai']).optional(),
+  GENERIC_OAUTH_LABEL: z.string().optional(),
+  GENERIC_OAUTH_CLIENT_ID: z.string().optional(),
+  GENERIC_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GENERIC_OAUTH_ISSUER: z.string().url().optional(),
+  GENERIC_OAUTH_SCOPES: z.string().default('openid profile email'),
+});
+
+export type Config = ReturnType<typeof loadConfig>;
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
+  const parsed = EnvSchema.safeParse(env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new Error(`Invalid environment:\n${issues}\n\nCopy .env.example to .env and fill in the blanks.`);
+  }
+  const e = parsed.data;
+  const isProd = e.NODE_ENV === 'production';
+  return {
+    env: e.NODE_ENV,
+    isProd,
+    port: e.PORT,
+    appOrigin: e.FOODI_APP_ORIGIN.replace(/\/$/, ''),
+    apiOrigin: e.FOODI_API_ORIGIN.replace(/\/$/, ''),
+    dbPath: e.FOODI_DB_PATH,
+    sessionSecret: e.FOODI_SESSION_SECRET,
+    encryptionKey: Buffer.from(e.FOODI_ENCRYPTION_KEY, 'hex'),
+    cookieSecure: e.FOODI_COOKIE_SECURE ?? isProd,
+    logLevel: e.FOODI_LOG_LEVEL ?? (e.NODE_ENV === 'test' ? 'silent' : 'info'),
+    trustProxy: e.FOODI_TRUST_PROXY,
+    bootstrapFirstAdmin: e.FOODI_BOOTSTRAP_FIRST_ADMIN ?? !isProd,
+    adminEmails: e.FOODI_ADMIN_EMAILS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+    // The mock provider must never be reachable in production.
+    enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? e.NODE_ENV !== 'production'),
+    openai: {
+      clientId: e.OPENAI_OAUTH_CLIENT_ID,
+      clientSecret: e.OPENAI_OAUTH_CLIENT_SECRET,
+      issuer: e.OPENAI_OAUTH_ISSUER,
+      authorizationUrl: e.OPENAI_OAUTH_AUTHORIZATION_URL,
+      tokenUrl: e.OPENAI_OAUTH_TOKEN_URL,
+      jwksUrl: e.OPENAI_OAUTH_JWKS_URL,
+      scopes: e.OPENAI_OAUTH_SCOPES,
+      exchangeApiKey: e.OPENAI_OAUTH_EXCHANGE_API_KEY,
+      apiBase: e.OPENAI_API_BASE.replace(/\/$/, ''),
+      model: e.OPENAI_MODEL,
+    },
+    anthropic: {
+      apiBase: e.ANTHROPIC_API_BASE.replace(/\/$/, ''),
+      model: e.ANTHROPIC_MODEL,
+    },
+    genericOAuth:
+      e.GENERIC_OAUTH_CLIENT_ID && e.GENERIC_OAUTH_ISSUER && e.GENERIC_OAUTH_VENDOR
+        ? {
+            vendor: e.GENERIC_OAUTH_VENDOR,
+            label: e.GENERIC_OAUTH_LABEL ?? 'Continue with SSO',
+            clientId: e.GENERIC_OAUTH_CLIENT_ID,
+            clientSecret: e.GENERIC_OAUTH_CLIENT_SECRET,
+            issuer: e.GENERIC_OAUTH_ISSUER,
+            scopes: e.GENERIC_OAUTH_SCOPES,
+          }
+        : null,
+  };
+}
