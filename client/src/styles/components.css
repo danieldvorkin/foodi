@@ -883,3 +883,27 @@ dialog.lightbox::backdrop {
   height: 72px;
   font-size: 34px;
 }
+
+/* ---------- connect cards ---------- */
+.connect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--s-3);
+}
+.connect-card {
+  display: grid;
+  gap: 6px;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  transition: border-color var(--fast) var(--ease);
+}
+.connect-card:hover {
+  border-color: var(--sage);
+  text-decoration: none;
+}
+.connect-emoji {
+  font-size: 26px;
+  line-height: 1;
+}

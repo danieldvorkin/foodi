@@ -353,3 +353,94 @@ describe('media', () => {
     expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', session)).status).toBe(404);
   });
 });
+
+describe('password auth', () => {
+  let b: Booted;
+  beforeEach(async () => {
+    b = await boot();
+  });
+  afterEach(() => {
+    b.server.close();
+    b.close();
+  });
+
+  const creds = { email: 'Dan@Example.com', password: 'correct horse battery', displayName: 'Dan' };
+
+  it('registers, signs in, rejects bad passwords with one generic message, and blocks duplicates', async () => {
+    const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send(creds);
+    expect(reg.status).toBe(201);
+    expect(reg.body.signInMethods).toEqual(['password']);
+    expect(reg.body.vendor).toBeNull();
+    expect(reg.body.email).toBe('dan@example.com');
+    expect(reg.body.role).toBe('admin'); // first account bootstraps admin in dev
+    const cookie = (reg.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('foodi_session='))!.split(';')[0]!;
+    expect((await request(b.base).get('/api/auth/me').set('cookie', cookie)).status).toBe(200);
+
+    const dup = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send(creds);
+    expect(dup.status).toBe(409);
+
+    const weak = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ ...creds, email: 'x@example.com', password: 'password1' });
+    expect(weak.status).toBe(400);
+
+    const wrong = await request(b.base).post('/api/auth/login').set('origin', ORIGIN).send({ email: creds.email, password: 'nope nope nope' });
+    const unknown = await request(b.base).post('/api/auth/login').set('origin', ORIGIN).send({ email: 'nobody@example.com', password: 'nope nope nope' });
+    expect(wrong.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect(wrong.body.error.message).toBe(unknown.body.error.message);
+
+    const ok = await request(b.base).post('/api/auth/login').set('origin', ORIGIN).send({ email: '  DAN@example.com ', password: creds.password });
+    expect(ok.status).toBe(200);
+    const hash = b.db.prepare('SELECT hash FROM passwords').get() as { hash: string };
+    expect(hash.hash.startsWith('scrypt$131072$8$1$')).toBe(true);
+    expect(hash.hash).not.toContain(creds.password);
+  });
+
+  it('connecting an AI key requires a session, and SSO can be linked to a password account', async () => {
+    const anon = await request(b.base).post('/api/auth/key').set('origin', ORIGIN).send({ vendor: 'anthropic', apiKey: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxx' });
+    expect(anon.status).toBe(401);
+
+    const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send(creds);
+    const cookie = (reg.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('foodi_session='))!.split(';')[0]!;
+
+    // Start the mock OAuth flow while signed in: it must link, not create a second user.
+    const start = await request(b.base).get('/api/auth/mock/start?returnTo=/app/settings').set('cookie', cookie);
+    const oauthCookie = (start.headers['set-cookie'] as unknown as string[])[0]!.split(';')[0]!;
+    const authz = new URL(start.headers['location']!);
+    const approve = await request(b.base).post('/mock-oauth/approve').type('form').send({
+      sub: 'mock-sam',
+      state: authz.searchParams.get('state'),
+      nonce: authz.searchParams.get('nonce'),
+      code_challenge: authz.searchParams.get('code_challenge'),
+      redirect_uri: authz.searchParams.get('redirect_uri'),
+      client_id: authz.searchParams.get('client_id'),
+    });
+    const cb = new URL(approve.headers['location']!);
+    const done = await request(b.base).get(cb.pathname + cb.search).set('cookie', `${cookie}; ${oauthCookie}`);
+    expect(done.headers['location']).toBe(`${ORIGIN}/app/settings`);
+
+    const me = await request(b.base).get('/api/auth/me').set('cookie', cookie);
+    expect(me.body.signInMethods.sort()).toEqual(['mock', 'password']);
+    expect(me.body.vendor).toBe('mock');
+    expect((b.db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n).toBe(1);
+
+    const cleared = await request(b.base).delete('/api/auth/key').set('cookie', cookie).set('origin', ORIGIN);
+    expect(cleared.body.vendor).toBeNull();
+  });
+});
+
+describe('sso-only accounts', () => {
+  it('can add an email + password login, then sign in with it', async () => {
+    const b = await boot();
+    try {
+      const session = await signIn(b, 'mock-priya');
+      const noEmailNeeded = await request(b.base).post('/api/auth/password').set('cookie', session).set('origin', ORIGIN).send({ next: 'a perfectly fine passphrase' });
+      expect(noEmailNeeded.status).toBe(200); // mock identity carries an email
+      const login = await request(b.base).post('/api/auth/login').set('origin', ORIGIN).send({ email: 'priya@example.com', password: 'a perfectly fine passphrase' });
+      expect(login.status).toBe(200);
+      expect(login.body.signInMethods.sort()).toEqual(['mock', 'password']);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

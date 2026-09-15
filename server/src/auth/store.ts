@@ -64,35 +64,44 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     return 'consumer';
   }
 
-  /** Find-or-create the user for an identity and store the credential. */
+  function insertUser(identity: Identity): UserRow {
+    const id = newId('usr');
+    const t = now();
+    run(
+      db,
+      `INSERT INTO users (id, role, display_name, email, handle, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      initialRole(identity.email),
+      identity.displayName,
+      identity.email,
+      uniqueHandle(identity.displayName ?? identity.email),
+      t,
+      t,
+    );
+    addIdentity(id, identity);
+    return one<UserRow>(db, 'SELECT * FROM users WHERE id = ?', id)!;
+  }
+
+  function addIdentity(userId: string, identity: Identity) {
+    run(
+      db,
+      `INSERT INTO identities (id, user_id, provider, subject, email, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      newId('idn'),
+      userId,
+      identity.provider,
+      identity.subject,
+      identity.email,
+      now(),
+    );
+  }
+
+  /** Find-or-create the user for an SSO identity and store the credential it came with. */
   function signIn(identity: Identity, credential: CredentialPayload, vendor: Vendor): UserRow {
     return tx(db, () => {
       let user = findUserByIdentity(identity);
       const t = now();
       if (!user) {
-        const id = newId('usr');
-        run(
-          db,
-          `INSERT INTO users (id, role, display_name, email, handle, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          id,
-          initialRole(identity.email),
-          identity.displayName,
-          identity.email,
-          uniqueHandle(identity.displayName ?? identity.email),
-          t,
-          t,
-        );
-        run(
-          db,
-          `INSERT INTO identities (id, user_id, provider, subject, email, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-          newId('idn'),
-          id,
-          identity.provider,
-          identity.subject,
-          identity.email,
-          t,
-        );
-        user = one<UserRow>(db, 'SELECT * FROM users WHERE id = ?', id)!;
+        user = insertUser(identity);
       } else {
         // Promote by email list on every sign-in so ops can add admins without a restart.
         if (identity.email && opts.adminEmails.includes(identity.email.toLowerCase()) && user.role !== 'admin') {
@@ -104,6 +113,59 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
       setCredential(user.id, vendor, credential);
       return user;
     });
+  }
+
+  /** Attach an SSO identity (and its credential) to an already signed-in user. */
+  function linkIdentity(userId: string, identity: Identity, credential: CredentialPayload, vendor: Vendor): { ok: true } | { ok: false; reason: 'taken' } {
+    return tx(db, () => {
+      const existing = findUserByIdentity(identity);
+      if (existing && existing.id !== userId) return { ok: false, reason: 'taken' as const };
+      if (!existing) addIdentity(userId, identity);
+      setCredential(userId, vendor, credential);
+      return { ok: true as const };
+    });
+  }
+
+  // ---- email + password ---------------------------------------------------------------
+  function findPasswordUser(email: string): (UserRow & { hash: string }) | undefined {
+    return one<UserRow & { hash: string }>(
+      db,
+      `SELECT u.*, p.hash FROM identities i JOIN users u ON u.id = i.user_id JOIN passwords p ON p.user_id = u.id WHERE i.provider = 'password' AND i.subject = ?`,
+      email,
+    );
+  }
+
+  function register(input: { email: string; displayName: string; passwordHash: string }): UserRow | null {
+    return tx(db, () => {
+      if (one(db, `SELECT 1 FROM identities WHERE provider = 'password' AND subject = ?`, input.email)) return null;
+      const user = insertUser({ provider: 'password', subject: input.email, email: input.email, displayName: input.displayName });
+      run(db, 'INSERT INTO passwords (user_id, hash, updated_at) VALUES (?, ?, ?)', user.id, input.passwordHash, now());
+      return user;
+    });
+  }
+
+  /** Give an SSO-only account an email + password login. */
+  function addPasswordLogin(userId: string, email: string, hash: string): { ok: true } | { ok: false; reason: 'taken' } {
+    return tx(db, () => {
+      const taken = one<{ user_id: string }>(db, `SELECT user_id FROM identities WHERE provider = 'password' AND subject = ?`, email);
+      if (taken && taken.user_id !== userId) return { ok: false, reason: 'taken' as const };
+      if (!taken) addIdentity(userId, { provider: 'password', subject: email, email, displayName: null });
+      run(db, 'UPDATE users SET email = COALESCE(email, ?) WHERE id = ?', email, userId);
+      setPasswordHash(userId, hash);
+      return { ok: true as const };
+    });
+  }
+
+  function getPasswordHash(userId: string): string | null {
+    return one<{ hash: string }>(db, 'SELECT hash FROM passwords WHERE user_id = ?', userId)?.hash ?? null;
+  }
+
+  function setPasswordHash(userId: string, hash: string) {
+    run(db, `INSERT INTO passwords (user_id, hash, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET hash = excluded.hash, updated_at = excluded.updated_at`, userId, hash, now());
+  }
+
+  function touch(userId: string) {
+    run(db, 'UPDATE users SET last_seen_at = ? WHERE id = ?', now(), userId);
   }
 
   /** Attach a credential to an existing signed-in user (e.g. switching from OAuth to a key). */
@@ -121,6 +183,10 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
       expiresAt,
       now(),
     );
+  }
+
+  function clearCredential(userId: string) {
+    run(db, 'DELETE FROM credentials WHERE user_id = ?', userId);
   }
 
   function getCredential(userId: string): { vendor: Vendor; payload: CredentialPayload } | null {
@@ -210,7 +276,15 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   return {
     findUserByIdentity,
     signIn,
+    linkIdentity,
+    findPasswordUser,
+    register,
+    getPasswordHash,
+    setPasswordHash,
+    addPasswordLogin,
+    touch,
     setCredential,
+    clearCredential,
     getCredential,
     getCredentialMeta,
     createSession,

@@ -13,9 +13,9 @@ export function createApiKeyProviders(config: Config): ApiKeyProvider[] {
   const anthropic: ApiKeyProvider = {
     id: 'anthropic',
     vendor: 'anthropic',
-    label: 'Continue with Claude',
+    label: 'Connect Claude (API key)',
     kind: 'api_key',
-    note: 'Anthropic doesn’t allow apps to sign you in with your Claude account, so foodi uses an API key from console.anthropic.com instead. It stays encrypted on this server.',
+    note: 'Anthropic doesn’t allow apps to sign you in with a Claude account, so paste an API key from console.anthropic.com. It’s encrypted on this server and only used to write your recipes.',
     async verify(apiKey) {
       if (!apiKey.startsWith('sk-ant-')) return { ok: false, reason: 'Anthropic keys start with sk-ant-.' };
       const res = await fetch(`${config.anthropic.apiBase}/v1/models?limit=1`, {
@@ -30,7 +30,7 @@ export function createApiKeyProviders(config: Config): ApiKeyProvider[] {
   const openai: ApiKeyProvider = {
     id: 'openai-key',
     vendor: 'openai',
-    label: 'Connect an OpenAI API key',
+    label: 'Connect OpenAI (API key)',
     kind: 'api_key',
     note: 'Use a key from platform.openai.com. It stays encrypted on this server.',
     async verify(apiKey) {

@@ -106,7 +106,7 @@ export function Home() {
   }
 
   const firstName = (profile?.displayName ?? me.displayName ?? '').split(' ')[0];
-  const vendorLabel = me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : 'the mock chef';
+  const vendorLabel = me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : me.vendor === 'mock' ? 'the mock chef' : null;
 
   return (
     <main className="page stack-lg home">
@@ -164,16 +164,27 @@ export function Home() {
                 </option>
               ))}
             </select>
-            <button type="button" className="btn btn-primary btn-lg" onClick={generate} disabled={!canGenerate || busy}>
-              {busy ? (
-                <>
-                  <span className="spinner" style={{ borderTopColor: 'var(--sage-ink)', borderColor: 'color-mix(in oklab, var(--sage-ink) 35%, transparent)' }} /> {COOKING_LINES[line]}
-                </>
-              ) : (
-                'Write my recipe'
-              )}
-            </button>
-            <span className="hint">Written by {vendorLabel} with your account.</span>
+            {vendorLabel ? (
+              <>
+                <button type="button" className="btn btn-primary btn-lg" onClick={generate} disabled={!canGenerate || busy}>
+                  {busy ? (
+                    <>
+                      <span className="spinner" style={{ borderTopColor: 'var(--sage-ink)', borderColor: 'color-mix(in oklab, var(--sage-ink) 35%, transparent)' }} /> {COOKING_LINES[line]}
+                    </>
+                  ) : (
+                    'Write my recipe'
+                  )}
+                </button>
+                <span className="hint">Written by {vendorLabel} with your account.</span>
+              </>
+            ) : (
+              <>
+                <Link to="/connect" className="btn btn-primary btn-lg">
+                  🔌 Connect an AI to write recipes
+                </Link>
+                <span className="hint">Claude or OpenAI, with your own key. Takes a minute.</span>
+              </>
+            )}
           </div>
         </div>
       </section>

@@ -79,7 +79,13 @@ export function AdminUsers() {
                   <span className={`role-pill ${u.role}`}>{u.role}</span>
                 </td>
                 <td>
-                  {u.vendor} <span className="muted tiny">{u.credentialKind}</span>
+                  {u.vendor ? (
+                    <>
+                      {u.vendor} <span className="muted tiny">{u.credentialKind}</span>
+                    </>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 <td className="num">{u.recipeCount}</td>
                 <td className="num">{u.generationCount}</td>

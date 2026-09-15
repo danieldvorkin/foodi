@@ -134,7 +134,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
 
   api.use(generalLimiter);
   api.get('/health', (_req, res) => res.json({ ok: true, env: config.env }));
-  api.use('/auth/key', authLimiter);
+  api.use(['/auth/key', '/auth/register', '/auth/login', '/auth/password'], authLimiter);
   api.use('/auth/:provider/start', authLimiter);
   api.use('/auth', authRoutes({ config, log, store, providers, settings, audit }));
   api.use('/profile', writeLimiter, profileRoutes(db));

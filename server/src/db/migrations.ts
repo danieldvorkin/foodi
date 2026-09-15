@@ -162,4 +162,16 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX media_post ON media(post_id, position);
     `,
   },
+  {
+    name: 'passwords',
+    sql: `
+      -- Email + password sign-in. The identity row (provider 'password', subject = email)
+      -- links the login to a user; the hash lives here, never in identities.
+      CREATE TABLE passwords (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        hash TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ];

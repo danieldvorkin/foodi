@@ -30,6 +30,7 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Landing />, loader: landingLoader },
+      { path: 'connect', element: <Connect />, loader: connectLoader },
       { path: 'connect/:vendor', element: <Connect />, loader: connectLoader },
       { path: 'onboarding', element: <Onboarding />, loader: onboardingLoader },
       { path: 'cook/:id', element: <CookPage />, loader: cookLoader },

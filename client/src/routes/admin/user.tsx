@@ -82,9 +82,7 @@ export function AdminUser() {
           <h2 style={{ fontSize: 'var(--t-20)' }}>Account</h2>
           <dl className="kv">
             <dt>AI vendor</dt>
-            <dd>
-              {user.vendor} ({user.credentialKind})
-            </dd>
+            <dd>{user.vendor ? `${user.vendor} (${user.credentialKind})` : 'none connected'}</dd>
             <dt>Joined</dt>
             <dd>{dateTime(user.createdAt)}</dd>
             <dt>Last seen</dt>

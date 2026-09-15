@@ -35,7 +35,7 @@ export function Onboarding() {
     setBusy(true);
     try {
       await profileApi.save(parsed.data);
-      nav('/app', { replace: true });
+      nav(me.vendor ? '/app' : '/connect', { replace: true });
     } catch (e) {
       toast(errorMessage(e), 'error');
       setBusy(false);
@@ -66,7 +66,7 @@ export function Onboarding() {
             </button>
             {last ? (
               <button type="button" className="btn btn-primary btn-lg" onClick={finish} disabled={busy || !stepValid}>
-                {busy ? 'Saving…' : 'Save and start cooking'}
+                {busy ? 'Saving…' : me.vendor ? 'Save and start cooking' : 'Save and connect your AI'}
               </button>
             ) : (
               <button type="button" className="btn btn-primary btn-lg" onClick={() => setI((x) => x + 1)} disabled={!stepValid}>
