@@ -907,3 +907,78 @@ dialog.lightbox::backdrop {
   font-size: 26px;
   line-height: 1;
 }
+
+/* ---------- notifications ---------- */
+.bell-wrap {
+  position: relative;
+}
+.bell {
+  background: none;
+  border: 0;
+  position: relative;
+  font-size: 16px;
+  line-height: 1;
+  min-height: 36px;
+}
+.bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--clay);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+.panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(92vw, 380px);
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--plate);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--ink) 16%, transparent);
+  z-index: 30;
+  animation: step-in var(--fast) var(--ease);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.panel-head h3 {
+  font-size: var(--t-16);
+}
+.panel-list li + li {
+  border-top: 1px solid var(--line);
+}
+.panel-list li.is-unread {
+  background: var(--sage-soft);
+}
+.panel-item {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-3) var(--s-4);
+}
+a.panel-item:hover {
+  text-decoration: none;
+  background: var(--flour);
+}
+.dot-unread {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex: none;
+}

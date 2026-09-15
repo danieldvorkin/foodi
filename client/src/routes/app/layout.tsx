@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLoaderData, useNavigate, useRouteLoaderData, type L
 import { auth, type Me } from '../../api/types';
 import { Wordmark } from '../../components/Logo';
 import { Avatar } from '../../components/ui';
+import { NotificationBell } from '../../components/Notifications';
 import { requireOnboarded } from '../../lib/session';
 
 export async function appLoader({ request }: LoaderFunctionArgs) {
@@ -35,9 +36,10 @@ export function AppLayout() {
             </NavLink>
             {me.role === 'admin' && (
               <NavLink to="/admin" className="navlink">
-                Admin
+                🛠 Admin
               </NavLink>
             )}
+            <NotificationBell />
             <NavLink to={`/app/u/${me.handle}`} className="navlink" aria-label="Your profile" title={me.displayName ?? 'Profile'}>
               <Avatar name={me.displayName ?? '?'} emoji={me.avatar} />
             </NavLink>

@@ -14,6 +14,7 @@ export function AdminSettings() {
   const toast = useToast();
   const [s, setS] = useState(settings);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
 
   async function save() {
     setBusy(true);
@@ -72,6 +73,29 @@ export function AdminSettings() {
               }}
             >
               Purge expired sessions
+            </button>
+          </div>
+        </section>
+        <section className="stack">
+          <h2 style={{ fontSize: 'var(--t-20)' }}>📣 Send a notice</h2>
+          <p className="muted small">Shows up in everyone’s notification bell. Keep it short.</p>
+          <textarea className="textarea" value={notice} onChange={(e) => setNotice(e.target.value)} maxLength={300} placeholder="e.g. New: you can now add photos to recipes." />
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!notice.trim()}
+              onClick={async () => {
+                try {
+                  const r = await admin.notify(notice.trim());
+                  toast(`Sent to ${r.sent} people`);
+                  setNotice('');
+                } catch (e) {
+                  toast(errorMessage(e), 'error');
+                }
+              }}
+            >
+              Send to everyone
             </button>
           </div>
         </section>

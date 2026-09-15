@@ -19,6 +19,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { getProfile } from './profile.js';
 import { coverForRecipe, mediaForRecipe } from './media.js';
+import type { Notifier } from '../services/notify.js';
 
 export interface RecipeRow {
   id: string;
@@ -92,7 +93,7 @@ function completeAuthored(input: z.infer<typeof AuthoredRecipeSchema>): RecipeCo
   });
 }
 
-export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
+export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, notifier: Notifier) {
   const r = Router();
   r.use(requireAuth);
 
@@ -234,6 +235,7 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
       t,
       t,
     );
+    notifier.send(row.user_id, 'save', { actorId: userId, recipeId: row.id });
     res.status(201).json({ id });
   });
 

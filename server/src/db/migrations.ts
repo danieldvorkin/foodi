@@ -174,4 +174,23 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: 'notifications',
+    sql: `
+      CREATE TABLE notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('like','comment','save','role','system')),
+        actor_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        post_id TEXT REFERENCES posts(id) ON DELETE CASCADE,
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE CASCADE,
+        comment_id TEXT REFERENCES comments(id) ON DELETE CASCADE,
+        message TEXT,
+        read_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX notifications_user ON notifications(user_id, created_at DESC);
+      CREATE INDEX notifications_unread ON notifications(user_id, read_at);
+    `,
+  },
 ];

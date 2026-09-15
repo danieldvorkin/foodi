@@ -34,6 +34,7 @@ Open **http://localhost:5100**, click **🧪 Mock admin**, and you are cooking w
 | 🎲 **Randomize · ✏️ Adjust** | Same request, a different dish. Or "make it vegan", "halve it", "no oven" — you get a new version, the old one stays. |
 | ✍️ **Write your own** | A recipe editor with the same drag-and-drop ingredient library, step timers, temperatures, tips. |
 | 📷 **Share it** | Photos and short videos on recipes and posts. A feed with likes and comments, profiles with handles and emoji avatars. Save other people's recipes to your collection. |
+| 🔔 **Notifications** | Likes, comments and saves on what you share, role changes, and admin notices — in a panel under the bell, with unread counts and mark-all-read. |
 | 🛠 **Admin** | Overview with a 14-day generation chart, people (roles, disable, revoke sessions), recipe and post moderation, photo moderation, generation logs with latency and tokens, runtime settings, an append-only audit log. |
 
 ## Sign-in and the AI credential are two different things
@@ -71,7 +72,7 @@ Everything stays on the machine running the server.
 
 | What | Where | How |
 |---|---|---|
-| People, recipes, posts, settings, audit log | `server/data/foodi.db` (SQLite, WAL) | Plain rows. Delete the file to start over. |
+| People, recipes, posts, notifications, settings, audit log | `server/data/foodi.db` (SQLite, WAL) | Plain rows. Delete the file to start over. |
 | API keys and OAuth tokens | same DB, `credentials` table | AES-256-GCM with the key in `.env`. The DB alone is useless without it. |
 | Passwords | `passwords` table | scrypt (N=2¹⁷, r=8, p=1), 16-byte salt, constant-time compare. |
 | Sessions | `sessions` table | Only the SHA-256 of the cookie value is stored. |
@@ -105,7 +106,7 @@ Built to a staff-engineer bar, reviewed with a security pass; the full list live
 - **Sessions**: opaque 256-bit tokens, `httpOnly` `SameSite=Lax` cookies, `Secure` in production, hashed at rest, sliding expiry, "sign out everywhere".
 - **CSRF**: every state-changing request must carry our `Origin` (or `Sec-Fetch-Site: same-origin`); JSON-only body parsing.
 - **OAuth**: state and PKCE verifier live in an encrypted, 10-minute cookie; `state` compared in constant time; id_token issuer/audience/nonce verified; `returnTo` restricted to same-app paths.
-- **RBAC**: `admin` / `consumer`, enforced server-side on every `/api/admin` route; you cannot demote or disable yourself; the last admin cannot be removed; every admin action is audited.
+- **RBAC**: `admin` / `consumer`, enforced server-side on every `/api/admin` route; you cannot demote or disable yourself; the last admin cannot be removed; every admin action is audited. Admin-by-email only applies to identities whose provider verified the address; first-registrant bootstrap is development-only and hard-off in production.
 - **Uploads**: real type sniffed from magic bytes (declared type ignored), size and per-person quota, metadata scrubbed, served with `nosniff` and access checks that follow recipe/post visibility.
 - **Inputs**: zod on every body, param and query; SQL always parameterised; helmet CSP with `script-src 'self'`.
 - **Logs**: pino with redaction of keys, tokens and cookies.

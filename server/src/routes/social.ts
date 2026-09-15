@@ -17,6 +17,7 @@ import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { coverForRecipe, mediaForPost, type MediaRow } from './media.js';
+import type { Notifier } from '../services/notify.js';
 
 interface PostRow {
   id: string;
@@ -78,7 +79,7 @@ export function unshareIfOrphan(db: Db, recipeId: string) {
   }
 }
 
-export function socialRoutes(db: Db) {
+export function socialRoutes(db: Db, notifier: Notifier) {
   const r = Router();
   r.use(requireAuth);
 
@@ -146,9 +147,12 @@ export function socialRoutes(db: Db) {
   r.post('/posts/:id/like', (req, res) => {
     const me = req.user!.id;
     const liked = parse(z.object({ liked: z.boolean() }), req.body).liked;
-    if (!one(db, 'SELECT 1 FROM posts WHERE id = ?', req.params['id'])) throw notFound('That post is gone.');
-    if (liked) run(db, 'INSERT OR IGNORE INTO likes (post_id, user_id, created_at) VALUES (?, ?, ?)', req.params['id'], me, now());
-    else run(db, 'DELETE FROM likes WHERE post_id = ? AND user_id = ?', req.params['id'], me);
+    const target = one<{ author_id: string }>(db, 'SELECT author_id FROM posts WHERE id = ?', req.params['id']);
+    if (!target) throw notFound('That post is gone.');
+    if (liked) {
+      run(db, 'INSERT OR IGNORE INTO likes (post_id, user_id, created_at) VALUES (?, ?, ?)', req.params['id'], me, now());
+      notifier.send(target.author_id, 'like', { actorId: me, postId: req.params['id']! });
+    } else run(db, 'DELETE FROM likes WHERE post_id = ? AND user_id = ?', req.params['id'], me);
     const count = one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM likes WHERE post_id = ?', req.params['id'])!.n;
     res.json({ liked, likeCount: count });
   });
@@ -156,9 +160,11 @@ export function socialRoutes(db: Db) {
   r.post('/posts/:id/comments', (req, res) => {
     const me = req.user!.id;
     const body = parse(CreateCommentSchema, req.body);
-    if (!one(db, 'SELECT 1 FROM posts WHERE id = ?', req.params['id'])) throw notFound('That post is gone.');
+    const target = one<{ author_id: string }>(db, 'SELECT author_id FROM posts WHERE id = ?', req.params['id']);
+    if (!target) throw notFound('That post is gone.');
     const id = newId('cmt');
     run(db, `INSERT INTO comments (id, post_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)`, id, req.params['id'], me, body.body, now());
+    notifier.send(target.author_id, 'comment', { actorId: me, postId: req.params['id']!, commentId: id });
     const u = req.user!;
     const comment: Comment = { id, body: body.body, createdAt: now(), author: { id: me, handle: u.handle, displayName: u.display_name ?? u.handle, avatar: u.avatar_emoji }, isMine: true };
     res.status(201).json({ comment });

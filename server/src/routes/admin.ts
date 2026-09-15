@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import {
+  AdminNotifySchema,
   AdminUpdateUserSchema,
   AppSettingsSchema,
   type AdminStats,
@@ -21,6 +22,7 @@ import type { Audit } from '../services/audit.js';
 import type { Settings } from '../services/settings.js';
 import type { MediaStore } from './media.js';
 import { unshareIfOrphan } from './social.js';
+import type { Notifier } from '../services/notify.js';
 
 interface Deps {
   db: Db;
@@ -30,9 +32,10 @@ interface Deps {
   audit: Audit;
   providerIds: string[];
   mediaStore: MediaStore;
+  notifier: Notifier;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -127,6 +130,7 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
       }
       run(db, 'UPDATE users SET role = ? WHERE id = ?', body.role, target.id);
       audit.record(actor.id, 'user.role', 'user', target.id, { from: target.role, to: body.role });
+      notifier.send(target.id, 'role', { message: body.role === 'admin' ? 'You’re now an admin. The Admin link is in the top bar.' : 'Your admin access was removed.' });
     }
     if (body.disabled !== undefined && Boolean(target.disabled_at) !== body.disabled) {
       run(db, 'UPDATE users SET disabled_at = ? WHERE id = ?', body.disabled ? now() : null, target.id);
@@ -285,6 +289,15 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     );
     const entries: AuditEntry[] = rows.map((x) => ({ id: x.id, actorId: x.actor_id, actorDisplayName: x.display_name, action: x.action, targetType: x.target_type, targetId: x.target_id, detail: x.detail, createdAt: x.created_at }));
     res.json({ entries });
+  });
+
+  /** A system notice to everyone (or one person). */
+  r.post('/notify', (req, res) => {
+    const body = parse(AdminNotifySchema, req.body);
+    const targets = body.userId ? [body.userId] : all<{ id: string }>(db, 'SELECT id FROM users WHERE disabled_at IS NULL').map((u) => u.id);
+    for (const id of targets) notifier.send(id, 'system', { message: body.message });
+    audit.record(req.user!.id, 'notify.send', body.userId ? 'user' : 'system', body.userId ?? null, { message: body.message, count: targets.length });
+    res.json({ sent: targets.length });
   });
 
   r.post('/maintenance/purge-sessions', (req, res) => {

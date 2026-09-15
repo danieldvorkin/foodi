@@ -74,3 +74,8 @@ export const AdminUpdateUserSchema = z.object({
   role: z.enum(ROLES).optional(),
   disabled: z.boolean().optional(),
 });
+
+export const AdminNotifySchema = z.object({
+  message: z.string().trim().min(1).max(300),
+  userId: z.string().min(1).optional(),
+});

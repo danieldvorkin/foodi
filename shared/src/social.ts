@@ -87,3 +87,17 @@ export const AuthoredRecipeSchema = RecipeContentSchema.partial({
   activeMinutes: z.number().int().min(0).max(24 * 60),
 });
 export type AuthoredRecipe = z.infer<typeof AuthoredRecipeSchema>;
+
+export const NOTIFICATION_KINDS = ['like', 'comment', 'save', 'role', 'system'] as const;
+export const NotificationSchema = z.object({
+  id: z.string(),
+  kind: z.enum(NOTIFICATION_KINDS),
+  actor: z.object({ id: z.string(), handle: z.string(), displayName: z.string(), avatar: z.string() }).nullable(),
+  postId: z.string().nullable(),
+  recipeId: z.string().nullable(),
+  recipeTitle: z.string().nullable(),
+  message: z.string().nullable(),
+  readAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type Notification = z.infer<typeof NotificationSchema>;

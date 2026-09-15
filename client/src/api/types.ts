@@ -8,6 +8,7 @@ import type {
   GenerationLog,
   Me,
   MediaItem,
+  Notification,
   Post,
   Profile,
   PublicProfile,
@@ -16,7 +17,7 @@ import type {
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
-export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, Comment, GenerationLog, Me, MediaItem, Post, Profile, PublicProfile, Recipe, RecipeSummary };
+export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, Comment, GenerationLog, Me, MediaItem, Notification, Post, Profile, PublicProfile, Recipe, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -102,6 +103,13 @@ export const media = {
     }),
 };
 
+export const notifications = {
+  list: () => api<{ notifications: Notification[]; unread: number }>('/notifications'),
+  unread: () => api<{ unread: number }>('/notifications/unread'),
+  markRead: (ids?: string[]) => api<{ unread: number }>('/notifications/read', { method: 'POST', body: ids ? { ids } : {} }),
+  remove: (id: string) => api<{ ok: true }>(`/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};
+
 export interface AdminUserDetail {
   user: AdminUser & { handle: string };
   identities: { provider: string; email: string | null; created_at: string }[];
@@ -133,4 +141,5 @@ export const admin = {
   media: () => api<{ media: { id: string; ownerId: string; handle: string; kind: string; mime: string; bytes: number; recipeId: string | null; postId: string | null; createdAt: string }[] }>('/admin/media'),
   deleteMedia: (id: string) => api<{ ok: true }>(`/admin/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   purgeSessions: () => api<{ ok: true }>('/admin/maintenance/purge-sessions', { method: 'POST' }),
+  notify: (message: string, userId?: string) => api<{ sent: number }>('/admin/notify', { method: 'POST', body: { message, ...(userId ? { userId } : {}) } }),
 };

@@ -536,3 +536,39 @@ describe('security review fixes', () => {
     }
   });
 });
+
+describe('notifications', () => {
+  it('likes, comments and saves notify the author (never yourself), and can be marked read', async () => {
+    const b = await boot();
+    try {
+      const author = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', author).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
+      const post = await request(b.base).post('/api/social/posts').set('cookie', author).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
+      const pid = post.body.post.id;
+      // Own like → no notification.
+      await request(b.base).post(`/api/social/posts/${pid}/like`).set('cookie', author).set('origin', ORIGIN).send({ liked: true });
+      expect((await request(b.base).get('/api/notifications/unread').set('cookie', author)).body.unread).toBe(0);
+
+      const fan = await signIn(b, 'mock-sam');
+      await request(b.base).post(`/api/social/posts/${pid}/like`).set('cookie', fan).set('origin', ORIGIN).send({ liked: true });
+      await request(b.base).post(`/api/social/posts/${pid}/like`).set('cookie', fan).set('origin', ORIGIN).send({ liked: false });
+      await request(b.base).post(`/api/social/posts/${pid}/like`).set('cookie', fan).set('origin', ORIGIN).send({ liked: true }); // no duplicate
+      await request(b.base).post(`/api/social/posts/${pid}/comments`).set('cookie', fan).set('origin', ORIGIN).send({ body: 'Looks great' });
+      await request(b.base).post(`/api/recipes/${gen.body.recipe.id}/save`).set('cookie', fan).set('origin', ORIGIN);
+
+      const list = await request(b.base).get('/api/notifications').set('cookie', author);
+      expect(list.body.unread).toBe(3);
+      expect(list.body.notifications.map((n: { kind: string }) => n.kind).sort()).toEqual(['comment', 'like', 'save']);
+      expect(list.body.notifications[0].actor.handle).toBe('sam_rivera');
+
+      const read = await request(b.base).post('/api/notifications/read').set('cookie', author).set('origin', ORIGIN).send({});
+      expect(read.body.unread).toBe(0);
+      // Sam's list is private to Sam.
+      expect((await request(b.base).get('/api/notifications').set('cookie', fan)).body.notifications).toHaveLength(0);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

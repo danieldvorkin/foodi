@@ -28,6 +28,8 @@ import { recipeRoutes } from './routes/recipes.js';
 import { socialRoutes } from './routes/social.js';
 import { createAudit } from './services/audit.js';
 import { createSettings } from './services/settings.js';
+import { createNotifier } from './services/notify.js';
+import { notificationRoutes } from './routes/notifications.js';
 
 export interface AppDeps {
   config: Config;
@@ -46,6 +48,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   });
   const settings = createSettings(db);
   const audit = createAudit(db);
+  const notifier = createNotifier(db);
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
 
@@ -145,10 +148,11 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/profile', writeLimiter, profileRoutes(db));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
-  api.use('/recipes', writeLimiter, recipeRoutes(db, ai));
-  api.use('/social', writeLimiter, socialRoutes(db));
+  api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier));
+  api.use('/social', writeLimiter, socialRoutes(db, notifier));
+  api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore }));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier }));
   api.use(notFoundHandler);
   app.use('/api', api);
 
