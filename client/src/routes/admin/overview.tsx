@@ -29,6 +29,16 @@ export function AdminOverview() {
           <div className="l">recipes, all time</div>
         </div>
         <div>
+          <div className="n num">{stats.posts + stats.blogPosts}</div>
+          <div className="l">
+            shared ({stats.posts} recipe {stats.posts === 1 ? 'post' : 'posts'}, {stats.blogPosts} blog)
+          </div>
+        </div>
+        <div>
+          <div className="n num">{stats.follows}</div>
+          <div className="l">follows · {stats.books} recipe {stats.books === 1 ? 'book' : 'books'}</div>
+        </div>
+        <div>
           <div className="n num">{stats.mediaCount}</div>
           <div className="l">photos & videos ({(stats.mediaBytes / 1024 / 1024).toFixed(0)} MB)</div>
         </div>

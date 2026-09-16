@@ -36,10 +36,10 @@ export function PostPage() {
 
   return (
     <main className="page-narrow stack-lg feed">
-      <Link to="/app/feed" className="muted small">
+      <Link to="/app" className="muted small">
         ← Feed
       </Link>
-      <PostCard post={post} detail onDeleted={() => nav('/app/feed')} />
+      <PostCard post={post} detail onDeleted={() => nav('/app')} />
       <section className="stack">
         <h2 style={{ fontSize: 'var(--t-20)' }}>Comments</h2>
         {comments.length === 0 && <p className="muted small">No comments yet. Ask how it went, or say what you’d change.</p>}

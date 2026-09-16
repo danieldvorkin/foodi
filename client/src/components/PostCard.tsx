@@ -73,8 +73,13 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
           <p className="muted small">{post.recipe.summary}</p>
           <p className="muted small num">
             ⏱ {minutes(post.recipe.totalMinutes)} · 👥 {servingsLabel(post.recipe.servings)} · {post.recipe.difficulty} · {post.recipe.ingredientCount} ingredients
-            {post.recipe.source === 'user' ? ' · ✍️ written by hand' : ''}
+            {post.recipe.source === 'user' && !post.recipe.adaptedFrom ? ' · ✍️ written by hand' : ''}
           </p>
+          {post.recipe.adaptedFrom && (
+            <p className="muted small">
+              🍴 Adapted from “{post.recipe.adaptedFrom.title}”{post.recipe.adaptedFrom.handle ? ` by @${post.recipe.adaptedFrom.handle}` : ''}
+            </p>
+          )}
         </div>
         <span className="btn btn-sm">Open</span>
       </Link>

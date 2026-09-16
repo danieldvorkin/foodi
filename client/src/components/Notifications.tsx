@@ -1,22 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 import type { Notification } from '@foodi/shared';
 import { notifications as api } from '../api/types';
 import { timeAgo } from '../lib/format';
 import { Avatar } from './ui';
 
-const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣' };
+export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕' };
 
-function describe(n: Notification): { text: string; to: string | null } {
+export function describe(n: Notification): { text: string; to: string | null } {
   const who = n.actor?.displayName ?? 'Someone';
-  const what = n.recipeTitle ? `“${n.recipeTitle}”` : 'your recipe';
+  const recipe = n.recipeTitle ? `“${n.recipeTitle}”` : 'your recipe';
+  const blog = n.blogTitle ? `“${n.blogTitle}”` : 'your post';
+  const postTo = n.postId ? `/app/posts/${n.postId}` : null;
+  const blogTo = n.blogId ? `/app/blog/${n.blogId}` : null;
   switch (n.kind) {
     case 'like':
-      return { text: `${who} liked your post about ${what}`, to: n.postId ? `/app/posts/${n.postId}` : null };
+      return n.blogId ? { text: `${who} liked ${blog}`, to: blogTo } : { text: `${who} liked your post about ${recipe}`, to: postTo };
     case 'comment':
-      return { text: `${who} commented on ${what}`, to: n.postId ? `/app/posts/${n.postId}` : null };
+      return n.blogId ? { text: `${who} commented on ${blog}`, to: blogTo } : { text: `${who} commented on ${recipe}`, to: postTo };
     case 'save':
-      return { text: `${who} saved ${what} to their recipes`, to: n.recipeId ? `/app/recipes/${n.recipeId}` : null };
+      return { text: `${who} saved ${recipe} to their recipes`, to: n.recipeId ? `/app/recipes/${n.recipeId}` : null };
+    case 'follow':
+      return { text: `${who} started following you`, to: n.actor ? `/app/u/${n.actor.handle}` : null };
+    case 'book':
+      return { text: `${who} added ${recipe} to their book ${n.bookName ? `“${n.bookName}”` : ''}`.trim(), to: n.bookId ? `/app/books/${n.bookId}` : null };
+    case 'remix':
+      return { text: `${who} adapted ${recipe} — their version will credit you`, to: n.recipeId ? `/app/recipes/${n.recipeId}` : null };
+    case 'post':
+      return n.blogId ? { text: `${who} published ${blog}`, to: blogTo } : { text: `${who} shared ${recipe}`, to: postTo };
     case 'role':
       return { text: n.message ?? 'Your role changed', to: '/app/settings?tab=account' };
     default:
@@ -24,29 +35,93 @@ function describe(n: Notification): { text: string; to: string | null } {
   }
 }
 
-/** Bell + panel. Polls the unread count while the tab is visible; loads the list on open. */
-export function NotificationBell() {
+/**
+ * Unread count shared by the bell and the notifications page. Opens one live stream per tab
+ * and falls back to polling every 30s if the stream can't connect.
+ */
+export function useUnread() {
   const [unread, setUnread] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Notification[] | null>(null);
-  const wrap = useRef<HTMLDivElement>(null);
-  const location = useLocation();
-
+  const [latest, setLatest] = useState<Notification | null>(null);
   useEffect(() => {
     let alive = true;
-    const tick = () => {
-      if (document.visibilityState !== 'visible') return;
-      api.unread().then((r) => alive && setUnread(r.unread)).catch(() => {});
+    let poll: number | null = null;
+    const refresh = () => api.unread().then((r) => alive && setUnread(r.unread)).catch(() => {});
+    refresh();
+    const startPolling = () => {
+      if (poll !== null) return;
+      poll = window.setInterval(() => document.visibilityState === 'visible' && refresh(), 30_000);
     };
-    tick();
-    const t = window.setInterval(tick, 30_000);
-    document.addEventListener('visibilitychange', tick);
+    const stop = api.stream(
+      (ev) => {
+        if (!alive) return;
+        setUnread(ev.unread);
+        if (ev.notification) setLatest(ev.notification);
+      },
+      () => startPolling(),
+    );
+    const onVisible = () => document.visibilityState === 'visible' && refresh();
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
-      window.clearInterval(t);
-      document.removeEventListener('visibilitychange', tick);
+      stop();
+      if (poll !== null) window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [location.pathname]);
+  }, []);
+  return { unread, setUnread, latest };
+}
+
+export function NotificationRow({ n, onOpen, onRead }: { n: Notification; onOpen?: () => void; onRead?: (id: string) => void }) {
+  const d = describe(n);
+  const inner = (
+    <>
+      {n.actor ? <Avatar name={n.actor.displayName} emoji={n.actor.avatar} /> : <span className="avatar avatar-emoji">{KIND_EMOJI[n.kind]}</span>}
+      <div className="grow" style={{ minWidth: 0 }}>
+        <p className="small">
+          <span aria-hidden="true">{KIND_EMOJI[n.kind]} </span>
+          {d.text}
+        </p>
+        <p className="muted tiny">{timeAgo(n.createdAt)}</p>
+      </div>
+      {!n.readAt && <span className="dot-unread" aria-label="Unread" />}
+    </>
+  );
+  return (
+    <li className={n.readAt ? '' : 'is-unread'}>
+      {d.to ? (
+        <Link
+          to={d.to}
+          className="panel-item"
+          onClick={() => {
+            if (!n.readAt) onRead?.(n.id);
+            onOpen?.();
+          }}
+        >
+          {inner}
+        </Link>
+      ) : (
+        <div className="panel-item">{inner}</div>
+      )}
+    </li>
+  );
+}
+
+/** Bell + dropdown. The count is live; the list loads when the panel opens. */
+export function NotificationBell() {
+  const { unread, setUnread, latest } = useUnread();
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<Notification[] | null>(null);
+  const [pulse, setPulse] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  // A new one arrived while the panel is open: put it on top. Either way, nudge the bell.
+  useEffect(() => {
+    if (!latest) return;
+    setItems((xs) => (xs && !xs.some((x) => x.id === latest.id) ? [latest, ...xs] : xs));
+    setPulse(true);
+    const t = window.setTimeout(() => setPulse(false), 900);
+    return () => window.clearTimeout(t);
+  }, [latest]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,29 +139,39 @@ export function NotificationBell() {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, setUnread]);
 
   async function markAll() {
     const r = await api.markRead();
     setUnread(r.unread);
     setItems((xs) => xs?.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })) ?? null);
   }
+  async function markOne(id: string) {
+    const r = await api.markRead([id]);
+    setUnread(r.unread);
+    setItems((xs) => xs?.map((n) => (n.id === id ? { ...n, readAt: n.readAt ?? new Date().toISOString() } : n)) ?? null);
+  }
 
   return (
     <div className="bell-wrap" ref={wrap}>
-      <button type="button" className="navlink bell" aria-haspopup="dialog" aria-expanded={open} aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} onClick={() => setOpen((o) => !o)}>
-        🔔
+      <button type="button" className={`iconbtn bell${pulse ? ' is-pulsing' : ''}`} aria-haspopup="dialog" aria-expanded={open} aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} onClick={() => setOpen((o) => !o)}>
+        <span aria-hidden="true">🔔</span>
         {unread > 0 && <span className="bell-badge num">{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
-        <div className="panel" role="dialog" aria-label="Notifications">
+        <div className="panel panel-right" role="dialog" aria-label="Notifications">
           <div className="panel-head">
             <h3>Notifications</h3>
-            {unread > 0 && (
-              <button type="button" className="btn btn-quiet btn-sm" onClick={markAll}>
-                Mark all read
-              </button>
-            )}
+            <div className="row" style={{ gap: 4 }}>
+              {unread > 0 && (
+                <button type="button" className="btn btn-quiet btn-sm" onClick={markAll}>
+                  Mark all read
+                </button>
+              )}
+              <Link to="/app/notifications" className="btn btn-quiet btn-sm" onClick={() => setOpen(false)}>
+                See all
+              </Link>
+            </div>
           </div>
           {items === null ? (
             <p className="muted small" style={{ padding: 'var(--s-4)' }}>
@@ -94,44 +179,13 @@ export function NotificationBell() {
             </p>
           ) : items.length === 0 ? (
             <p className="muted small" style={{ padding: 'var(--s-4)' }}>
-              🍃 Nothing yet. When someone likes, comments on or saves what you share, it shows up here.
+              🍃 Nothing yet. Likes, comments, new followers and people adapting your recipes show up here.
             </p>
           ) : (
             <ul className="panel-list">
-              {items.map((n) => {
-                const d = describe(n);
-                const inner = (
-                  <>
-                    {n.actor ? <Avatar name={n.actor.displayName} emoji={n.actor.avatar} /> : <span className="avatar avatar-emoji">{KIND_EMOJI[n.kind]}</span>}
-                    <div className="grow" style={{ minWidth: 0 }}>
-                      <p className="small">
-                        <span aria-hidden="true">{KIND_EMOJI[n.kind]} </span>
-                        {d.text}
-                      </p>
-                      <p className="muted tiny">{timeAgo(n.createdAt)}</p>
-                    </div>
-                    {!n.readAt && <span className="dot-unread" aria-label="Unread" />}
-                  </>
-                );
-                return (
-                  <li key={n.id} className={n.readAt ? '' : 'is-unread'}>
-                    {d.to ? (
-                      <Link
-                        to={d.to}
-                        className="panel-item"
-                        onClick={() => {
-                          if (!n.readAt) void api.markRead([n.id]).then((r) => setUnread(r.unread));
-                          setOpen(false);
-                        }}
-                      >
-                        {inner}
-                      </Link>
-                    ) : (
-                      <div className="panel-item">{inner}</div>
-                    )}
-                  </li>
-                );
-              })}
+              {items.slice(0, 12).map((n) => (
+                <NotificationRow key={n.id} n={n} onOpen={() => setOpen(false)} onRead={markOne} />
+              ))}
             </ul>
           )}
         </div>

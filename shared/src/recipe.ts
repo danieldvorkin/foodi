@@ -139,6 +139,12 @@ export const RecipeSchema = z.object({
   warnings: z.array(z.string()),
   media: z.array(MediaItemSchema),
   content: RecipeContentSchema,
+  /** Set when this recipe was copied from someone's shared recipe and adapted. */
+  adaptedFrom: z.object({ id: z.string().nullable(), title: z.string(), handle: z.string(), stillPublic: z.boolean() }).nullable(),
+  /** The cook's own notes on what they changed from the original. */
+  revisionNotes: z.string(),
+  /** How many people have adapted this recipe. */
+  adaptationCount: z.number(),
 });
 export type Recipe = z.infer<typeof RecipeSchema>;
 

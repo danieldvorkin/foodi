@@ -33,8 +33,12 @@ Open **http://localhost:5100**, click **🧪 Mock admin**, and you are cooking w
 | 👣 **Cook mode** | One step at a time, big enough to read from across the counter. Timers start when you tap them and chime when done. "You need" chips per step. Keyboard arrows, screen stays awake, progress survives a refresh. |
 | 🎲 **Randomize · ✏️ Adjust** | Same request, a different dish. Or "make it vegan", "halve it", "no oven" — you get a new version, the old one stays. |
 | ✍️ **Write your own** | A recipe editor with the same drag-and-drop ingredient library, step timers, temperatures, tips. |
-| 📷 **Share it** | Photos and short videos on recipes and posts. A feed with likes and comments, profiles with handles and emoji avatars. Save other people's recipes to your collection. |
-| 🔔 **Notifications** | Likes, comments and saves on what you share, role changes, and admin notices — in a panel under the bell, with unread counts and mark-all-read. |
+| 📣 **Feed** | The front page: a three-column feed with a composer, shortcuts and your latest recipes on the left, people to follow and fresh blog posts on the right. Filter to *Everyone* or *Following*. Photos and short videos on recipes and posts; likes and comments. |
+| 👥 **Follow people** | Follow from a profile, the feed or a blog post. Follower / following counts and lists on every profile; new posts from people you follow land in your notifications. |
+| 📓 **Blog** | Longer writing with light markdown (headings, lists, bold, links), a cover photo, a gallery, and up to six attached recipes. Drafts stay private; published posts join the feed. Likes and comments. |
+| 📚 **Recipe books** | Curated, ordered collections on your profile — yours or anyone's shared recipes, with a note per recipe and drag-to-reorder. Public or private. "Add to book" lives on every recipe page. |
+| 🍴 **Adapt a recipe** | Copy any shared recipe into an editable version of your own, write down what you changed, and share it — the original and its author are credited on the recipe page and in the feed, even if the original is later deleted. |
+| 🔔 **Notifications** | Likes, comments, saves, follows, adaptations, books, posts from people you follow, role changes and admin notices. Pushed live over Server-Sent Events (polling fallback), with a bell dropdown and a full page. |
 | 🛠 **Admin** | Overview with a 14-day generation chart, people (roles, disable, revoke sessions), recipe and post moderation, photo moderation, generation logs with latency and tokens, runtime settings, an append-only audit log. |
 
 ## Sign-in and the AI credential are two different things
@@ -72,8 +76,8 @@ Everything stays on the machine running the server.
 
 | What | Where | How |
 |---|---|---|
-| People, recipes, posts, notifications, settings, audit log | `server/data/foodi.db` (SQLite, WAL) | Plain rows. Delete the file to start over. |
-| API keys and OAuth tokens | same DB, `credentials` table | AES-256-GCM with the key in `.env`. The DB alone is useless without it. |
+| People, recipes, posts, blog, books, follows, notifications, settings, audit log | `server/data/foodi.db` (SQLite, WAL) | Plain rows. Delete the file to start over. |
+| API keys and OAuth tokens | same DB, `credentials` table | AES-256-GCM with the key in `.env`. Only the last four characters of a key are kept in the clear, so Settings can show which key is connected. The DB alone is useless without the `.env` key. |
 | Passwords | `passwords` table | scrypt (N=2¹⁷, r=8, p=1), 16-byte salt, constant-time compare. |
 | Sessions | `sessions` table | Only the SHA-256 of the cookie value is stored. |
 | Photos and videos | `server/data/uploads/` | Random file names; JPEG/PNG metadata (EXIF, GPS, text chunks) stripped on upload. |
@@ -90,11 +94,11 @@ foodi/
 │   └── src/
 │       ├── auth/        OIDC+PKCE client, password login, hashed sessions, encrypted credentials
 │       ├── ai/          prompt · JSON schema · Anthropic (tool use) · OpenAI (strict schema) · offline mock
-│       ├── routes/      profile · recipes · social · media · admin
+│       ├── routes/      profile · recipes · social (feed, follows) · blog · books · notifications (SSE) · media · admin
 │       ├── middleware/  requireAuth · requireRole · CSRF origin check · errors
 │       └── mock/        dev-only OpenID Connect provider
 └── client/    Vite · React 19 · React Router 8 (data mode) · @dnd-kit · plain CSS with tokens
-    └── src/routes/      landing · onboarding · connect · app/* · cook/:id · admin/*
+    └── src/routes/      landing · onboarding · connect · app/* (feed · cook · blog · books · profiles · settings) · cook/:id · admin/*
 ```
 
 Generation is a small vendor interface (`server/src/ai/types.ts`). Each adapter asks for a schema-shaped answer — Anthropic via forced tool use, OpenAI via strict `json_schema` — and everything is validated with the same zod schema the client renders from.

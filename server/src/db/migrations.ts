@@ -193,4 +193,108 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX notifications_unread ON notifications(user_id, read_at);
     `,
   },
+  {
+    name: 'community',
+    sql: `
+      CREATE TABLE follows (
+        follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        followee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (follower_id, followee_id)
+      );
+      CREATE INDEX follows_followee ON follows(followee_id, created_at DESC);
+
+      -- Longer-form writing. Drafts are only visible to their author.
+      CREATE TABLE blog_posts (
+        id TEXT PRIMARY KEY,
+        author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+        cover_media_id TEXT,
+        published_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX blog_author ON blog_posts(author_id, created_at DESC);
+      CREATE INDEX blog_published ON blog_posts(status, published_at DESC);
+
+      CREATE TABLE blog_post_recipes (
+        blog_id TEXT NOT NULL REFERENCES blog_posts(id) ON DELETE CASCADE,
+        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (blog_id, recipe_id)
+      );
+      CREATE TABLE blog_likes (
+        blog_id TEXT NOT NULL REFERENCES blog_posts(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (blog_id, user_id)
+      );
+      CREATE TABLE blog_comments (
+        id TEXT PRIMARY KEY,
+        blog_id TEXT NOT NULL REFERENCES blog_posts(id) ON DELETE CASCADE,
+        author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX blog_comments_blog ON blog_comments(blog_id, created_at);
+
+      ALTER TABLE media ADD COLUMN blog_id TEXT REFERENCES blog_posts(id) ON DELETE CASCADE;
+      CREATE INDEX media_blog ON media(blog_id, position);
+
+      -- Recipe books: curated, ordered collections on a person's profile.
+      CREATE TABLE recipe_books (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        emoji TEXT NOT NULL DEFAULT '📚',
+        description TEXT NOT NULL DEFAULT '',
+        visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('private','public')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX books_owner ON recipe_books(owner_id, created_at DESC);
+      CREATE TABLE recipe_book_items (
+        book_id TEXT NOT NULL REFERENCES recipe_books(id) ON DELETE CASCADE,
+        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, recipe_id)
+      );
+
+      -- Adapted recipes remember where they came from, even if the original is later deleted.
+      ALTER TABLE recipes ADD COLUMN forked_from_id TEXT;
+      ALTER TABLE recipes ADD COLUMN forked_from_title TEXT;
+      ALTER TABLE recipes ADD COLUMN forked_from_handle TEXT;
+      ALTER TABLE recipes ADD COLUMN revision_notes TEXT NOT NULL DEFAULT '';
+      CREATE INDEX recipes_forked_from ON recipes(forked_from_id);
+
+      -- Last few characters of an API key, so people can tell which key is connected.
+      ALTER TABLE credentials ADD COLUMN hint TEXT;
+
+      -- Notifications gain kinds and references; SQLite can't widen a CHECK in place.
+      CREATE TABLE notifications_v2 (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('like','comment','save','role','system','follow','book','remix','post')),
+        actor_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        post_id TEXT REFERENCES posts(id) ON DELETE CASCADE,
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE CASCADE,
+        comment_id TEXT,
+        blog_id TEXT REFERENCES blog_posts(id) ON DELETE CASCADE,
+        book_id TEXT REFERENCES recipe_books(id) ON DELETE CASCADE,
+        message TEXT,
+        read_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO notifications_v2 (id, user_id, kind, actor_id, post_id, recipe_id, comment_id, message, read_at, created_at)
+        SELECT id, user_id, kind, actor_id, post_id, recipe_id, comment_id, message, read_at, created_at FROM notifications;
+      DROP TABLE notifications;
+      ALTER TABLE notifications_v2 RENAME TO notifications;
+      CREATE INDEX notifications_user ON notifications(user_id, created_at DESC);
+      CREATE INDEX notifications_unread ON notifications(user_id, read_at);
+    `,
+  },
 ];

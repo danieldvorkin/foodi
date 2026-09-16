@@ -4,20 +4,26 @@ import type {
   AppSettings,
   AuditEntry,
   AuthProviderInfo,
+  BlogPost,
+  BookItem,
   Comment,
+  FeedItem,
+  FeedScope,
   GenerationLog,
   Me,
   MediaItem,
   Notification,
+  Person,
   Post,
   Profile,
   PublicProfile,
   Recipe,
+  RecipeBook,
   RecipeSummary,
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
-export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, Comment, GenerationLog, Me, MediaItem, Notification, Post, Profile, PublicProfile, Recipe, RecipeSummary };
+export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -56,18 +62,27 @@ export const recipes = {
   update: (id: string, body: unknown) => api<{ recipe: Recipe }>(`/recipes/${encodeURIComponent(id)}`, { method: 'PUT', body }),
   favorite: (id: string, favorite: boolean) => api<{ favorite: boolean }>(`/recipes/${encodeURIComponent(id)}/favorite`, { method: 'POST', body: { favorite } }),
   save: (id: string) => api<{ id: string }>(`/recipes/${encodeURIComponent(id)}/save`, { method: 'POST' }),
+  /** An editable copy that remembers where it came from. */
+  adapt: (id: string) => api<{ id: string }>(`/recipes/${encodeURIComponent(id)}/adapt`, { method: 'POST' }),
   remove: (id: string) => api<{ ok: true }>(`/recipes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
 
 export const social = {
-  feed: (before?: string) => api<{ posts: Post[]; nextBefore: string | null }>(`/social/feed${before ? `?before=${encodeURIComponent(before)}` : ''}`),
+  feed: (scope: FeedScope = 'everyone', before?: string) => {
+    const q = new URLSearchParams({ scope, ...(before ? { before } : {}) });
+    return api<{ items: FeedItem[]; nextBefore: string | null }>(`/social/feed?${q}`);
+  },
+  suggestions: () => api<{ people: Person[] }>('/social/suggestions'),
+  follow: (handle: string, follow: boolean) => api<{ following: boolean; followerCount: number }>(`/social/follow/${encodeURIComponent(handle)}`, { method: 'POST', body: { follow } }),
+  followers: (handle: string) => api<{ people: Person[] }>(`/social/profiles/${encodeURIComponent(handle)}/followers`),
+  following: (handle: string) => api<{ people: Person[] }>(`/social/profiles/${encodeURIComponent(handle)}/following`),
   post: (id: string) => api<{ post: Post; comments: Comment[] }>(`/social/posts/${encodeURIComponent(id)}`),
   createPost: (recipeId: string, caption: string, mediaIds: string[] = []) => api<{ post: Post }>('/social/posts', { method: 'POST', body: { recipeId, caption, mediaIds } }),
   deletePost: (id: string) => api<{ ok: true }>(`/social/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   like: (id: string, liked: boolean) => api<{ liked: boolean; likeCount: number }>(`/social/posts/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } }),
   comment: (id: string, body: string) => api<{ comment: Comment }>(`/social/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
   deleteComment: (id: string) => api<{ ok: true }>(`/social/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  profile: (handle: string) => api<{ profile: PublicProfile; posts: Post[] }>(`/social/profiles/${encodeURIComponent(handle)}`),
+  profile: (handle: string) => api<{ profile: PublicProfile; posts: Post[]; blogs: BlogPost[]; books: RecipeBook[] }>(`/social/profiles/${encodeURIComponent(handle)}`),
   myProfile: () => api<{ profile: PublicProfile }>('/social/profile'),
   updateProfile: (handle: string, bio: string, avatar: string) => api<{ profile: PublicProfile }>('/social/profile', { method: 'PUT', body: { handle, bio, avatar } }),
 };
@@ -103,11 +118,75 @@ export const media = {
     }),
 };
 
+export interface BlogInput {
+  title: string;
+  body: string;
+  status: 'draft' | 'published';
+  recipeIds: string[];
+  mediaIds: string[];
+  coverMediaId: string | null;
+}
+
+export const blog = {
+  list: (opts: { author?: string; before?: string } = {}) => {
+    const q = new URLSearchParams({ ...(opts.author ? { author: opts.author } : {}), ...(opts.before ? { before: opts.before } : {}) });
+    return api<{ posts: BlogPost[]; nextBefore: string | null }>(`/blog${q.size ? `?${q}` : ''}`);
+  },
+  get: (id: string) => api<{ post: BlogPost; comments: Comment[] }>(`/blog/${encodeURIComponent(id)}`),
+  create: (body: BlogInput) => api<{ post: BlogPost }>('/blog', { method: 'POST', body }),
+  update: (id: string, body: BlogInput) => api<{ post: BlogPost }>(`/blog/${encodeURIComponent(id)}`, { method: 'PUT', body }),
+  remove: (id: string) => api<{ ok: true }>(`/blog/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  like: (id: string, liked: boolean) => api<{ liked: boolean; likeCount: number }>(`/blog/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } }),
+  comment: (id: string, body: string) => api<{ comment: Comment }>(`/blog/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
+  deleteComment: (id: string) => api<{ ok: true }>(`/blog/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};
+
+export interface BookInput {
+  name: string;
+  emoji: string;
+  description: string;
+  visibility: 'private' | 'public';
+}
+
+export const books = {
+  mine: (recipeId?: string) => api<{ books: (RecipeBook & { contains?: boolean })[] }>(`/books${recipeId ? `?recipeId=${encodeURIComponent(recipeId)}` : ''}`),
+  get: (id: string) => api<{ book: RecipeBook; items: BookItem[] }>(`/books/${encodeURIComponent(id)}`),
+  create: (body: BookInput) => api<{ book: RecipeBook }>('/books', { method: 'POST', body }),
+  update: (id: string, body: BookInput) => api<{ book: RecipeBook }>(`/books/${encodeURIComponent(id)}`, { method: 'PUT', body }),
+  remove: (id: string) => api<{ ok: true }>(`/books/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  add: (id: string, recipeId: string, note = '') => api<{ ok: true; recipeCount: number }>(`/books/${encodeURIComponent(id)}/items`, { method: 'POST', body: { recipeId, note } }),
+  note: (id: string, recipeId: string, note: string) => api<{ ok: true }>(`/books/${encodeURIComponent(id)}/items/${encodeURIComponent(recipeId)}`, { method: 'PATCH', body: { note } }),
+  removeItem: (id: string, recipeId: string) => api<{ ok: true }>(`/books/${encodeURIComponent(id)}/items/${encodeURIComponent(recipeId)}`, { method: 'DELETE' }),
+  reorder: (id: string, recipeIds: string[]) => api<{ ok: true }>(`/books/${encodeURIComponent(id)}/order`, { method: 'PUT', body: { recipeIds } }),
+};
+
 export const notifications = {
   list: () => api<{ notifications: Notification[]; unread: number }>('/notifications'),
   unread: () => api<{ unread: number }>('/notifications/unread'),
   markRead: (ids?: string[]) => api<{ unread: number }>('/notifications/read', { method: 'POST', body: ids ? { ids } : {} }),
+  clearRead: () => api<{ notifications: Notification[]; unread: number }>('/notifications/clear-read', { method: 'POST' }),
   remove: (id: string) => api<{ ok: true }>(`/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /**
+   * Live updates. Calls `onEvent` with the unread count and, for new items, the notification.
+   * Returns a stop function. If the stream can't connect the caller should fall back to polling.
+   */
+  stream: (onEvent: (ev: { unread: number; notification?: Notification }) => void, onError: () => void) => {
+    const es = new EventSource('/api/notifications/stream');
+    const handle = (e: MessageEvent) => {
+      try {
+        onEvent(JSON.parse(e.data as string));
+      } catch {
+        /* ignore malformed frames */
+      }
+    };
+    es.addEventListener('unread', handle);
+    es.addEventListener('notification', handle);
+    es.onerror = () => {
+      // EventSource retries on its own; tell the caller so it can poll meanwhile.
+      if (es.readyState === EventSource.CLOSED) onError();
+    };
+    return () => es.close();
+  },
 };
 
 export interface AdminUserDetail {
@@ -131,7 +210,9 @@ export const admin = {
   deleteRecipe: (id: string) => api<{ ok: true }>(`/admin/recipes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   posts: () => api<{ posts: { id: string; caption: string; createdAt: string; authorId: string; handle: string; recipeTitle: string; likeCount: number; commentCount: number }[] }>('/admin/posts'),
   deletePost: (id: string) => api<{ ok: true }>(`/admin/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  comments: () => api<{ comments: { id: string; body: string; createdAt: string; authorId: string; handle: string; postId: string }[] }>('/admin/comments'),
+  blog: () => api<{ posts: { id: string; title: string; status: string; createdAt: string; publishedAt: string | null; authorId: string; handle: string; likeCount: number; commentCount: number }[] }>('/admin/blog'),
+  deleteBlog: (id: string) => api<{ ok: true }>(`/admin/blog/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  comments: () => api<{ comments: { id: string; body: string; createdAt: string; authorId: string; handle: string; postId: string | null; blogId: string | null }[] }>('/admin/comments'),
   deleteComment: (id: string) => api<{ ok: true }>(`/admin/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generations: (status?: 'ok' | 'failed') => api<{ generations: GenerationLog[] }>(`/admin/generations${status ? `?status=${status}` : ''}`),
   settings: () =>

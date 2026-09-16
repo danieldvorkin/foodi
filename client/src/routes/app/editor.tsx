@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, redirect, useLoaderData, useNavigate, type LoaderFunctionArgs } from 'react-router';
+import { Link, redirect, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from 'react-router';
 import { AuthoredRecipeSchema, DIFFICULTY, getIngredient, MEAL_TYPES, type AuthoredRecipe, type RecipeIngredient, type Step } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { recipes as recipesApi } from '../../api/types';
@@ -35,6 +35,10 @@ export function EditorPage() {
       : { emoji: '🍽️', title: '', summary: '', mealType: 'dinner', servings: 2, totalMinutes: 30, activeMinutes: 20, difficulty: 'easy', cuisine: null, ingredients: [], steps: [blankStep()] },
   );
   const [busy, setBusy] = useState(false);
+  const [notes, setNotes] = useState(existing?.revisionNotes ?? '');
+  const [params] = useSearchParams();
+  const justAdapted = params.get('adapted') === '1';
+  const adaptedFrom = existing?.adaptedFrom ?? null;
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
 
   // The basket mirrors the ingredient lines that came from the library; free-text lines live alongside.
@@ -66,7 +70,7 @@ export function EditorPage() {
     if (!parsed.success) return;
     setBusy(true);
     try {
-      const { recipe } = existing ? await recipesApi.update(existing.id, parsed.data) : await recipesApi.create(parsed.data);
+      const { recipe } = existing ? await recipesApi.update(existing.id, { ...parsed.data, revisionNotes: notes.trim() }) : await recipesApi.create(parsed.data);
       toast(existing ? 'Saved' : 'Recipe saved');
       nav(`/app/recipes/${recipe.id}`);
     } catch (e) {
@@ -79,13 +83,36 @@ export function EditorPage() {
     <main className="page editor stack-lg">
       <header className="row-between">
         <div>
-          <h1>{existing ? 'Edit recipe' : 'Write a recipe'}</h1>
-          <p className="muted">Drag ingredients in from the library, then write the steps the way you’d tell a friend.</p>
+          <h1>{adaptedFrom ? '🍴 Make it yours' : existing ? 'Edit recipe' : 'Write a recipe'}</h1>
+          <p className="muted">
+            {adaptedFrom ? 'Change anything. When you share it, the original and its author are credited automatically.' : 'Drag ingredients in from the library, then write the steps the way you’d tell a friend.'}
+          </p>
         </div>
         <Link to={existing ? `/app/recipes/${existing.id}` : '/app'} className="btn btn-quiet">
           Cancel
         </Link>
       </header>
+
+      {adaptedFrom && (
+        <section className="lineage" style={{ display: 'grid', gap: 'var(--s-2)' }}>
+          <div>
+            {justAdapted ? 'This is your copy of ' : 'Adapted from '}
+            <b>{adaptedFrom.title}</b>
+            {adaptedFrom.handle ? (
+              <>
+                {' '}
+                by <Link to={`/app/u/${adaptedFrom.handle}`}>@{adaptedFrom.handle}</Link>
+              </>
+            ) : null}
+            .
+          </div>
+          <div className="field">
+            <label htmlFor="notes">What you changed</label>
+            <textarea id="notes" className="textarea" style={{ minHeight: 80 }} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} placeholder="Swapped the cream for coconut milk, halved the sugar, added a 10-minute rest…" />
+            <p className="hint">Shown on the recipe page under the credit, so people can see how your version differs.</p>
+          </div>
+        </section>
+      )}
 
       <section className="editor-meta">
         <div className="field" style={{ gridColumn: '1 / -1' }}>

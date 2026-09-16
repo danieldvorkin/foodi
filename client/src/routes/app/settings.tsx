@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from 'react-router';
 import { errorMessage } from '../../api/client';
 import { auth, profile as profileApi, social } from '../../api/types';
+import { timeAgo } from '../../lib/format';
 import { AVATAR_EMOJI } from '@foodi/shared';
 import { ProfileForm } from '../../components/ProfileForm';
 import { Avatar, EmojiPicker } from '../../components/ui';
@@ -13,7 +14,21 @@ export async function settingsLoader() {
   return { profile: p.profile, social: s.profile, providers: prov.providers };
 }
 
-const VENDOR_LABEL = { anthropic: 'Claude (Anthropic API key)', openai: 'OpenAI', mock: 'Mock account (development)' } as const;
+const VENDOR_LABEL = { anthropic: 'Claude (Anthropic)', openai: 'OpenAI', mock: 'Mock account (development)' } as const;
+const KEY_COPY = {
+  anthropic: { name: 'Claude', where: 'console.anthropic.com → API keys', href: 'https://console.anthropic.com/settings/keys', prefix: 'sk-ant-…', emoji: '🅰️' },
+  openai: { name: 'OpenAI', where: 'platform.openai.com → API keys', href: 'https://platform.openai.com/api-keys', prefix: 'sk-…', emoji: '🤖' },
+} as const;
+type Tab = 'answers' | 'profile' | 'ai' | 'account';
+const TABS: [Tab, string][] = [
+  ['answers', '🍽️ Your answers'],
+  ['profile', '🧑‍🍳 Public profile'],
+  ['ai', '🔌 AI keys'],
+  ['account', '🔑 Account'],
+];
+function tabFrom(v: string | null): Tab {
+  return v === 'profile' || v === 'ai' || v === 'account' ? v : 'answers';
+}
 
 export function SettingsPage() {
   const data = useLoaderData<typeof settingsLoader>();
@@ -22,7 +37,11 @@ export function SettingsPage() {
   const toast = useToast();
   const { revalidate } = useRevalidator();
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<'answers' | 'profile' | 'account'>(params.get('error') || params.get('tab') === 'account' ? 'account' : 'answers');
+  const [tab, setTab] = useState<Tab>(params.get('error') ? 'ai' : tabFrom(params.get('tab')));
+  const [keyVendor, setKeyVendor] = useState<'anthropic' | 'openai'>(me.vendor === 'openai' ? 'openai' : 'anthropic');
+  const [key, setKey] = useState('');
+  const [keyBusy, setKeyBusy] = useState(false);
+  const oauthLinks = data.providers.filter((p) => p.kind === 'oauth');
   const linkError = params.get('error');
   const [handle, setHandle] = useState(data.social.handle);
   const [bio, setBio] = useState(data.social.bio);
@@ -87,12 +106,107 @@ export function SettingsPage() {
       <h1>Settings</h1>
       {linkError && <div className="notice notice-warn">{linkError}</div>}
       <div className="chips" role="tablist">
-        {(['answers', 'profile', 'account'] as const).map((t) => (
+        {TABS.map(([t, label]) => (
           <button key={t} type="button" role="tab" className="chip" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t === 'answers' ? 'Your answers' : t === 'profile' ? 'Public profile' : 'Account'}
+            {label}
           </button>
         ))}
       </div>
+
+      {tab === 'ai' && (
+        <section className="stack-lg">
+          <div className="stack">
+            <h3>🔌 Connected AI</h3>
+            {me.vendor ? (
+              <div className="notice notice-sage">
+                <b>{VENDOR_LABEL[me.vendor]}</b>
+                {me.credentialKind === 'api_key' ? ` · key ending in …${me.credentialHint ?? '????'}` : ' · linked account'}
+                {me.credentialUpdatedAt ? ` · updated ${timeAgo(me.credentialUpdatedAt)}` : ''}
+              </div>
+            ) : (
+              <div className="notice notice-warn">Nothing connected yet — recipes can’t be written until you add a key below.</div>
+            )}
+            <p className="muted small measure">
+              Recipes are written with this account and billed to it, never to foodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.
+            </p>
+          </div>
+
+          <form
+            className="stack"
+            style={{ maxWidth: 460 }}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setKeyBusy(true);
+              try {
+                await auth.connectKey(keyVendor, key.trim());
+                setKey('');
+                toast(`${KEY_COPY[keyVendor].name} key ${me.vendor ? 'updated' : 'connected'}`);
+                revalidate();
+              } catch (err) {
+                toast(errorMessage(err), 'error');
+              } finally {
+                setKeyBusy(false);
+              }
+            }}
+          >
+            <h3>{me.vendor && me.credentialKind === 'api_key' ? 'Update your key' : 'Add a key'}</h3>
+            <div className="field">
+              <span className="label">Vendor</span>
+              <div className="chips" role="radiogroup">
+                {(['anthropic', 'openai'] as const).map((v) => (
+                  <button key={v} type="button" role="radio" className="chip" aria-checked={keyVendor === v} aria-pressed={keyVendor === v} onClick={() => setKeyVendor(v)}>
+                    {KEY_COPY[v].emoji} {KEY_COPY[v].name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="ai-key">{KEY_COPY[keyVendor].name} API key</label>
+              <input id="ai-key" className="input" type="password" autoComplete="off" spellCheck={false} placeholder={KEY_COPY[keyVendor].prefix} value={key} onChange={(e) => setKey(e.target.value)} minLength={20} required />
+              <p className="hint">
+                Create one at{' '}
+                <a href={KEY_COPY[keyVendor].href} target="_blank" rel="noreferrer noopener">
+                  {KEY_COPY[keyVendor].where}
+                </a>
+                . It’s checked with one request, then encrypted. Saving replaces whatever is connected now.
+              </p>
+            </div>
+            <div className="row">
+              <button type="submit" className="btn btn-primary" disabled={keyBusy || key.trim().length < 20}>
+                {keyBusy ? 'Checking key…' : me.vendor ? 'Replace key' : 'Connect'}
+              </button>
+              {me.vendor && (
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  onClick={async () => {
+                    if (!window.confirm('Disconnect the AI account? You can add a key again any time.')) return;
+                    await auth.disconnectKey();
+                    toast('Disconnected');
+                    revalidate();
+                  }}
+                >
+                  Disconnect
+                </button>
+              )}
+            </div>
+          </form>
+
+          {oauthLinks.length > 0 && (
+            <div className="stack">
+              <h3>Or link an account</h3>
+              <div className="row">
+                {oauthLinks.map((p) => (
+                  <a key={p.id} className="btn btn-sm" href={`/api/auth/${p.id}/start?returnTo=${encodeURIComponent('/app/settings?tab=ai')}`}>
+                    {p.vendor === 'mock' ? '🧪 Mock account (dev)' : p.label.replace(/^Continue with (a )?/, 'Link ')}
+                  </a>
+                ))}
+              </div>
+              <p className="hint">Linking an account uses it both to sign in and to write recipes.</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {tab === 'answers' && data.profile && (
         <section className="stack">
@@ -133,36 +247,6 @@ export function SettingsPage() {
 
       {tab === 'account' && (
         <section className="stack-lg">
-          <div className="stack">
-            <h3>🔌 Connected AI</h3>
-            {me.vendor ? (
-              <p>
-                {VENDOR_LABEL[me.vendor]} · {me.credentialKind === 'oauth' ? 'linked account' : 'API key, encrypted at rest'}
-              </p>
-            ) : (
-              <p className="muted">Nothing connected yet — recipes can’t be written until you connect one.</p>
-            )}
-            <p className="muted small">Recipes are generated with this account and billed to it, never to foodi. Connecting a different one replaces it.</p>
-            <div className="row">
-              <Link to="/connect" className="btn btn-sm">
-                {me.vendor ? 'Change' : 'Connect'}
-              </Link>
-              {me.vendor && (
-                <button
-                  type="button"
-                  className="btn btn-quiet btn-sm"
-                  onClick={async () => {
-                    await auth.disconnectKey();
-                    toast('Disconnected');
-                    revalidate();
-                    nav('.', { replace: true });
-                  }}
-                >
-                  Disconnect
-                </button>
-              )}
-            </div>
-          </div>
           <div className="stack">
             <h3>🔑 Sign-in</h3>
             <p className="muted small">

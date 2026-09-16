@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './lib/logger.js';
@@ -7,8 +8,8 @@ import { decrypt, encrypt, pkcePair } from './lib/crypto.js';
 
 const ORIGIN = 'http://localhost:5100';
 
-async function boot() {
-  const config = loadConfig({ ...process.env, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0' });
+async function boot(extraEnv: Record<string, string> = {}) {
+  const config = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0' });
   const log = createLogger('silent', false);
   const built = await createApp({ config, log });
   // The mock IdP needs a reachable issuer; bind an ephemeral port and rewrite the origin.
@@ -16,7 +17,7 @@ async function boot() {
   const port = (server.address() as { port: number }).port;
   server.close();
   built.close();
-  const cfg2 = loadConfig({ ...process.env, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: `http://127.0.0.1:${port}` });
+  const cfg2 = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: `http://127.0.0.1:${port}` });
   const built2 = await createApp({ config: cfg2, log });
   const server2 = built2.app.listen(port);
   return { ...built2, server: server2, base: `http://127.0.0.1:${port}`, config: cfg2 };
@@ -254,8 +255,9 @@ describe('recipes', () => {
     expect(post.status).toBe(201);
     expect((await request(b.base).get(`/api/recipes/${id}`).set('cookie', other)).status).toBe(200);
     const feed = await request(b.base).get('/api/social/feed').set('cookie', other);
-    expect(feed.body.posts).toHaveLength(1);
-    expect(feed.body.posts[0].author.handle).toBe('ada_lovelace');
+    expect(feed.body.items).toHaveLength(1);
+    expect(feed.body.items[0].type).toBe('post');
+    expect(feed.body.items[0].post.author.handle).toBe('ada_lovelace');
     const like = await request(b.base).post(`/api/social/posts/${post.body.post.id}/like`).set('cookie', other).set('origin', ORIGIN).send({ liked: true });
     expect(like.body.likeCount).toBe(1);
     const saved = await request(b.base).post(`/api/recipes/${id}/save`).set('cookie', other).set('origin', ORIGIN);
@@ -567,6 +569,232 @@ describe('notifications', () => {
       // Sam's list is private to Sam.
       expect((await request(b.base).get('/api/notifications').set('cookie', fan)).body.notifications).toHaveLength(0);
     } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('community', () => {
+  it('follow → notification, following-scope feed, suggestions exclude people you follow', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      const priya = await signIn(b, 'mock-priya');
+      for (const c of [ada, sam, priya]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+
+      expect((await request(b.base).post('/api/social/follow/sam_rivera').set('cookie', sam).set('origin', ORIGIN).send({ follow: true })).status).toBe(400);
+      const f = await request(b.base).post('/api/social/follow/ada_lovelace').set('cookie', sam).set('origin', ORIGIN).send({ follow: true });
+      expect(f.body).toEqual({ following: true, followerCount: 1 });
+      // Following twice is idempotent and notifies once.
+      await request(b.base).post('/api/social/follow/ada_lovelace').set('cookie', sam).set('origin', ORIGIN).send({ follow: true });
+      const adaNtf = await request(b.base).get('/api/notifications').set('cookie', ada);
+      expect(adaNtf.body.notifications.filter((n: { kind: string }) => n.kind === 'follow')).toHaveLength(1);
+
+      const prof = await request(b.base).get('/api/social/profiles/ada_lovelace').set('cookie', sam);
+      expect(prof.body.profile.followerCount).toBe(1);
+      expect(prof.body.profile.followedByMe).toBe(true);
+      expect((await request(b.base).get('/api/social/profiles/ada_lovelace/followers').set('cookie', priya)).body.people.map((p: { handle: string }) => p.handle)).toEqual(['sam_rivera']);
+
+      // Ada and Priya each share; Sam's "following" feed only has Ada's, and Sam hears about it.
+      const gA = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'soup' });
+      await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gA.body.recipe.id, caption: '' });
+      const gP = await request(b.base).post('/api/recipes/generate').set('cookie', priya).set('origin', ORIGIN).send({ prompt: 'salad' });
+      await request(b.base).post('/api/social/posts').set('cookie', priya).set('origin', ORIGIN).send({ recipeId: gP.body.recipe.id, caption: '' });
+      expect((await request(b.base).get('/api/social/feed').set('cookie', sam)).body.items).toHaveLength(2);
+      const following = await request(b.base).get('/api/social/feed?scope=following').set('cookie', sam);
+      expect(following.body.items).toHaveLength(1);
+      expect(following.body.items[0].post.author.handle).toBe('ada_lovelace');
+      expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications.some((n: { kind: string }) => n.kind === 'post')).toBe(true);
+
+      const sugg = await request(b.base).get('/api/social/suggestions').set('cookie', sam);
+      const handles = sugg.body.people.map((p: { handle: string }) => p.handle);
+      expect(handles).toContain('priya_nataraja');
+      expect(handles).not.toContain('ada_lovelace');
+      expect(handles).not.toContain('sam_rivera');
+
+      const un = await request(b.base).post('/api/social/follow/ada_lovelace').set('cookie', sam).set('origin', ORIGIN).send({ follow: false });
+      expect(un.body.followerCount).toBe(0);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('blog: drafts stay private, publishing shows in the feed, likes/comments notify, media follows the post', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'bread' });
+
+      const draft = await request(b.base).post('/api/blog').set('cookie', ada).set('origin', ORIGIN).send({ title: 'On sourdough', body: '## Starter\n\nFeed it **daily**.', status: 'draft', recipeIds: [gen.body.recipe.id] });
+      expect(draft.status).toBe(201);
+      expect(draft.body.post.excerpt).toBe('Feed it daily.');
+      const id = draft.body.post.id;
+      expect((await request(b.base).get(`/api/blog/${id}`).set('cookie', sam)).status).toBe(404);
+      expect((await request(b.base).get('/api/blog').set('cookie', sam)).body.posts).toHaveLength(0);
+      // The attached private recipe is not leaked through the draft's recipe list either.
+      expect((await request(b.base).get('/api/blog?author=ada_lovelace').set('cookie', ada)).body.posts[0].recipes).toHaveLength(1);
+
+      const pub = await request(b.base).put(`/api/blog/${id}`).set('cookie', ada).set('origin', ORIGIN).send({ title: 'On sourdough', body: 'Feed it daily.', status: 'published' });
+      expect(pub.body.post.status).toBe('published');
+      expect(pub.body.post.publishedAt).toBeTruthy();
+      const asSam = await request(b.base).get(`/api/blog/${id}`).set('cookie', sam);
+      expect(asSam.status).toBe(200);
+      expect(asSam.body.post.isMine).toBe(false);
+      const feed = await request(b.base).get('/api/social/feed').set('cookie', sam);
+      expect(feed.body.items[0].type).toBe('blog');
+
+      await request(b.base).post(`/api/blog/${id}/like`).set('cookie', sam).set('origin', ORIGIN).send({ liked: true });
+      const c = await request(b.base).post(`/api/blog/${id}/comments`).set('cookie', sam).set('origin', ORIGIN).send({ body: 'Nice' });
+      expect(c.status).toBe(201);
+      const ntf = await request(b.base).get('/api/notifications').set('cookie', ada);
+      const kinds = ntf.body.notifications.filter((n: { blogId: string | null }) => n.blogId === id).map((n: { kind: string }) => n.kind).sort();
+      expect(kinds).toEqual(['comment', 'like']);
+      expect(ntf.body.notifications[0].blogTitle).toBe('On sourdough');
+
+      // Only the author (or an admin) can edit / delete.
+      expect((await request(b.base).put(`/api/blog/${id}`).set('cookie', sam).set('origin', ORIGIN).send({ title: 'x', body: 'y' })).status).toBe(403);
+      expect((await request(b.base).delete(`/api/blog/${id}`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(403);
+      expect((await request(b.base).delete(`/api/blog/comments/${c.body.comment.id}`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      expect((await request(b.base).delete(`/api/blog/${id}`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      expect((await request(b.base).get(`/api/blog/${id}`).set('cookie', ada)).status).toBe(404);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('recipe books: private books hide, public ones show on the profile, adding someone’s recipe tells them', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'curry' });
+      const rid = gen.body.recipe.id;
+
+      const book = await request(b.base).post('/api/books').set('cookie', sam).set('origin', ORIGIN).send({ name: 'Weeknights', emoji: '🍝' });
+      expect(book.status).toBe(201);
+      const bid = book.body.book.id;
+      // Ada's recipe is private, so Sam can't shelve it yet.
+      expect((await request(b.base).post(`/api/books/${bid}/items`).set('cookie', sam).set('origin', ORIGIN).send({ recipeId: rid })).status).toBe(404);
+      await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: rid, caption: '' });
+      const add = await request(b.base).post(`/api/books/${bid}/items`).set('cookie', sam).set('origin', ORIGIN).send({ recipeId: rid, note: 'Double the chilli' });
+      expect(add.status).toBe(201);
+      expect((await request(b.base).get('/api/notifications').set('cookie', ada)).body.notifications[0]).toMatchObject({ kind: 'book', bookName: 'Weeknights' });
+
+      const detail = await request(b.base).get(`/api/books/${bid}`).set('cookie', ada);
+      expect(detail.status).toBe(200);
+      expect(detail.body.items[0]).toMatchObject({ recipeId: rid, note: 'Double the chilli', author: { handle: 'ada_lovelace' } });
+      expect((await request(b.base).get(`/api/books?recipeId=${rid}`).set('cookie', sam)).body.books[0].contains).toBe(true);
+
+      // Private books vanish from other people's view of the profile and the direct URL.
+      await request(b.base).put(`/api/books/${bid}`).set('cookie', sam).set('origin', ORIGIN).send({ name: 'Weeknights', emoji: '🍝', visibility: 'private' });
+      expect((await request(b.base).get(`/api/books/${bid}`).set('cookie', ada)).status).toBe(404);
+      expect((await request(b.base).get('/api/social/profiles/sam_rivera').set('cookie', ada)).body.books).toHaveLength(0);
+      expect((await request(b.base).get('/api/social/profiles/sam_rivera').set('cookie', sam)).body.books).toHaveLength(1);
+      expect((await request(b.base).put(`/api/books/${bid}`).set('cookie', ada).set('origin', ORIGIN).send({ name: 'Mine now' })).status).toBe(404);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('adapting a shared recipe makes an editable copy that credits the original', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'tacos' });
+      const rid = gen.body.recipe.id;
+      expect((await request(b.base).post(`/api/recipes/${rid}/adapt`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(403);
+      await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: rid, caption: '' });
+
+      const fork = await request(b.base).post(`/api/recipes/${rid}/adapt`).set('cookie', sam).set('origin', ORIGIN);
+      expect(fork.status).toBe(201);
+      const copy = await request(b.base).get(`/api/recipes/${fork.body.id}`).set('cookie', sam);
+      expect(copy.body.isMine).toBe(true);
+      expect(copy.body.source).toBe('user');
+      expect(copy.body.recipe.adaptedFrom).toMatchObject({ id: rid, handle: 'ada_lovelace', stillPublic: true });
+      expect((await request(b.base).get('/api/notifications').set('cookie', ada)).body.notifications[0].kind).toBe('remix');
+
+      // Edit the copy (a generated original could not be edited by hand) with notes on what changed.
+      const content = copy.body.recipe.content;
+      const edited = await request(b.base)
+        .put(`/api/recipes/${fork.body.id}`)
+        .set('cookie', sam)
+        .set('origin', ORIGIN)
+        .send({ ...content, title: 'Tacos, but spicier', revisionNotes: 'Doubled the chipotle, swapped cheddar for cotija.' });
+      expect(edited.status).toBe(200);
+      expect(edited.body.recipe.content.title).toBe('Tacos, but spicier');
+      expect(edited.body.recipe.revisionNotes).toMatch(/chipotle/);
+      expect((await request(b.base).get(`/api/recipes/${rid}`).set('cookie', ada)).body.recipe.adaptationCount).toBe(1);
+
+      // Re-sharing carries the credit onto the post.
+      const post = await request(b.base).post('/api/social/posts').set('cookie', sam).set('origin', ORIGIN).send({ recipeId: fork.body.id, caption: 'My take' });
+      expect(post.body.post.recipe.adaptedFrom).toMatchObject({ id: rid, title: content.title, handle: 'ada_lovelace' });
+      // The original disappearing keeps the credit but drops the link.
+      await request(b.base).delete(`/api/recipes/${rid}`).set('cookie', ada).set('origin', ORIGIN);
+      expect((await request(b.base).get(`/api/recipes/${fork.body.id}`).set('cookie', sam)).body.recipe.adaptedFrom).toMatchObject({ id: null, handle: 'ada_lovelace', stillPublic: false });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('notification stream pushes the unread count live', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      const events: string[] = [];
+      const ac = new AbortController();
+      const res = await fetch(`${b.base}/api/notifications/stream`, { headers: { cookie: ada }, signal: ac.signal });
+      expect(res.headers.get('content-type')).toContain('text/event-stream');
+      const reader = res.body!.getReader();
+      const dec = new TextDecoder();
+      const pump = (async () => {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          events.push(dec.decode(value));
+          if (events.join('').includes('event: notification')) break;
+        }
+      })();
+      await request(b.base).post('/api/social/follow/ada_lovelace').set('cookie', sam).set('origin', ORIGIN).send({ follow: true });
+      await Promise.race([pump, new Promise((_, rej) => setTimeout(() => rej(new Error('no event within 3s')), 3000))]);
+      const text = events.join('');
+      expect(text).toContain('event: unread');
+      expect(text).toContain('event: notification');
+      expect(text).toContain('"kind":"follow"');
+      ac.abort();
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('remembers the tail of a connected API key so people can tell keys apart', async () => {
+    // A stand-in for api.anthropic.com that accepts any key.
+    const vendor = createServer((_req, res) => res.writeHead(200, { 'content-type': 'application/json' }).end('{"data":[]}')).listen(0);
+    const vendorPort = (vendor.address() as { port: number }).port;
+    const b = await boot({ ANTHROPIC_API_BASE: `http://127.0.0.1:${vendorPort}` });
+    try {
+      const me = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'key@example.com', password: 'correct horse battery', displayName: 'Kay' });
+      const cookie = (me.headers['set-cookie'] as unknown as string[]).map((c) => c.split(';')[0]!).find((c) => c.startsWith('foodi_session='))!;
+      const key = await request(b.base).post('/api/auth/key').set('cookie', cookie).set('origin', ORIGIN).send({ vendor: 'anthropic', apiKey: 'sk-ant-api03-mock-abcdefghijklmnopqrstuvwxyz-Zz9Q' });
+      expect(key.status).toBe(200);
+      expect(key.body.credentialHint).toBe('Zz9Q');
+      expect(key.body.credentialUpdatedAt).toBeTruthy();
+      await request(b.base).delete('/api/auth/key').set('cookie', cookie).set('origin', ORIGIN);
+      expect((await request(b.base).get('/api/auth/me').set('cookie', cookie)).body.credentialHint).toBeNull();
+    } finally {
+      vendor.close();
       b.server.close();
       b.close();
     }

@@ -3,8 +3,11 @@ import { z } from 'zod';
 import {
   CreateCommentSchema,
   CreatePostSchema,
+  FEED_SCOPES,
   UpdateSocialProfileSchema,
   type Comment,
+  type FeedItem,
+  type Person,
   type Post,
   type PublicProfile,
   RecipeContentSchema,
@@ -17,6 +20,8 @@ import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { coverForRecipe, mediaForPost, type MediaRow } from './media.js';
+import { BLOG_SELECT, toBlogPost, type BlogRow } from './blog.js';
+import { booksFor } from './books.js';
 import type { Notifier } from '../services/notify.js';
 
 interface PostRow {
@@ -30,6 +35,9 @@ interface PostRow {
   recipe_id: string;
   recipe_source: 'ai' | 'user';
   recipe_content: string;
+  forked_from_id: string | null;
+  forked_from_title: string | null;
+  forked_from_handle: string | null;
   like_count: number;
   comment_count: number;
   liked_by_me: number;
@@ -38,6 +46,7 @@ interface PostRow {
 const POST_SELECT = `
   SELECT p.id, p.caption, p.created_at, p.author_id, u.handle AS author_handle, u.display_name AS author_name, u.avatar_emoji AS author_avatar,
          r.id AS recipe_id, r.source AS recipe_source, r.content AS recipe_content,
+         r.forked_from_id, r.forked_from_title, r.forked_from_handle,
          (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
          (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
          EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = p.id AND l2.user_id = ?) AS liked_by_me
@@ -64,6 +73,9 @@ function toPost(db: Db, row: PostRow, me: string): Post {
       servings: c.servings,
       source: row.recipe_source,
       ingredientCount: c.ingredients.length,
+      adaptedFrom: row.forked_from_title
+        ? { id: row.forked_from_id && one(db, 'SELECT 1 FROM recipes WHERE id = ?', row.forked_from_id) ? row.forked_from_id : null, title: row.forked_from_title, handle: row.forked_from_handle ?? '' }
+        : null,
     },
     likeCount: row.like_count,
     commentCount: row.comment_count,
@@ -84,13 +96,54 @@ export function socialRoutes(db: Db, notifier: Notifier) {
   r.use(requireAuth);
 
   // ---- feed -------------------------------------------------------------------------------
+  /** Recipe posts and blog posts, newest first. ?scope=following narrows to people you follow (and you). */
   r.get('/feed', (req, res) => {
     const me = req.user!.id;
     const before = typeof req.query['before'] === 'string' ? req.query['before'] : null;
-    const rows = before
-      ? all<PostRow>(db, `${POST_SELECT} AND p.created_at < ? ORDER BY p.created_at DESC LIMIT 20`, me, before)
-      : all<PostRow>(db, `${POST_SELECT} ORDER BY p.created_at DESC LIMIT 20`, me);
-    res.json({ posts: rows.map((x) => toPost(db, x, me)), nextBefore: rows.length === 20 ? rows[rows.length - 1]!.created_at : null });
+    const scope = FEED_SCOPES.includes(req.query['scope'] as never) ? (req.query['scope'] as (typeof FEED_SCOPES)[number]) : 'everyone';
+    const scopePost = scope === 'following' ? ` AND (p.author_id = ? OR p.author_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))` : '';
+    const scopeBlog = scope === 'following' ? ` AND (b.author_id = ? OR b.author_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))` : '';
+    const scopeParams = scope === 'following' ? [me, me] : [];
+    const posts = all<PostRow>(
+      db,
+      `${POST_SELECT}${scopePost}${before ? ' AND p.created_at < ?' : ''} ORDER BY p.created_at DESC LIMIT 20`,
+      me,
+      ...scopeParams,
+      ...(before ? [before] : []),
+    );
+    const blogs = all<BlogRow>(
+      db,
+      `${BLOG_SELECT} AND b.status = 'published'${scopeBlog}${before ? ' AND b.published_at < ?' : ''} ORDER BY b.published_at DESC LIMIT 20`,
+      me,
+      ...scopeParams,
+      ...(before ? [before] : []),
+    );
+    const items: FeedItem[] = [
+      ...posts.map((x): FeedItem => ({ type: 'post', createdAt: x.created_at, post: toPost(db, x, me) })),
+      ...blogs.map((x): FeedItem => ({ type: 'blog', createdAt: x.published_at ?? x.created_at, blog: toBlogPost(db, x, me) })),
+    ]
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, 20);
+    const exhausted = posts.length < 20 && blogs.length < 20;
+    res.json({ items, nextBefore: !exhausted && items.length === 20 ? items[items.length - 1]!.createdAt : null });
+  });
+
+  /** People worth following: most followed / most active you don't follow yet. */
+  r.get('/suggestions', (req, res) => {
+    const me = req.user!.id;
+    const rows = all<{ id: string; handle: string; display_name: string | null; avatar_emoji: string; bio: string; followers: number; activity: number }>(
+      db,
+      `SELECT u.id, u.handle, u.display_name, u.avatar_emoji, u.bio,
+              (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
+              (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id) + (SELECT COUNT(*) FROM blog_posts b WHERE b.author_id = u.id AND b.status = 'published') AS activity
+       FROM users u
+       WHERE u.disabled_at IS NULL AND u.id != ? AND u.id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?)
+       ORDER BY followers DESC, activity DESC, u.created_at ASC LIMIT 6`,
+      me,
+      me,
+    );
+    const people: Person[] = rows.map((u) => ({ id: u.id, handle: u.handle, displayName: u.display_name ?? u.handle, avatar: u.avatar_emoji, bio: u.bio, followerCount: u.followers, followedByMe: false, isMe: false }));
+    res.json({ people });
   });
 
   r.post('/posts', (req, res) => {
@@ -102,13 +155,14 @@ export function socialRoutes(db: Db, notifier: Notifier) {
     if ((recent?.n ?? 0) >= 20) throw conflict('That’s a lot of posts in an hour. Take a break and try again later.');
     const id = newId('pst');
     const media = body.mediaIds.map((mid) => one<MediaRow>(db, 'SELECT * FROM media WHERE id = ?', mid));
-    if (media.some((m) => !m || m.owner_id !== me || m.post_id)) throw badRequest('One of the attached files is not yours or is already used.');
+    if (media.some((m) => !m || m.owner_id !== me || m.post_id || m.blog_id)) throw badRequest('One of the attached files is not yours or is already used.');
     tx(db, () => {
       run(db, `INSERT INTO posts (id, author_id, recipe_id, caption, created_at) VALUES (?, ?, ?, ?, ?)`, id, me, body.recipeId, body.caption, now());
       // Sharing makes the recipe readable by other signed-in people.
       run(db, `UPDATE recipes SET visibility = 'public', updated_at = ? WHERE id = ?`, now(), body.recipeId);
       media.forEach((m, i) => run(db, 'UPDATE media SET post_id = ?, position = ? WHERE id = ?', id, i, m!.id));
     });
+    notifier.sendToFollowers(me, 'post', { postId: id });
     const row = one<PostRow>(db, `${POST_SELECT} AND p.id = ?`, me, id)!;
     res.status(201).json({ post: toPost(db, row, me) });
   });
@@ -188,16 +242,84 @@ export function socialRoutes(db: Db, notifier: Notifier) {
       handle,
     );
     if (!u) throw notFound('No one goes by that handle.');
-    const postCount = one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM posts WHERE author_id = ?', u.id)!.n;
-    const likeCount = one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM likes l JOIN posts p ON p.id = l.post_id WHERE p.author_id = ?', u.id)!.n;
-    return { id: u.id, handle: u.handle, displayName: u.display_name ?? u.handle, avatar: u.avatar_emoji, bio: u.bio, createdAt: u.created_at, postCount, likeCount, isMe: u.id === me };
+    const n = (sql: string, ...params: unknown[]) => one<{ n: number }>(db, sql, ...params)!.n;
+    const postCount = n('SELECT COUNT(*) AS n FROM posts WHERE author_id = ?', u.id);
+    const likeCount =
+      n('SELECT COUNT(*) AS n FROM likes l JOIN posts p ON p.id = l.post_id WHERE p.author_id = ?', u.id) +
+      n('SELECT COUNT(*) AS n FROM blog_likes l JOIN blog_posts b ON b.id = l.blog_id WHERE b.author_id = ?', u.id);
+    return {
+      id: u.id,
+      handle: u.handle,
+      displayName: u.display_name ?? u.handle,
+      avatar: u.avatar_emoji,
+      bio: u.bio,
+      createdAt: u.created_at,
+      postCount,
+      likeCount,
+      followerCount: n('SELECT COUNT(*) AS n FROM follows WHERE followee_id = ?', u.id),
+      followingCount: n('SELECT COUNT(*) AS n FROM follows WHERE follower_id = ?', u.id),
+      blogCount: u.id === me ? n('SELECT COUNT(*) AS n FROM blog_posts WHERE author_id = ?', u.id) : n(`SELECT COUNT(*) AS n FROM blog_posts WHERE author_id = ? AND status = 'published'`, u.id),
+      bookCount: u.id === me ? n('SELECT COUNT(*) AS n FROM recipe_books WHERE owner_id = ?', u.id) : n(`SELECT COUNT(*) AS n FROM recipe_books WHERE owner_id = ? AND visibility = 'public'`, u.id),
+      isMe: u.id === me,
+      followedByMe: Boolean(one(db, 'SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?', me, u.id)),
+      followsMe: Boolean(one(db, 'SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?', u.id, me)),
+    };
   }
 
   r.get('/profiles/:handle', (req, res) => {
     const me = req.user!.id;
     const profile = publicProfile(req.params['handle']!.toLowerCase(), me);
     const rows = all<PostRow>(db, `${POST_SELECT} AND p.author_id = ? ORDER BY p.created_at DESC LIMIT 50`, me, profile.id);
-    res.json({ profile, posts: rows.map((x) => toPost(db, x, me)) });
+    const blogs = all<BlogRow>(
+      db,
+      `${BLOG_SELECT} AND b.author_id = ?${profile.isMe ? '' : ` AND b.status = 'published'`} ORDER BY COALESCE(b.published_at, b.created_at) DESC LIMIT 50`,
+      me,
+      profile.id,
+    );
+    res.json({ profile, posts: rows.map((x) => toPost(db, x, me)), blogs: blogs.map((x) => toBlogPost(db, x, me)), books: booksFor(db, profile.id, me) });
+  });
+
+  // ---- following --------------------------------------------------------------------------
+  function personRows(sql: string, me: string, ...params: unknown[]): Person[] {
+    return all<{ id: string; handle: string; display_name: string | null; avatar_emoji: string; bio: string; followers: number; followed: number }>(db, sql, me, ...params).map((u) => ({
+      id: u.id,
+      handle: u.handle,
+      displayName: u.display_name ?? u.handle,
+      avatar: u.avatar_emoji,
+      bio: u.bio,
+      followerCount: u.followers,
+      followedByMe: Boolean(u.followed),
+      isMe: u.id === me,
+    }));
+  }
+  const PERSON = `SELECT u.id, u.handle, u.display_name, u.avatar_emoji, u.bio,
+      (SELECT COUNT(*) FROM follows f2 WHERE f2.followee_id = u.id) AS followers,
+      EXISTS(SELECT 1 FROM follows f3 WHERE f3.follower_id = ? AND f3.followee_id = u.id) AS followed
+    FROM follows f JOIN users u ON u.id = `;
+
+  r.post('/follow/:handle', (req, res) => {
+    const me = req.user!.id;
+    const follow = parse(z.object({ follow: z.boolean() }), req.body).follow;
+    const target = one<{ id: string }>(db, 'SELECT id FROM users WHERE handle = ? AND disabled_at IS NULL', req.params['handle']!.toLowerCase());
+    if (!target) throw notFound('No one goes by that handle.');
+    if (target.id === me) throw badRequest('You can’t follow yourself.');
+    if (follow) {
+      run(db, 'INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?, ?, ?)', me, target.id, now());
+      notifier.send(target.id, 'follow', { actorId: me });
+    } else run(db, 'DELETE FROM follows WHERE follower_id = ? AND followee_id = ?', me, target.id);
+    const followerCount = one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM follows WHERE followee_id = ?', target.id)!.n;
+    res.json({ following: follow, followerCount });
+  });
+
+  r.get('/profiles/:handle/followers', (req, res) => {
+    const me = req.user!.id;
+    const profile = publicProfile(req.params['handle']!.toLowerCase(), me);
+    res.json({ people: personRows(`${PERSON} f.follower_id WHERE f.followee_id = ? AND u.disabled_at IS NULL ORDER BY f.created_at DESC LIMIT 200`, me, profile.id) });
+  });
+  r.get('/profiles/:handle/following', (req, res) => {
+    const me = req.user!.id;
+    const profile = publicProfile(req.params['handle']!.toLowerCase(), me);
+    res.json({ people: personRows(`${PERSON} f.followee_id WHERE f.follower_id = ? AND u.disabled_at IS NULL ORDER BY f.created_at DESC LIMIT 200`, me, profile.id) });
   });
 
   r.put('/profile', (req, res) => {

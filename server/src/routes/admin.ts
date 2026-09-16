@@ -62,6 +62,10 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
       admins: count(`SELECT COUNT(*) AS n FROM users WHERE role = 'admin'`),
       disabledUsers: count('SELECT COUNT(*) AS n FROM users WHERE disabled_at IS NOT NULL'),
       recipes: count('SELECT COUNT(*) AS n FROM recipes'),
+      posts: count('SELECT COUNT(*) AS n FROM posts'),
+      blogPosts: count(`SELECT COUNT(*) AS n FROM blog_posts WHERE status = 'published'`),
+      books: count('SELECT COUNT(*) AS n FROM recipe_books'),
+      follows: count('SELECT COUNT(*) AS n FROM follows'),
       mediaCount: count('SELECT COUNT(*) AS n FROM media'),
       mediaBytes: one<{ n: number }>(db, 'SELECT COALESCE(SUM(bytes), 0) AS n FROM media')!.n,
       generations7d: count(`SELECT COUNT(*) AS n FROM generations WHERE created_at > ?`, since7),
@@ -205,19 +209,44 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     res.json({ ok: true });
   });
 
-  r.get('/comments', (_req, res) => {
-    const rows = all<{ id: string; body: string; created_at: string; author_id: string; handle: string; post_id: string }>(
+  r.get('/blog', (_req, res) => {
+    const rows = all<{ id: string; title: string; status: string; created_at: string; published_at: string | null; author_id: string; handle: string; likes: number; comments: number }>(
       db,
-      `SELECT c.id, c.body, c.created_at, c.author_id, u.handle, c.post_id FROM comments c JOIN users u ON u.id = c.author_id ORDER BY c.created_at DESC LIMIT 200`,
+      `SELECT b.id, b.title, b.status, b.created_at, b.published_at, b.author_id, u.handle,
+              (SELECT COUNT(*) FROM blog_likes l WHERE l.blog_id = b.id) AS likes,
+              (SELECT COUNT(*) FROM blog_comments c WHERE c.blog_id = b.id) AS comments
+       FROM blog_posts b JOIN users u ON u.id = b.author_id ORDER BY b.created_at DESC LIMIT 200`,
     );
-    res.json({ comments: rows.map((x) => ({ id: x.id, body: x.body, createdAt: x.created_at, authorId: x.author_id, handle: x.handle, postId: x.post_id })) });
+    res.json({ posts: rows.map((x) => ({ id: x.id, title: x.title, status: x.status, createdAt: x.created_at, publishedAt: x.published_at, authorId: x.author_id, handle: x.handle, likeCount: x.likes, commentCount: x.comments })) });
+  });
+
+  r.delete('/blog/:id', (req, res) => {
+    const row = one<{ id: string; author_id: string }>(db, 'SELECT id, author_id FROM blog_posts WHERE id = ?', req.params['id']);
+    if (!row) throw notFound('No such blog post.');
+    run(db, 'DELETE FROM blog_posts WHERE id = ?', row.id);
+    audit.record(req.user!.id, 'blog.delete', 'blog', row.id, { author: row.author_id });
+    res.json({ ok: true });
+  });
+
+  /** Comments on recipe posts and blog posts, together. Ids are prefixed so deletes route correctly. */
+  r.get('/comments', (_req, res) => {
+    const rows = all<{ id: string; body: string; created_at: string; author_id: string; handle: string; target_id: string; kind: string }>(
+      db,
+      `SELECT c.id, c.body, c.created_at, c.author_id, u.handle, c.post_id AS target_id, 'post' AS kind FROM comments c JOIN users u ON u.id = c.author_id
+       UNION ALL
+       SELECT c.id, c.body, c.created_at, c.author_id, u.handle, c.blog_id AS target_id, 'blog' AS kind FROM blog_comments c JOIN users u ON u.id = c.author_id
+       ORDER BY created_at DESC LIMIT 200`,
+    );
+    res.json({ comments: rows.map((x) => ({ id: x.id, body: x.body, createdAt: x.created_at, authorId: x.author_id, handle: x.handle, postId: x.kind === 'post' ? x.target_id : null, blogId: x.kind === 'blog' ? x.target_id : null })) });
   });
 
   r.delete('/comments/:id', (req, res) => {
-    const row = one<{ id: string; author_id: string }>(db, 'SELECT id, author_id FROM comments WHERE id = ?', req.params['id']);
+    const id = req.params['id']!;
+    const table = id.startsWith('bcm_') ? 'blog_comments' : 'comments';
+    const row = one<{ id: string; author_id: string }>(db, `SELECT id, author_id FROM ${table} WHERE id = ?`, id);
     if (!row) throw notFound('No such comment.');
-    run(db, 'DELETE FROM comments WHERE id = ?', row.id);
-    audit.record(req.user!.id, 'comment.delete', 'comment', row.id, { author: row.author_id });
+    run(db, `DELETE FROM ${table} WHERE id = ?`, row.id);
+    audit.record(req.user!.id, 'comment.delete', 'comment', row.id, { author: row.author_id, table });
     res.json({ ok: true });
   });
 

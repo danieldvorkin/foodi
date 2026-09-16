@@ -52,6 +52,8 @@ export function authRoutes({ config, log, store, providers, settings, audit }: D
       signInMethods: store.listIdentities(user.id).map((i) => i.provider),
       vendor: cred?.vendor ?? null,
       credentialKind: cred?.kind ?? null,
+      credentialHint: cred?.hint ?? null,
+      credentialUpdatedAt: cred?.updatedAt ?? null,
       hasProfile: store.hasProfile(user.id),
       createdAt: user.created_at,
     };

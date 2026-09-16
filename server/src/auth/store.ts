@@ -25,6 +25,7 @@ export interface CredentialRow {
   payload_enc: string;
   expires_at: string | null;
   updated_at: string;
+  hint: string | null;
 }
 
 const SESSION_TTL = days(30);
@@ -183,17 +184,20 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   /** Attach a credential to an existing signed-in user (e.g. switching from OAuth to a key). */
   function setCredential(userId: string, vendor: Vendor, credential: CredentialPayload) {
     const expiresAt = credential.kind === 'oauth' ? credential.expiresAt : null;
+    // Only the tail of an API key is kept in the clear: enough to tell two keys apart, never enough to use.
+    const hint = credential.kind === 'api_key' ? credential.apiKey.slice(-4) : null;
     run(
       db,
-      `INSERT INTO credentials (user_id, vendor, kind, payload_enc, expires_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO credentials (user_id, vendor, kind, payload_enc, expires_at, updated_at, hint) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET vendor = excluded.vendor, kind = excluded.kind, payload_enc = excluded.payload_enc,
-       expires_at = excluded.expires_at, updated_at = excluded.updated_at`,
+       expires_at = excluded.expires_at, updated_at = excluded.updated_at, hint = excluded.hint`,
       userId,
       vendor,
       credential.kind,
       encrypt(JSON.stringify(credential), opts.encryptionKey),
       expiresAt,
       now(),
+      hint,
     );
   }
 
@@ -207,9 +211,9 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     return { vendor: row.vendor, payload: JSON.parse(decrypt(row.payload_enc, opts.encryptionKey)) as CredentialPayload };
   }
 
-  function getCredentialMeta(userId: string): { vendor: Vendor; kind: 'oauth' | 'api_key' } | null {
-    const row = one<Pick<CredentialRow, 'vendor' | 'kind'>>(db, 'SELECT vendor, kind FROM credentials WHERE user_id = ?', userId);
-    return row ?? null;
+  function getCredentialMeta(userId: string): { vendor: Vendor; kind: 'oauth' | 'api_key'; hint: string | null; updatedAt: string } | null {
+    const row = one<Pick<CredentialRow, 'vendor' | 'kind' | 'hint' | 'updated_at'>>(db, 'SELECT vendor, kind, hint, updated_at FROM credentials WHERE user_id = ?', userId);
+    return row ? { vendor: row.vendor, kind: row.kind, hint: row.hint, updatedAt: row.updated_at } : null;
   }
 
   function createSession(userId: string, meta: { ip: string | null; userAgent: string | null }): { token: string; expiresAt: string } {

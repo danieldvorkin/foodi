@@ -1,0 +1,594 @@
+/* Feed shell: three columns like a social front page. Rails stick; only the middle scrolls. */
+.feed-shell {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr) 296px;
+  gap: var(--s-6);
+  padding-block: var(--s-5) var(--s-8);
+  align-items: start;
+}
+.rail {
+  position: sticky;
+  top: calc(60px + var(--s-5));
+  max-height: calc(100vh - 60px - var(--s-6));
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.rail-section + .rail-section {
+  margin-top: var(--s-5);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+.rail h3 {
+  font-size: var(--t-14);
+  font-weight: 500;
+  color: var(--stone);
+  margin-bottom: var(--s-2);
+}
+.rail-nav {
+  display: grid;
+  gap: 2px;
+}
+.rail-nav a,
+.rail-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-size: var(--t-14);
+  font-weight: 500;
+  background: none;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.rail-nav a:hover,
+.rail-nav button:hover,
+.rail-nav a[aria-current='page'] {
+  background: var(--flour);
+  text-decoration: none;
+}
+.rail-nav .ico {
+  width: 24px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1;
+}
+.rail-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 12px;
+}
+.rail-me b {
+  display: block;
+  font-weight: 500;
+  font-size: var(--t-14);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-list {
+  display: grid;
+  gap: 2px;
+}
+.rail-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  min-width: 0;
+}
+.rail-list li > a:first-child,
+.rail-list li .grow {
+  min-width: 0;
+}
+.rail-list .name {
+  display: block;
+  font-size: var(--t-14);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-list .sub {
+  display: block;
+  font-size: var(--t-13);
+  color: var(--stone);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-recipe {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: var(--r-md);
+  color: var(--ink);
+}
+.rail-recipe:hover {
+  background: var(--flour);
+  text-decoration: none;
+}
+.rail-recipe .emoji-tile {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: var(--r-sm);
+}
+.rail-recipe img {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  flex: none;
+}
+.feed-center {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+.feed-scope {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+.feed-scope .grow {
+  text-align: right;
+}
+
+/* Composer: the thing you do first on the feed. */
+.composer {
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  display: grid;
+  gap: var(--s-3);
+}
+.composer-top {
+  display: flex;
+  gap: var(--s-3);
+  align-items: center;
+}
+.composer-prompt {
+  flex: 1;
+  text-align: left;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--ground);
+  color: var(--stone);
+  font: inherit;
+  font-size: var(--t-16);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.composer-prompt:hover {
+  background: var(--flour);
+}
+.composer-actions {
+  display: flex;
+  gap: var(--s-2);
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-3);
+}
+.composer-actions .btn {
+  flex: 1;
+}
+
+@media (max-width: 1100px) {
+  .feed-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .rail-right {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .feed-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rail-left {
+    display: none;
+  }
+}
+
+/* ---------- blog ---------- */
+.blog-card {
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  display: grid;
+  gap: var(--s-3);
+}
+.blog-card-cover {
+  width: 100%;
+  aspect-ratio: 16 / 8;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  display: block;
+}
+.blog-card h2 {
+  font-size: var(--t-25);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.blog-card h2 a:hover {
+  text-decoration: none;
+  color: var(--sage);
+}
+.blog-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--stone);
+  font-size: var(--t-13);
+}
+.blog-kicker .pill-draft {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--clay-soft);
+  color: var(--clay);
+  font-weight: 500;
+}
+.blog-excerpt {
+  color: var(--stone);
+  max-width: var(--measure);
+}
+.blog-recipes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.blog-recipe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--ground);
+  font-size: var(--t-13);
+  color: var(--ink);
+}
+.blog-recipe-chip:hover {
+  border-color: var(--line-strong);
+  text-decoration: none;
+}
+.blog-article {
+  width: min(100% - 2 * var(--gutter), 720px);
+  margin-inline: auto;
+  padding-block: var(--s-6) var(--s-8);
+}
+.blog-article h1 {
+  font-size: clamp(var(--t-31), 4vw, var(--t-39));
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  max-width: 22ch;
+}
+.blog-hero {
+  width: 100%;
+  max-height: 440px;
+  object-fit: cover;
+  border-radius: var(--r-lg);
+  margin-block: var(--s-5);
+  display: block;
+}
+.prose {
+  font-size: var(--t-18);
+  line-height: 1.6;
+  max-width: var(--measure);
+}
+.prose > * + * {
+  margin-top: 1em;
+}
+.prose h2 {
+  font-size: var(--t-25);
+  margin-top: 1.6em;
+  line-height: 1.2;
+}
+.prose h3 {
+  font-size: var(--t-20);
+  margin-top: 1.4em;
+}
+.prose ul {
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.prose li + li {
+  margin-top: 0.3em;
+}
+.prose a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+.blog-byline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding-block: var(--s-4);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-block: var(--s-5);
+}
+.blog-toolbar {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.blog-editor .textarea {
+  min-height: 360px;
+  font-size: var(--t-16);
+  line-height: 1.55;
+}
+.blog-editor .input-title {
+  font-size: var(--t-25);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-height: 56px;
+}
+.md-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  color: var(--mute);
+  font-size: var(--t-13);
+}
+.md-help code {
+  font-family: inherit;
+  background: var(--flour);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--stone);
+}
+
+/* ---------- recipe books ---------- */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+/* A book is a spine: emoji, name, and a peek at what's inside. Rules, no shadows. */
+.book {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--sage);
+  border-radius: var(--r-md);
+  background: var(--plate);
+  color: var(--ink);
+  min-height: 108px;
+  transition: border-color var(--fast) var(--ease);
+}
+.book:hover {
+  text-decoration: none;
+  border-color: var(--line-strong);
+  border-left-color: var(--sage);
+}
+.book-emoji {
+  font-size: 34px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-md);
+  background: var(--flour);
+}
+.book h3 {
+  font-size: var(--t-18);
+  line-height: 1.2;
+}
+.book-peek {
+  display: flex;
+  gap: 4px;
+  font-size: 16px;
+  margin-top: 6px;
+}
+.book-peek span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--ground);
+  border: 1px solid var(--line);
+}
+.book-private {
+  font-size: var(--t-13);
+  color: var(--stone);
+}
+.book-head {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+}
+.book-head .book-emoji {
+  width: 72px;
+  height: 72px;
+  font-size: 40px;
+}
+.book-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: var(--s-4);
+  align-items: center;
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--line);
+}
+.book-item.is-dragging {
+  opacity: 0.5;
+}
+.book-item .emoji-tile,
+.book-item img {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-md);
+  object-fit: cover;
+}
+.book-item h3 {
+  font-size: var(--t-18);
+}
+.book-note {
+  font-style: italic;
+  color: var(--stone);
+  font-size: var(--t-14);
+}
+.book-note-form {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.book-note-form .input {
+  min-height: 36px;
+  font-size: var(--t-14);
+}
+.book-pick {
+  display: grid;
+  gap: 4px;
+}
+.book-pick button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--plate);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.book-pick button:hover {
+  background: var(--flour);
+}
+.book-pick button[aria-pressed='true'] {
+  border-color: var(--sage);
+  background: var(--sage-soft);
+}
+.book-pick .tick {
+  margin-left: auto;
+  color: var(--sage);
+}
+
+/* ---------- profile ---------- */
+.profile-head {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.profile-stats {
+  display: flex;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+.profile-stats button,
+.profile-stats span {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--stone);
+  font-size: var(--t-14);
+  cursor: default;
+}
+.profile-stats button {
+  cursor: pointer;
+}
+.profile-stats button:hover {
+  color: var(--ink);
+}
+.profile-stats b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.profile-tabs {
+  display: flex;
+  gap: var(--s-1);
+  border-bottom: 1px solid var(--line);
+}
+.profile-tabs button {
+  background: none;
+  border: 0;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: var(--t-14);
+  font-weight: 500;
+  color: var(--stone);
+  cursor: pointer;
+  position: relative;
+}
+.profile-tabs button[aria-selected='true'] {
+  color: var(--ink);
+}
+.profile-tabs button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--sage);
+}
+.people {
+  display: grid;
+  gap: 0;
+}
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--line);
+}
+.person:first-child {
+  border-top: 0;
+}
+.person .grow {
+  min-width: 0;
+}
+.person .name {
+  font-weight: 500;
+}
+.person .bio {
+  color: var(--stone);
+  font-size: var(--t-13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- lineage ---------- */
+.lineage {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--flour);
+  color: var(--stone);
+  font-size: var(--t-14);
+}
+.lineage b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.lineage-notes {
+  white-space: pre-wrap;
+  margin-top: 4px;
+  color: var(--ink);
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { initials } from '../lib/format';
 
 export function Avatar({ name, emoji, size = 'md' }: { name: string; emoji?: string | null; size?: 'md' | 'lg' }) {
@@ -182,6 +182,37 @@ export function Meta({ items }: { items: (string | { label: string; value: strin
             <b>{it.value}</b> {it.label}
           </span>
         ),
+      )}
+    </div>
+  );
+}
+
+/** A button that opens a small dropdown. Closes on outside click, Escape, or when an item is chosen. */
+export function Menu({ button, label, children, align = 'right' }: { button: ReactNode; label: string; children: ReactNode; align?: 'left' | 'right' }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div className="menu-wrap" ref={wrap}>
+      <button type="button" className="menu-btn" aria-haspopup="menu" aria-expanded={open} aria-label={label} onClick={() => setOpen((o) => !o)}>
+        {button}
+      </button>
+      {open && (
+        <div className={`panel panel-menu panel-${align}`} role="menu" onClick={() => setOpen(false)}>
+          {children}
+        </div>
       )}
     </div>
   );

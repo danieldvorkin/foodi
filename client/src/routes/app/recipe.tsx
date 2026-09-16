@@ -3,6 +3,7 @@ import { Link, useLoaderData, useLocation, useNavigate, useRevalidator, type Loa
 import { MEAL_EMOJI, type MediaItem } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social as socialApi } from '../../api/types';
+import { AddToBook } from '../../components/Books';
 import { MediaGallery, MediaThumb, MediaUploader } from '../../components/Media';
 import { IngredientList, StepList } from '../../components/RecipeParts';
 import { useToast } from '../../components/Toast';
@@ -27,6 +28,7 @@ export function RecipePage() {
   const location = useLocation();
   const [shareOpen, setShareOpen] = useState(Boolean((location.state as { share?: boolean } | null)?.share));
   const [photosOpen, setPhotosOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
   const [caption, setCaption] = useState('');
   const [attachments, setAttachments] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState<'' | 'tweak' | 'share' | 'random'>('');
@@ -80,7 +82,7 @@ export function RecipePage() {
       setShareOpen(false);
       setAttachments([]);
       toast('Shared to the feed');
-      nav('/app/feed');
+      nav('/app');
     } catch (e) {
       toast(errorMessage(e), 'error');
     } finally {
@@ -98,11 +100,22 @@ export function RecipePage() {
     }
   }
 
+  /** An editable copy that credits the original; lands in the editor so notes can be written. */
+  async function adapt() {
+    try {
+      const { id } = await recipesApi.adapt(recipe.id);
+      toast('Copied — make it yours 🍴');
+      nav(`/app/recipes/${id}/edit?adapted=1`);
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  }
+
   async function remove() {
     if (!window.confirm('Delete this recipe? This can’t be undone.')) return;
     try {
       await recipesApi.remove(recipe.id);
-      nav('/app');
+      nav('/app/cook');
     } catch (e) {
       toast(errorMessage(e), 'error');
     }
@@ -130,6 +143,32 @@ export function RecipePage() {
           {author && !isMine && (
             <p className="muted small">
               {author.avatar} By <Link to={`/app/u/${author.handle}`}>{author.displayName}</Link>
+            </p>
+          )}
+          {recipe.adaptedFrom && (
+            <div className="lineage">
+              <span aria-hidden="true">🍴</span>
+              <div>
+                Adapted from{' '}
+                {recipe.adaptedFrom.id && recipe.adaptedFrom.stillPublic ? <Link to={`/app/recipes/${recipe.adaptedFrom.id}`}><b>{recipe.adaptedFrom.title}</b></Link> : <b>{recipe.adaptedFrom.title}</b>}
+                {recipe.adaptedFrom.handle && (
+                  <>
+                    {' '}
+                    by <Link to={`/app/u/${recipe.adaptedFrom.handle}`}>@{recipe.adaptedFrom.handle}</Link>
+                  </>
+                )}
+                {!recipe.adaptedFrom.stillPublic && <span className="muted"> (no longer shared)</span>}
+                {recipe.revisionNotes && (
+                  <p className="lineage-notes">
+                    <b>What changed:</b> {recipe.revisionNotes}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {recipe.adaptationCount > 0 && (
+            <p className="muted small">
+              🍴 Adapted by {recipe.adaptationCount} {recipe.adaptationCount === 1 ? 'person' : 'people'}
             </p>
           )}
           <div className="recipe-title">
@@ -217,12 +256,21 @@ export function RecipePage() {
               </button>
             </>
           ) : (
-            <button type="button" className="btn" onClick={save}>
-              ⭐ Save to my recipes
-            </button>
+            <>
+              <button type="button" className="btn" onClick={adapt} title="Make an editable copy that credits the original">
+                🍴 Adapt this recipe
+              </button>
+              <button type="button" className="btn btn-quiet" onClick={save}>
+                ⭐ Save a copy
+              </button>
+            </>
           )}
+          <button type="button" className="btn btn-quiet" onClick={() => setBookOpen(true)}>
+            📚 Add to book
+          </button>
         </div>
       </header>
+      <AddToBook recipeId={recipe.id} open={bookOpen} onClose={() => setBookOpen(false)} />
 
       {photosOpen && isMine && (
         <section className="recipe-photos">

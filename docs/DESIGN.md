@@ -37,9 +37,17 @@ Timer digits: wdth 80, tabular numerals. No monospace anywhere.
 
 Scale (base 16, ~1.25): 13 / 16 / 20 / 25 / 31 / 39 / 49 / 61 / 76.
 
-Layout — left aligned everywhere. Prose columns ≤ 68ch. App shell is a thin top bar.
-Admin is a 232px left rail + full-width tables. Cook mode is full-bleed ground with
-the largest type in the app; it follows the same light/dark scheme as everything else.
+Layout — left aligned everywhere. Prose columns ≤ 68ch. App shell is a 60px top bar:
+wordmark left, four primary tabs centred (icon + label, 2px sage rule under the current
+one, no boxes), Write / bell / avatar-menu right. The feed is the front page: a
+three-column grid (236px rail · centre ≤ 1fr · 296px rail) with sticky rails that drop
+away at 1100px and 800px. Rails are quiet lists with 1px rules, never cards. Admin is a
+232px left rail + full-width tables. Cook mode is full-bleed ground with the largest
+type in the app; it follows the same light/dark scheme as everything else.
+
+Recipe books are drawn as spines: a 5px sage left border, an emoji block, and a peek at
+the first four recipes' emoji. Blog posts read as articles: 18px body, 1.6 leading, a
+single cover image, h2 at 25px.
 
 ## Principles
 
@@ -62,3 +70,5 @@ the largest type in the app; it follows the same light/dark scheme as everything
 - Card grid with identical radius/shadow for recipes → a ruled list with a plain time column.
 - Monospace for timer/meta → Bricolage condensed with tabular figures.
 - Admin "stat cards" → one ruled row of numbers, and a hand-drawn SVG sparkline.
+- Top-bar links as boxed pills with emoji glued to the label → an icon slot with a fixed
+  width and an underline for the active tab; the sign-out link moved into the avatar menu.

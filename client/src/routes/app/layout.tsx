@@ -1,7 +1,7 @@
-import { NavLink, Outlet, useLoaderData, useNavigate, useRouteLoaderData, type LoaderFunctionArgs } from 'react-router';
+import { Link, NavLink, Outlet, useLoaderData, useNavigate, useRouteLoaderData, type LoaderFunctionArgs } from 'react-router';
 import { auth, type Me } from '../../api/types';
 import { Wordmark } from '../../components/Logo';
-import { Avatar } from '../../components/ui';
+import { Avatar, Menu } from '../../components/ui';
 import { NotificationBell } from '../../components/Notifications';
 import { requireOnboarded } from '../../lib/session';
 
@@ -16,6 +16,17 @@ export function useMe(): Me {
   return data.me;
 }
 
+function Tab({ to, end, icon, label }: { to: string; end?: boolean; icon: string; label: string }) {
+  return (
+    <NavLink to={to} end={Boolean(end)} className="tab" title={label}>
+      <span className="tab-icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="tab-label">{label}</span>
+    </NavLink>
+  );
+}
+
 export function AppLayout() {
   const { me } = useLoaderData<typeof appLoader>();
   const nav = useNavigate();
@@ -24,37 +35,65 @@ export function AppLayout() {
       <header className="topbar">
         <div className="topbar-inner">
           <Wordmark to="/app" />
-          <nav aria-label="Main">
-            <NavLink to="/app" end className="navlink">
-              🍳 Cook
-            </NavLink>
-            <NavLink to="/app/feed" className="navlink">
-              📣 Feed
-            </NavLink>
-            <NavLink to="/app/recipes/new" className="navlink">
-              ✍️ Write
-            </NavLink>
-            {me.role === 'admin' && (
-              <NavLink to="/admin" className="navlink">
-                🛠 Admin
-              </NavLink>
-            )}
-            <NotificationBell />
-            <NavLink to={`/app/u/${me.handle}`} className="navlink" aria-label="Your profile" title={me.displayName ?? 'Profile'}>
-              <Avatar name={me.displayName ?? '?'} emoji={me.avatar} />
-            </NavLink>
-            <button
-              type="button"
-              className="navlink"
-              style={{ background: 'none', border: 0 }}
-              onClick={async () => {
-                await auth.logout();
-                nav('/', { replace: true });
-              }}
-            >
-              Sign out
-            </button>
+          <nav className="tabs" aria-label="Main">
+            <Tab to="/app" end icon="📣" label="Feed" />
+            <Tab to="/app/cook" icon="🍳" label="Cook" />
+            <Tab to="/app/blog" icon="📓" label="Blog" />
+            <Tab to="/app/books" icon="📚" label="Books" />
           </nav>
+          <div className="topbar-actions">
+            <Menu label="Write" button={<span className="iconbtn iconbtn-label"><span aria-hidden="true">✍️</span><span className="tab-label">Write</span></span>}>
+              <Link to="/app/recipes/new" className="panel-item" role="menuitem">
+                🍽️ A recipe
+              </Link>
+              <Link to="/app/blog/new" className="panel-item" role="menuitem">
+                📓 A blog post
+              </Link>
+              <Link to="/app/cook" className="panel-item" role="menuitem">
+                ✨ Ask the AI for one
+              </Link>
+            </Menu>
+            <NotificationBell />
+            <Menu label="Your account" button={<Avatar name={me.displayName ?? '?'} emoji={me.avatar} />}>
+              <div className="panel-item panel-item-static">
+                <Avatar name={me.displayName ?? '?'} emoji={me.avatar} />
+                <div style={{ minWidth: 0 }}>
+                  <p className="small" style={{ fontWeight: 500 }}>
+                    {me.displayName ?? me.handle}
+                  </p>
+                  <p className="muted tiny">@{me.handle}</p>
+                </div>
+              </div>
+              <Link to={`/app/u/${me.handle}`} className="panel-item" role="menuitem">
+                🧑‍🍳 Your profile
+              </Link>
+              <Link to="/app/books" className="panel-item" role="menuitem">
+                📚 Your recipe books
+              </Link>
+              <Link to="/app/notifications" className="panel-item" role="menuitem">
+                🔔 Notifications
+              </Link>
+              <Link to="/app/settings" className="panel-item" role="menuitem">
+                ⚙️ Settings
+              </Link>
+              {me.role === 'admin' && (
+                <Link to="/admin" className="panel-item" role="menuitem">
+                  🛠 Admin
+                </Link>
+              )}
+              <button
+                type="button"
+                className="panel-item panel-item-btn"
+                role="menuitem"
+                onClick={async () => {
+                  await auth.logout();
+                  nav('/', { replace: true });
+                }}
+              >
+                👋 Sign out
+              </button>
+            </Menu>
+          </div>
         </div>
       </header>
       <Outlet />

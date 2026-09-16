@@ -30,6 +30,9 @@ export const MeSchema = z.object({
   /** The AI account used to write recipes, if one is connected. */
   vendor: z.enum(VENDORS).nullable(),
   credentialKind: z.enum(['oauth', 'api_key']).nullable(),
+  /** Last characters of a connected API key, so people can tell keys apart. */
+  credentialHint: z.string().nullable(),
+  credentialUpdatedAt: z.string().nullable(),
   hasProfile: z.boolean(),
   createdAt: z.string(),
 });

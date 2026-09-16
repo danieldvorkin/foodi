@@ -1,4 +1,4 @@
-import { isRouteErrorResponse, Link, Outlet, useRouteError } from 'react-router';
+import { isRouteErrorResponse, Link, Outlet, ScrollRestoration, useRouteError } from 'react-router';
 import { ToastProvider } from '../components/Toast';
 import { Wordmark } from '../components/Logo';
 
@@ -6,6 +6,7 @@ export function Root() {
   return (
     <ToastProvider>
       <Outlet />
+      <ScrollRestoration />
     </ToastProvider>
   );
 }

@@ -25,6 +25,7 @@ export interface MediaRow {
   height: number | null;
   recipe_id: string | null;
   post_id: string | null;
+  blog_id: string | null;
   position: number;
   created_at: string;
 }
@@ -92,6 +93,10 @@ export function mediaRoutes(db: Db, store: MediaStore, settings: Settings) {
       if (rec?.visibility === 'public') return true;
     }
     if (m.post_id) return true; // posts are visible to every signed-in person
+    if (m.blog_id) {
+      const b = one<{ status: string }>(db, 'SELECT status FROM blog_posts WHERE id = ?', m.blog_id);
+      if (b?.status === 'published') return true;
+    }
     return false;
   }
 

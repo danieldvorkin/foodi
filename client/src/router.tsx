@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, redirect } from 'react-router';
 import { ErrorPage, Root } from './routes/root';
 import { Landing, landingLoader } from './routes/landing';
 import { Connect, connectLoader } from './routes/connect';
@@ -12,6 +12,12 @@ import { FeedPage, feedLoader } from './routes/app/feed';
 import { PostPage, postLoader } from './routes/app/post';
 import { ProfilePage, profileLoader } from './routes/app/profile';
 import { SettingsPage, settingsLoader } from './routes/app/settings';
+import { NotificationsPage, notificationsLoader } from './routes/app/notifications';
+import { BlogIndex, blogIndexLoader } from './routes/app/blog';
+import { BlogPostPage, blogPostLoader } from './routes/app/blog-post';
+import { BlogEditor, blogEditorLoader } from './routes/app/blog-editor';
+import { BooksPage, booksLoader } from './routes/app/books';
+import { BookPage, bookLoader } from './routes/app/book';
 import { AdminLayout, adminLoader } from './routes/admin/layout';
 import { AdminOverview, adminOverviewLoader } from './routes/admin/overview';
 import { AdminUsers, adminUsersLoader } from './routes/admin/users';
@@ -40,12 +46,20 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         loader: appLoader,
         children: [
-          { index: true, element: <Home />, loader: homeLoader },
+          { index: true, element: <FeedPage />, loader: feedLoader },
+          { path: 'feed', loader: () => redirect('/app') },
+          { path: 'cook', element: <Home />, loader: homeLoader },
           { path: 'recipes/new', element: <EditorPage />, loader: editorLoader },
           { path: 'recipes/:id', element: <RecipePage />, loader: recipeLoader },
           { path: 'recipes/:id/edit', element: <EditorPage />, loader: editorLoader },
-          { path: 'feed', element: <FeedPage />, loader: feedLoader },
           { path: 'posts/:id', element: <PostPage />, loader: postLoader },
+          { path: 'blog', element: <BlogIndex />, loader: blogIndexLoader },
+          { path: 'blog/new', element: <BlogEditor />, loader: blogEditorLoader },
+          { path: 'blog/:id', element: <BlogPostPage />, loader: blogPostLoader },
+          { path: 'blog/:id/edit', element: <BlogEditor />, loader: blogEditorLoader },
+          { path: 'books', element: <BooksPage />, loader: booksLoader },
+          { path: 'books/:id', element: <BookPage />, loader: bookLoader },
+          { path: 'notifications', element: <NotificationsPage />, loader: notificationsLoader },
           { path: 'u/:handle', element: <ProfilePage />, loader: profileLoader },
           { path: 'settings', element: <SettingsPage />, loader: settingsLoader },
         ],

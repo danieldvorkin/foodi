@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import {
   AuthoredRecipeSchema,
+  EditRecipeSchema,
   GenerateRequestSchema,
   RecipeContentSchema,
   getIngredient,
@@ -35,6 +36,10 @@ export interface RecipeRow {
   favorite: number;
   created_at: string;
   updated_at: string;
+  forked_from_id: string | null;
+  forked_from_title: string | null;
+  forked_from_handle: string | null;
+  revision_notes: string;
 }
 
 export function parseContent(row: Pick<RecipeRow, 'content'>): RecipeContent {
@@ -53,7 +58,17 @@ export function toRecipe(db: Db, row: RecipeRow, warnings: string[]): Recipe {
     warnings,
     media: mediaForRecipe(db, row.id),
     content: parseContent(row),
+    adaptedFrom: lineage(db, row),
+    revisionNotes: row.revision_notes ?? '',
+    adaptationCount: one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM recipes WHERE forked_from_id = ?', row.id)!.n,
   };
+}
+
+/** Where an adapted recipe came from. The title/handle are snapshots, so this survives the original being deleted. */
+export function lineage(db: Db, row: Pick<RecipeRow, 'forked_from_id' | 'forked_from_title' | 'forked_from_handle'>): Recipe['adaptedFrom'] {
+  if (!row.forked_from_title) return null;
+  const orig = row.forked_from_id ? one<{ visibility: string }>(db, 'SELECT visibility FROM recipes WHERE id = ?', row.forked_from_id) : undefined;
+  return { id: orig ? row.forked_from_id : null, title: row.forked_from_title, handle: row.forked_from_handle ?? '', stillPublic: orig?.visibility === 'public' };
 }
 
 export function toSummary(db: Db, row: RecipeRow, warnings: string[]): RecipeSummary {
@@ -201,8 +216,17 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
     const userId = req.user!.id;
     const row = loadOwned(req.params['id']!, userId);
     if (row.source !== 'user') throw forbidden('Generated recipes can be tweaked, not edited by hand. Use “Adjust”.');
-    const content = postProcess(completeAuthored(parse(AuthoredRecipeSchema, req.body)), getProfile(db, userId) ?? ({} as never));
-    run(db, 'UPDATE recipes SET title = ?, content = ?, updated_at = ? WHERE id = ?', content.title, JSON.stringify(content), now(), row.id);
+    const { revisionNotes, ...authored } = parse(EditRecipeSchema, req.body);
+    const content = postProcess(completeAuthored(authored), getProfile(db, userId) ?? ({} as never));
+    run(
+      db,
+      'UPDATE recipes SET title = ?, content = ?, revision_notes = ?, updated_at = ? WHERE id = ?',
+      content.title,
+      JSON.stringify(content),
+      revisionNotes ?? row.revision_notes ?? '',
+      now(),
+      row.id,
+    );
     const fresh = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', row.id)!;
     res.json({ recipe: toRecipe(db, fresh, allergenWarnings(content, getProfile(db, userId))) });
   });
@@ -236,6 +260,35 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
       t,
     );
     notifier.send(row.user_id, 'save', { actorId: userId, recipeId: row.id });
+    res.status(201).json({ id });
+  });
+
+  /**
+   * Adapt a shared recipe: an editable copy that remembers its source. The copy starts private;
+   * sharing it later credits the original on the post and the recipe page.
+   */
+  r.post('/:id/adapt', (req, res) => {
+    const userId = req.user!.id;
+    const row = loadVisible(req.params['id']!, userId);
+    const author = one<{ handle: string }>(db, 'SELECT handle FROM users WHERE id = ?', row.user_id);
+    const id = newId('rcp');
+    const t = now();
+    run(
+      db,
+      `INSERT INTO recipes (id, user_id, source, visibility, title, prompt, requested_ingredient_ids, provider, model, content, favorite, created_at, updated_at,
+                            forked_from_id, forked_from_title, forked_from_handle, revision_notes)
+       VALUES (?, ?, 'user', 'private', ?, '', '[]', '', '', ?, 0, ?, ?, ?, ?, ?, '')`,
+      id,
+      userId,
+      row.title,
+      row.content,
+      t,
+      t,
+      row.id,
+      row.title,
+      author?.handle ?? '',
+    );
+    notifier.send(row.user_id, 'remix', { actorId: userId, recipeId: row.id });
     res.status(201).json({ id });
   });
 

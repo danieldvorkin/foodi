@@ -30,6 +30,8 @@ import { createAudit } from './services/audit.js';
 import { createSettings } from './services/settings.js';
 import { createNotifier } from './services/notify.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { blogRoutes } from './routes/blog.js';
+import { bookRoutes } from './routes/books.js';
 
 export interface AppDeps {
   config: Config;
@@ -150,6 +152,8 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/recipes/generate', generateLimiter);
   api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier));
   api.use('/social', writeLimiter, socialRoutes(db, notifier));
+  api.use('/blog', writeLimiter, blogRoutes(db, notifier));
+  api.use('/books', writeLimiter, bookRoutes(db, notifier));
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
   api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier }));
