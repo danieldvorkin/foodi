@@ -34,9 +34,14 @@ const BOOK_SELECT = `
   WHERE u.disabled_at IS NULL`;
 
 export function toBook(db: Db, row: BookRow, me: string): RecipeBook {
-  const peek = all<{ content: string }>(db, 'SELECT r.content FROM recipe_book_items i JOIN recipes r ON r.id = i.recipe_id WHERE i.book_id = ? ORDER BY i.position LIMIT 4', row.id).map(
-    (r) => (JSON.parse(r.content) as { emoji?: string }).emoji ?? '🍽️',
-  );
+  // The spine only peeks at recipes the viewer could open anyway.
+  const peek = all<{ content: string }>(
+    db,
+    `SELECT r.content FROM recipe_book_items i JOIN recipes r ON r.id = i.recipe_id
+     WHERE i.book_id = ? AND (r.visibility = 'public' OR r.user_id = ?) ORDER BY i.position LIMIT 4`,
+    row.id,
+    me,
+  ).map((r) => (JSON.parse(r.content) as { emoji?: string }).emoji ?? '🍽️');
   return {
     id: row.id,
     name: row.name,
@@ -99,17 +104,35 @@ export function bookRoutes(db: Db, notifier: Notifier) {
   r.get('/:id', (req, res) => {
     const me = req.user!.id;
     const row = loadVisible(req.params['id']!, me);
-    const items = all<{ recipe_id: string; note: string; added_at: string; content: string; visibility: string; user_id: string; handle: string; display_name: string | null }>(
+    const items = all<{ recipe_id: string; note: string; added_at: string; title_snapshot: string; emoji_snapshot: string; content: string; visibility: string; user_id: string; handle: string; display_name: string | null }>(
       db,
-      `SELECT i.recipe_id, i.note, i.added_at, r.content, r.visibility, r.user_id, u.handle, u.display_name
+      `SELECT i.recipe_id, i.note, i.added_at, i.title_snapshot, i.emoji_snapshot, r.content, r.visibility, r.user_id, u.handle, u.display_name
        FROM recipe_book_items i JOIN recipes r ON r.id = i.recipe_id JOIN users u ON u.id = r.user_id
        WHERE i.book_id = ? ORDER BY i.position, i.added_at`,
       row.id,
     );
     const list: BookItem[] = items
-      .map((x) => {
-        const c = RecipeContentSchema.parse(JSON.parse(x.content));
+      .map((x): BookItem => {
         const available = x.visibility === 'public' || x.user_id === me;
+        if (!available) {
+          // The author took it private: the owner keeps a placeholder with the title as it was
+          // when shelved, never the recipe's current content.
+          return {
+            recipeId: x.recipe_id,
+            emoji: x.emoji_snapshot || '🔒',
+            title: x.title_snapshot || 'A recipe that is no longer shared',
+            summary: '',
+            totalMinutes: 0,
+            difficulty: 'easy',
+            mealType: 'dinner',
+            cover: null,
+            author: { handle: x.handle, displayName: x.display_name ?? x.handle },
+            note: x.note,
+            addedAt: x.added_at,
+            available: false,
+          };
+        }
+        const c = RecipeContentSchema.parse(JSON.parse(x.content));
         return {
           recipeId: x.recipe_id,
           emoji: c.emoji,
@@ -118,14 +141,14 @@ export function bookRoutes(db: Db, notifier: Notifier) {
           totalMinutes: c.totalMinutes,
           difficulty: c.difficulty,
           mealType: c.mealType,
-          cover: available ? coverForRecipe(db, x.recipe_id) : null,
+          cover: coverForRecipe(db, x.recipe_id),
           author: { handle: x.handle, displayName: x.display_name ?? x.handle },
           note: x.note,
           addedAt: x.added_at,
-          available,
+          available: true,
         };
       })
-      // Recipes that went private since they were added only show for the book's owner.
+      // Recipes that went private since they were added only show (as placeholders) for the book's owner.
       .filter((x) => x.available || row.owner_id === me);
     res.json({ book: toBook(db, row, me), items: list });
   });
@@ -152,14 +175,25 @@ export function bookRoutes(db: Db, notifier: Notifier) {
     const me = req.user!.id;
     const row = loadOwned(req.params['id']!, me);
     const body = parse(AddBookItemSchema, req.body);
-    const recipe = one<{ id: string; user_id: string; visibility: string }>(db, 'SELECT id, user_id, visibility FROM recipes WHERE id = ?', body.recipeId);
+    const recipe = one<{ id: string; user_id: string; visibility: string; title: string; content: string }>(db, 'SELECT id, user_id, visibility, title, content FROM recipes WHERE id = ?', body.recipeId);
     if (!recipe || (recipe.user_id !== me && recipe.visibility !== 'public')) throw notFound('That recipe is private or gone.');
     if (row.recipe_count >= 200) throw badRequest('A book holds up to 200 recipes.');
     const already = one(db, 'SELECT 1 FROM recipe_book_items WHERE book_id = ? AND recipe_id = ?', row.id, recipe.id);
     if (!already) {
       const pos = one<{ n: number }>(db, 'SELECT COALESCE(MAX(position), -1) + 1 AS n FROM recipe_book_items WHERE book_id = ?', row.id)!.n;
+      const emoji = (JSON.parse(recipe.content) as { emoji?: string }).emoji ?? '🍽️';
       tx(db, () => {
-        run(db, 'INSERT INTO recipe_book_items (book_id, recipe_id, position, note, added_at) VALUES (?, ?, ?, ?, ?)', row.id, recipe.id, pos, body.note, now());
+        run(
+          db,
+          'INSERT INTO recipe_book_items (book_id, recipe_id, position, note, added_at, title_snapshot, emoji_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          row.id,
+          recipe.id,
+          pos,
+          body.note,
+          now(),
+          recipe.title,
+          emoji,
+        );
         run(db, 'UPDATE recipe_books SET updated_at = ? WHERE id = ?', now(), row.id);
       });
       if (row.visibility === 'public') notifier.send(recipe.user_id, 'book', { actorId: me, recipeId: recipe.id, bookId: row.id });

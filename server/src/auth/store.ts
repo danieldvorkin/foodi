@@ -141,9 +141,28 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     );
   }
 
+  /** Is this email already attached to any account (password login, provider identity, or profile)? */
+  function emailInUse(email: string, exceptUserId: string | null = null): boolean {
+    return Boolean(
+      one(
+        db,
+        `SELECT 1 FROM (
+           SELECT user_id FROM identities WHERE (provider = 'password' AND subject = ?) OR lower(email) = ?
+           UNION ALL SELECT id AS user_id FROM users WHERE lower(email) = ?
+         ) WHERE user_id IS NOT ?`,
+        email,
+        email,
+        email,
+        exceptUserId,
+      ),
+    );
+  }
+
   function register(input: { email: string; displayName: string; passwordHash: string }): UserRow | null {
     return tx(db, () => {
-      if (one(db, `SELECT 1 FROM identities WHERE provider = 'password' AND subject = ?`, input.email)) return null;
+      // One account per email, whichever way it signed in. Otherwise a password registration
+      // could shadow an SSO account's email (and vice versa) and confuse email-based admin tooling.
+      if (emailInUse(input.email)) return null;
       const user = insertUser({ provider: 'password', subject: input.email, email: input.email, emailVerified: false, displayName: input.displayName });
       run(db, 'INSERT INTO passwords (user_id, hash, updated_at) VALUES (?, ?, ?)', user.id, input.passwordHash, now());
       return user;
@@ -153,14 +172,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   /** Give an SSO-only account an email + password login. */
   function addPasswordLogin(userId: string, email: string, hash: string): { ok: true } | { ok: false; reason: 'taken' } {
     return tx(db, () => {
-      const taken = one<{ user_id: string }>(
-        db,
-        `SELECT user_id FROM identities WHERE (provider = 'password' AND subject = ?) OR lower(email) = ? UNION SELECT id AS user_id FROM users WHERE lower(email) = ?`,
-        email,
-        email,
-        email,
-      );
-      if (taken && taken.user_id !== userId) return { ok: false, reason: 'taken' as const };
+      if (emailInUse(email, userId)) return { ok: false, reason: 'taken' as const };
       const havePassword = one(db, `SELECT 1 FROM identities WHERE provider = 'password' AND user_id = ?`, userId);
       if (!havePassword) addIdentity(userId, { provider: 'password', subject: email, email, emailVerified: false, displayName: null });
       run(db, 'UPDATE users SET email = COALESCE(email, ?) WHERE id = ?', email, userId);

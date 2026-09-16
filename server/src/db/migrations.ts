@@ -297,4 +297,13 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX notifications_unread ON notifications(user_id, read_at);
     `,
   },
+  {
+    name: 'book-item-snapshots',
+    sql: `
+      -- Remember what a shelved recipe was called when it was added, so a book can still list it
+      -- after the author un-shares it without revealing the recipe's current (private) content.
+      ALTER TABLE recipe_book_items ADD COLUMN title_snapshot TEXT NOT NULL DEFAULT '';
+      ALTER TABLE recipe_book_items ADD COLUMN emoji_snapshot TEXT NOT NULL DEFAULT '🔒';
+    `,
+  },
 ];

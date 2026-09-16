@@ -134,8 +134,8 @@ export function createNotifier(db: Db) {
        LEFT JOIN recipes r ON r.id = n.recipe_id
        LEFT JOIN posts p ON p.id = n.post_id
        LEFT JOIN recipes r2 ON r2.id = p.recipe_id
-       LEFT JOIN blog_posts b ON b.id = n.blog_id
-       LEFT JOIN recipe_books k ON k.id = n.book_id
+       LEFT JOIN blog_posts b ON b.id = n.blog_id AND (b.status = 'published' OR b.author_id = n.user_id)
+       LEFT JOIN recipe_books k ON k.id = n.book_id AND (k.visibility = 'public' OR k.owner_id = n.user_id)
        WHERE n.user_id = ? ORDER BY n.created_at DESC LIMIT ?`,
       userId,
       limit,

@@ -23,17 +23,27 @@ function Row({ item, bookId, mine, onRemove, onNote }: { item: BookItem; bookId:
   const style = { transform: CSS.Transform.toString(transform), transition };
   return (
     <li ref={setNodeRef} style={style} className={`book-item${isDragging ? ' is-dragging' : ''}`}>
-      <Link to={`/app/recipes/${item.recipeId}`} aria-hidden="true" tabIndex={-1}>
-        {item.cover ? <img src={mediaApi.url(item.cover.id)} alt="" loading="lazy" /> : <span className="emoji-tile">{item.emoji}</span>}
-      </Link>
+      {item.available ? (
+        <Link to={`/app/recipes/${item.recipeId}`} aria-hidden="true" tabIndex={-1}>
+          {item.cover ? <img src={mediaApi.url(item.cover.id)} alt="" loading="lazy" /> : <span className="emoji-tile">{item.emoji}</span>}
+        </Link>
+      ) : (
+        <span className="emoji-tile" aria-hidden="true">
+          {item.emoji}
+        </span>
+      )}
       <div className="stack" style={{ gap: 4, minWidth: 0 }}>
         <h3>
-          <Link to={`/app/recipes/${item.recipeId}`}>{item.title}</Link>
+          {item.available ? <Link to={`/app/recipes/${item.recipeId}`}>{item.title}</Link> : <span className="muted">{item.title}</span>}
           {!item.available && <span className="muted small"> · no longer shared</span>}
         </h3>
         <p className="muted small">
-          ⏱ {minutes(item.totalMinutes)} · {MEAL_EMOJI[item.mealType]} {item.mealType} · {item.difficulty} · by{' '}
-          <Link to={`/app/u/${item.author.handle}`}>{item.author.displayName}</Link>
+          {item.available ? (
+            <>
+              ⏱ {minutes(item.totalMinutes)} · {MEAL_EMOJI[item.mealType]} {item.mealType} · {item.difficulty} ·{' '}
+            </>
+          ) : null}
+          by <Link to={`/app/u/${item.author.handle}`}>{item.author.displayName}</Link>
         </p>
         {editing ? (
           <form

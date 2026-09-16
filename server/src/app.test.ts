@@ -802,3 +802,65 @@ describe('community', () => {
     }
   });
 });
+
+describe('security review 2', () => {
+  it('a recipe that goes private after being shelved shows only its snapshot title, never current content', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'stew' });
+      const rid = gen.body.recipe.id;
+      const originalTitle = gen.body.recipe.content.title;
+      const post = await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: rid, caption: '' });
+      const book = await request(b.base).post('/api/books').set('cookie', sam).set('origin', ORIGIN).send({ name: 'Stews' });
+      await request(b.base).post(`/api/books/${book.body.book.id}/items`).set('cookie', sam).set('origin', ORIGIN).send({ recipeId: rid });
+      // Ada takes the post down (recipe goes private) — then edits it via adapt? No: AI recipes are edited with Adjust; simulate a title change directly.
+      await request(b.base).delete(`/api/social/posts/${post.body.post.id}`).set('cookie', ada).set('origin', ORIGIN);
+      b.db.prepare(`UPDATE recipes SET title = 'Secret new title', content = json_set(content, '$.title', 'Secret new title', '$.summary', 'private notes') WHERE id = ?`).run(rid);
+
+      const asOwner = await request(b.base).get(`/api/books/${book.body.book.id}`).set('cookie', sam);
+      expect(asOwner.body.items).toHaveLength(1);
+      expect(asOwner.body.items[0]).toMatchObject({ available: false, title: originalTitle, summary: '', cover: null });
+      expect(JSON.stringify(asOwner.body)).not.toContain('Secret new title');
+      expect(asOwner.body.book.peek).toEqual([]);
+      // Anyone else doesn't see the row at all.
+      const priya = await signIn(b, 'mock-priya');
+      expect((await request(b.base).get(`/api/books/${book.body.book.id}`).set('cookie', priya)).body.items).toHaveLength(0);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('one email, one account: a password registration cannot shadow an SSO account’s email', async () => {
+    const b = await boot();
+    try {
+      await signIn(b, 'mock-sam'); // sam@example.com, verified by the mock IdP
+      const dup = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'sam@example.com', password: 'correct horse battery', displayName: 'Impostor' });
+      expect(dup.status).toBe(409);
+      expect(b.db.prepare(`SELECT COUNT(*) AS n FROM users WHERE lower(email) = 'sam@example.com'`).get()).toEqual({ n: 1 });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('unpublished blog titles and private book names drop out of other people’s notifications', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      await request(b.base).post('/api/social/follow/ada_lovelace').set('cookie', sam).set('origin', ORIGIN).send({ follow: true });
+      const blog = await request(b.base).post('/api/blog').set('cookie', ada).set('origin', ORIGIN).send({ title: 'Public title', body: 'x', status: 'published' });
+      expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].blogTitle).toBe('Public title');
+      await request(b.base).put(`/api/blog/${blog.body.post.id}`).set('cookie', ada).set('origin', ORIGIN).send({ title: 'Now secret', body: 'x', status: 'draft' });
+      expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].blogTitle).toBeNull();
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

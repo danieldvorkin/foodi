@@ -79,8 +79,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // Never in production, whatever the env says: the first registrant must not become admin.
     bootstrapFirstAdmin: !isProd && (e.FOODI_BOOTSTRAP_FIRST_ADMIN ?? true),
     adminEmails: e.FOODI_ADMIN_EMAILS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
-    // The mock provider must never be reachable in production.
-    enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? e.NODE_ENV !== 'production'),
+    // The mock provider must never be reachable in production, and is opt-in everywhere else
+    // (npm run setup turns it on in .env) so a missing NODE_ENV can't switch it on by accident.
+    enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? false),
     openai: {
       clientId: e.OPENAI_OAUTH_CLIENT_ID,
       clientSecret: e.OPENAI_OAUTH_CLIENT_SECRET,
