@@ -1,0 +1,57 @@
+# Fly.io config for foodi. One machine, one volume: SQLite lives on the volume, so never scale
+# this app above a single machine (fly scale count 1). See docs/DEPLOY.md.
+app = "foodi"
+primary_region = "yyz"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
+swap_size_mb = 512
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  FOODI_APP_ORIGIN = "https://foodi.fly.dev"
+  FOODI_API_ORIGIN = "https://foodi.fly.dev"
+  FOODI_DB_PATH = "/data/foodi.db"
+  FOODI_UPLOAD_DIR = "/data/uploads"
+  FOODI_TRUST_PROXY = "true"
+  FOODI_COOKIE_SECURE = "true"
+  FOODI_LOG_LEVEL = "info"
+  # Secrets (never here — use `fly secrets set`): FOODI_SESSION_SECRET, FOODI_ENCRYPTION_KEY,
+  # optionally FOODI_ADMIN_EMAILS, OPENAI_OAUTH_CLIENT_ID, OPENAI_OAUTH_CLIENT_SECRET.
+
+[[mounts]]
+  source = "foodi_data"
+  destination = "/data"
+  initial_size = "3gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["app"]
+
+[deploy]
+  # A single machine with a volume can't roll; stop the old one, start the new one.
+  strategy = "immediate"

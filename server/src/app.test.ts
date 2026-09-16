@@ -72,7 +72,9 @@ describe('crypto', () => {
     const ct = encrypt('hello', key);
     expect(decrypt(ct, key)).toBe('hello');
     const [v, iv, body, tag] = ct.split('.');
-    expect(() => decrypt(`${v}.${iv}.${body}.${tag!.slice(0, -2)}AA`, key)).toThrow();
+    // Change the first character of the auth tag (a full 6 data bits, never padding) so the tamper is guaranteed.
+    const flipped = tag![0] === 'A' ? 'B' : 'A';
+    expect(() => decrypt(`${v}.${iv}.${body}.${flipped}${tag!.slice(1)}`, key)).toThrow();
   });
   it('produces RFC 7636 compliant PKCE pairs', () => {
     const { verifier, challenge } = pkcePair();
