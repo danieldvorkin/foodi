@@ -51,6 +51,7 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
             {' '}
             @{post.author.handle} · {timeAgo(post.createdAt)}
           </span>
+          {post.isHouse && <span className="house-pill">🍳 house recipe</span>}
         </div>
         {post.isMine && (
           <button type="button" className="btn btn-quiet btn-sm" onClick={remove}>
@@ -87,13 +88,20 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
         <button type="button" className="chip" aria-pressed={liked} onClick={toggleLike}>
           {liked ? '❤️' : '🤍'} {likes}
         </button>
-        {detail ? (
+        {!post.commentsEnabled ? (
+          <span className="chip chip-static" title="Comments are off on house recipes">
+            💬 off
+          </span>
+        ) : detail ? (
           <span className="chip chip-static">💬 {post.commentCount} comments</span>
         ) : (
           <Link to={`/app/posts/${post.id}`} className="chip">
             💬 {post.commentCount} {post.commentCount === 1 ? 'comment' : 'comments'}
           </Link>
         )}
+        <Link to={`/app/recipes/${post.recipe.id}`} className="chip">
+          📚 Save
+        </Link>
       </footer>
     </article>
   );

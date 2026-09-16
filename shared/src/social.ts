@@ -54,6 +54,9 @@ export const PostSchema = z.object({
   commentCount: z.number(),
   likedByMe: z.boolean(),
   isMine: z.boolean(),
+  /** Posted by the house kitchen (@foodi): likeable, saveable, shelveable — but not commentable. */
+  isHouse: z.boolean(),
+  commentsEnabled: z.boolean(),
 });
 export type Post = z.infer<typeof PostSchema>;
 

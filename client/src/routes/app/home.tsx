@@ -179,10 +179,12 @@ export function Home() {
               </>
             ) : (
               <>
-                <Link to="/connect" className="btn btn-primary btn-lg">
+                <Link to="/app/settings?tab=ai" className="btn btn-primary btn-lg">
                   🔌 Connect an AI to write recipes
                 </Link>
-                <span className="hint">Claude or OpenAI, with your own key. Takes a minute.</span>
+                <span className="hint">
+                  Claude or OpenAI, with your own key. No AI yet? <Link to="/app/u/foodi?tab=books">Browse the house kitchen’s recipe books</Link>.
+                </span>
               </>
             )}
           </div>

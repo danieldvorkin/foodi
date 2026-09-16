@@ -29,6 +29,7 @@ import { socialRoutes } from './routes/social.js';
 import { createAudit } from './services/audit.js';
 import { createSettings } from './services/settings.js';
 import { createNotifier } from './services/notify.js';
+import { createHouse } from './services/house.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { blogRoutes } from './routes/blog.js';
 import { bookRoutes } from './routes/books.js';
@@ -51,6 +52,8 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const settings = createSettings(db);
   const audit = createAudit(db);
   const notifier = createNotifier(db);
+  const house = createHouse(db, settings, notifier, log);
+  if (config.houseKitchen) house.ensure();
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
 
@@ -174,14 +177,26 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
     void mediaStore.sweepOrphans();
   }, 6 * 3600_000);
   sweeper.unref();
+  // The house kitchen shares a recipe now and then (rate in Admin → Settings).
+  const houseTimer = setInterval(() => {
+    if (!config.houseKitchen) return;
+    try {
+      house.tick();
+    } catch (e) {
+      log.error({ err: e }, 'house kitchen tick failed');
+    }
+  }, 15 * 60_000);
+  houseTimer.unref();
 
   return {
     app,
     db,
     store,
     providers,
+    house,
     close: () => {
       clearInterval(sweeper);
+      clearInterval(houseTimer);
       db.close();
     },
   };

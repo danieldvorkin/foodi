@@ -26,6 +26,8 @@ const EnvSchema = z.object({
   /** Comma-separated emails auto-promoted to admin on sign-in. */
   FOODI_ADMIN_EMAILS: z.string().default(''),
   FOODI_ENABLE_MOCK_PROVIDER: bool.optional(),
+  /** Seed and run the house kitchen (@foodi starter recipes + scheduled posts). On by default. */
+  FOODI_HOUSE_KITCHEN: boolDefault(true),
 
   // OpenAI — "Sign in with ChatGPT" (OAuth 2.0 + PKCE + OIDC)
   OPENAI_OAUTH_CLIENT_ID: z.string().optional(),
@@ -82,6 +84,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // The mock provider must never be reachable in production, and is opt-in everywhere else
     // (npm run setup turns it on in .env) so a missing NODE_ENV can't switch it on by accident.
     enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? false),
+    houseKitchen: e.FOODI_HOUSE_KITCHEN,
     openai: {
       clientId: e.OPENAI_OAUTH_CLIENT_ID,
       clientSecret: e.OPENAI_OAUTH_CLIENT_SECRET,

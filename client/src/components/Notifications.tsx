@@ -106,9 +106,8 @@ export function NotificationRow({ n, onOpen, onRead }: { n: Notification; onOpen
   );
 }
 
-/** Bell + dropdown. The count is live; the list loads when the panel opens. */
-export function NotificationBell() {
-  const { unread, setUnread, latest } = useUnread();
+/** Bell + dropdown. The count is live (state owned by the layout); the list loads when the panel opens. */
+export function NotificationBell({ unread, setUnread, latest }: { unread: number; setUnread: (n: number) => void; latest: Notification | null }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[] | null>(null);
   const [pulse, setPulse] = useState(false);

@@ -38,6 +38,8 @@ Open **http://localhost:5100**, click **🧪 Mock admin**, and you are cooking w
 | 📓 **Blog** | Longer writing with light markdown (headings, lists, bold, links), a cover photo, a gallery, and up to six attached recipes. Drafts stay private; published posts join the feed. Likes and comments. |
 | 📚 **Recipe books** | Curated, ordered collections on your profile — yours or anyone's shared recipes, with a note per recipe and drag-to-reorder. Public or private. "Add to book" lives on every recipe page. |
 | 🍴 **Adapt a recipe** | Copy any shared recipe into an editable version of your own, write down what you changed, and share it — the original and its author are credited on the recipe page and in the feed, even if the original is later deleted. |
+| 🍳 **House kitchen** | 58 tested starter recipes from `@foodi` across 20+ cuisines, every meal type and the main dietary needs (vegan, gluten-free, dairy-free, nut-free, keto, halal, kosher…), organised into six curated books. Seeded on first boot; one is shared to the feed a couple of times a day (rate in Admin → Settings). Like, save, shelve or adapt them — comments are off. |
+| 📱 **Phone & tablet** | Bottom tab bar on phones with a raised Create button and a "Me" sheet; two-column feed on iPad portrait; bottom sheets, safe-area insets, 16px inputs so iOS doesn't zoom. |
 | 🔔 **Notifications** | Likes, comments, saves, follows, adaptations, books, posts from people you follow, role changes and admin notices. Pushed live over Server-Sent Events (polling fallback), with a bell dropdown and a full page. |
 | 🛠 **Admin** | Overview with a 14-day generation chart, people (roles, disable, revoke sessions), recipe and post moderation, photo moderation, generation logs with latency and tokens, runtime settings, an append-only audit log. |
 
@@ -69,6 +71,10 @@ sequenceDiagram
 **OpenAI.** Set `OPENAI_OAUTH_CLIENT_ID` and "Link ChatGPT" appears. After sign-in, foodi tries the RFC 8693 token exchange for an API key; if the account can't do that, it says so and you can paste a key instead.
 
 **Mock.** In development, an in-process OpenID Connect provider (`/mock-oauth`) runs the *real* OAuth code path — discovery, PKCE S256, `state`, `nonce`, RS256 id_token verified against its JWKS — with four pretend people and an offline chef that still respects allergies, diet and the basket. It is compiled out in production.
+
+## Deploying
+
+`docs/DEPLOY.md` walks through Fly.io: one machine, one volume, `fly deploy --remote-only`, secrets, and making yourself admin with `node dist/make-admin.js`. The `Dockerfile` builds all three workspaces and runs as an unprivileged user.
 
 ## Where your data lives
 

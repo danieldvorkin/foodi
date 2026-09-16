@@ -803,6 +803,34 @@ describe('community', () => {
   });
 });
 
+describe('admin community', () => {
+  it('lists recipe-post and blog comments together and deletes either kind', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'x' });
+      const post = await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
+      const blog = await request(b.base).post('/api/blog').set('cookie', ada).set('origin', ORIGIN).send({ title: 'T', body: 'b', status: 'published' });
+      await request(b.base).post(`/api/social/posts/${post.body.post.id}/comments`).set('cookie', sam).set('origin', ORIGIN).send({ body: 'on the post' });
+      const bc = await request(b.base).post(`/api/blog/${blog.body.post.id}/comments`).set('cookie', sam).set('origin', ORIGIN).send({ body: 'on the blog' });
+      const list = await request(b.base).get('/api/admin/comments').set('cookie', ada);
+      expect(list.status).toBe(200);
+      expect(list.body.comments).toHaveLength(2);
+      const byBody = (body: string) => list.body.comments.find((c: { body: string }) => c.body === body);
+      expect(byBody('on the blog')).toMatchObject({ blogId: blog.body.post.id, postId: null });
+      expect(byBody('on the post')).toMatchObject({ postId: post.body.post.id, blogId: null });
+      expect((await request(b.base).delete(`/api/admin/comments/${bc.body.comment.id}`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      expect((await request(b.base).get('/api/admin/comments').set('cookie', ada)).body.comments).toHaveLength(1);
+      expect((await request(b.base).get('/api/admin/blog').set('cookie', ada)).body.posts).toHaveLength(1);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
 describe('security review 2', () => {
   it('a recipe that goes private after being shelved shows only its snapshot title, never current content', async () => {
     const b = await boot();
@@ -858,6 +886,60 @@ describe('security review 2', () => {
       expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].blogTitle).toBe('Public title');
       await request(b.base).put(`/api/blog/${blog.body.post.id}`).set('cookie', ada).set('origin', ORIGIN).send({ title: 'Now secret', body: 'x', status: 'draft' });
       expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].blogTitle).toBeNull();
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('house kitchen', () => {
+  it('seeds 50+ varied public recipes and books under @foodi on boot, backfills the feed, and drips the rest', async () => {
+    const b = await boot({ FOODI_HOUSE_KITCHEN: 'true' });
+    try {
+      const houseId = b.house.account().id;
+      const recipes = b.db.prepare('SELECT title, content FROM recipes WHERE user_id = ?').all(houseId) as { title: string; content: string }[];
+      expect(recipes.length).toBeGreaterThanOrEqual(50);
+      const contents = recipes.map((r) => JSON.parse(r.content) as { dietLabels: string[]; mealType: string; cuisine: string; allergens: string[]; ingredients: { ingredientId: string | null }[] });
+      // Variety: every meal type, many cuisines, and the big dietary buckets are all covered.
+      expect(new Set(contents.map((c) => c.mealType)).size).toBe(7);
+      expect(new Set(contents.map((c) => c.cuisine)).size).toBeGreaterThanOrEqual(15);
+      for (const label of ['vegan', 'vegetarian', 'gluten-free', 'dairy-free', 'nut-free', 'pescatarian', 'keto-friendly', 'high-protein', 'halal', 'kosher']) {
+        expect(contents.filter((c) => c.dietLabels.includes(label)).length).toBeGreaterThan(0);
+      }
+      // Ingredients link to the library so allergen badges and substitutes work.
+      const linked = contents.flatMap((c) => c.ingredients).filter((i) => i.ingredientId).length;
+      const total = contents.flatMap((c) => c.ingredients).length;
+      expect(linked / total).toBeGreaterThan(0.75);
+      // Idempotent: a second boot adds nothing.
+      expect(b.house.ensure().added).toBe(0);
+      expect((b.db.prepare('SELECT COUNT(*) AS n FROM recipe_books WHERE owner_id = ?').get(houseId) as { n: number }).n).toBe(6);
+
+      // Feed is pre-populated, and the house posts are visible to a fresh user.
+      const sam = await signIn(b, 'mock-sam');
+      const feed = await request(b.base).get('/api/social/feed').set('cookie', sam);
+      expect(feed.body.items.length).toBe(20);
+      const house = feed.body.items.find((i: { type: string; post?: { isHouse: boolean } }) => i.type === 'post' && i.post?.isHouse);
+      expect(house).toBeTruthy();
+      expect(house.post.commentsEnabled).toBe(false);
+      // Likes and saves work; comments are refused.
+      expect((await request(b.base).post(`/api/social/posts/${house.post.id}/like`).set('cookie', sam).set('origin', ORIGIN).send({ liked: true })).body.likeCount).toBe(1);
+      expect((await request(b.base).post(`/api/recipes/${house.post.recipe.id}/save`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(201);
+      expect((await request(b.base).post(`/api/recipes/${house.post.recipe.id}/adapt`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(201);
+      expect((await request(b.base).post(`/api/social/posts/${house.post.id}/comments`).set('cookie', sam).set('origin', ORIGIN).send({ body: 'hi' })).status).toBe(403);
+      // Nobody is notified on the house's behalf.
+      expect((b.db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ?').get(houseId) as { n: number }).n).toBe(0);
+
+      // The drip: with posts per day > 0 and the last post in the past, one unposted recipe goes out.
+      const before = (b.db.prepare('SELECT COUNT(*) AS n FROM posts WHERE author_id = ?').get(houseId) as { n: number }).n;
+      expect(b.house.tick()).toBe(true);
+      expect((b.db.prepare('SELECT COUNT(*) AS n FROM posts WHERE author_id = ?').get(houseId) as { n: number }).n).toBe(before + 1);
+      expect(b.house.tick()).toBe(false); // too soon for another
+      // The profile shows the books, and the house account can't be made admin.
+      const prof = await request(b.base).get('/api/social/profiles/foodi').set('cookie', sam);
+      expect(prof.body.books.length).toBe(6);
+      const ada = await signIn(b, 'mock-ada');
+      expect((await request(b.base).patch(`/api/admin/users/${houseId}`).set('cookie', ada).set('origin', ORIGIN).send({ role: 'admin' })).status).toBe(400);
     } finally {
       b.server.close();
       b.close();

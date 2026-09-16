@@ -1,0 +1,353 @@
+/* Phones (and small tablets in portrait): a bottom tab bar replaces the top-bar tabs.
+   Loaded last so it wins on order, not specificity. Nothing here applies above 767px. */
+
+:root {
+  --tabbar-h: 56px;
+}
+
+/* Hover is a pointer thing; on touch screens a stuck :hover reads as a bug. */
+@media (hover: none) {
+  .tab:hover::before,
+  .rail-nav a:hover,
+  .rail-nav button:hover,
+  .iconbtn:hover,
+  .composer-prompt:hover,
+  a.panel-item:hover,
+  .book:hover,
+  .book-pick button:hover {
+    background: revert;
+    opacity: revert;
+  }
+}
+
+/* The bottom bar itself: hidden on wide screens. */
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  h1 {
+    font-size: var(--t-31);
+  }
+  .lede {
+    font-size: var(--t-18);
+  }
+
+  /* ---- top bar shrinks to wordmark + bell ---- */
+  .topbar-inner {
+    height: 52px;
+  }
+  .topbar .tabs,
+  .topbar-actions .menu-wrap {
+    display: none;
+  }
+  .wordmark span {
+    display: inline;
+  }
+
+  /* ---- room for the bar ---- */
+  body {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  .toasts {
+    bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ---- bottom tab bar ---- */
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 25;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: color-mix(in oklab, var(--plate) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+  }
+  .tabbar-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: var(--tabbar-h);
+    color: var(--stone);
+    background: none;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar-icon {
+    font-size: 22px;
+    line-height: 1;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    transition: transform var(--fast) var(--ease);
+  }
+  .tabbar-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .tabbar-item[aria-current='page'],
+  .tabbar-item.is-open {
+    color: var(--ink);
+  }
+  .tabbar-item[aria-current='page'] .tabbar-label {
+    font-weight: 600;
+  }
+  /* The same 2px sage rule as the desktop tabs, flipped to the top edge of the bar. */
+  .tabbar-item[aria-current='page']::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 22%;
+    right: 22%;
+    height: 2px;
+    background: var(--sage);
+    border-radius: 0 0 2px 2px;
+  }
+  .tabbar-item:active .tabbar-icon {
+    transform: scale(0.92);
+  }
+  .tabbar-avatar .avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 15px;
+  }
+  .tabbar-avatar {
+    position: relative;
+  }
+  .tabbar-dot {
+    position: absolute;
+    top: -1px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--clay);
+    border: 2px solid var(--plate);
+    box-sizing: content-box;
+  }
+  /* Create: the one raised element. Sage, because it's the thing you can do. */
+  .tabbar-plus {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    margin-top: -18px;
+    border-radius: 50%;
+    background: var(--sage);
+    color: var(--sage-ink);
+    font-size: 26px;
+    line-height: 1;
+    box-shadow: 0 6px 18px color-mix(in oklab, var(--sage) 35%, transparent);
+    transition: transform var(--fast) var(--ease);
+  }
+  .tabbar-create:active .tabbar-plus {
+    transform: scale(0.94);
+  }
+  .tabbar-create .tabbar-label {
+    color: var(--sage);
+  }
+
+  /* ---- sheets slide up from the bottom ---- */
+  dialog.sheet {
+    width: 100%;
+    max-width: none;
+    margin: auto 0 0 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+    max-height: 92dvh;
+    overflow: auto;
+    padding: var(--s-4) var(--s-4) calc(var(--s-5) + env(safe-area-inset-bottom, 0px));
+    animation: sheet-up var(--slow) var(--ease);
+  }
+  @keyframes sheet-up {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+  }
+
+  /* ---- dropdown panels pin to the viewport ---- */
+  .panel {
+    position: fixed;
+    top: calc(52px + 8px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100dvh - 52px - var(--tabbar-h) - 24px);
+  }
+  .panel-menu {
+    left: auto;
+    width: 260px;
+  }
+
+  /* ---- feed ---- */
+  .feed-shell {
+    padding-block: var(--s-4) var(--s-6);
+    gap: var(--s-4);
+  }
+  .composer {
+    padding: var(--s-3);
+  }
+  .composer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .composer-actions .btn:last-child {
+    grid-column: 1 / -1;
+  }
+  .composer-prompt {
+    font-size: var(--t-14);
+    padding: 10px 14px;
+  }
+  .post,
+  .blog-card {
+    padding: var(--s-4);
+    border-radius: var(--r-md);
+  }
+  .post-recipe {
+    flex-wrap: wrap;
+    padding: var(--s-3);
+  }
+  .post-recipe > .btn {
+    display: none;
+  }
+  .post-recipe h3 {
+    font-size: var(--t-16);
+  }
+  .blog-card h2 {
+    font-size: var(--t-20);
+  }
+
+  /* ---- recipe page ---- */
+  .recipe-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-2);
+  }
+  .recipe-actions > .btn-lg {
+    grid-column: 1 / -1;
+  }
+  .recipe-actions .btn {
+    justify-content: center;
+    min-height: 44px;
+  }
+  .emoji-tile-lg {
+    width: 64px;
+    height: 64px;
+    font-size: 36px;
+  }
+
+  /* ---- profile / books / blog ---- */
+  .profile-head {
+    flex-wrap: wrap;
+  }
+  .profile-head > .btn,
+  .profile-head > button {
+    width: 100%;
+    justify-content: center;
+    order: 3;
+  }
+  .profile-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .profile-tabs button {
+    white-space: nowrap;
+    padding: 10px 12px;
+  }
+  .book-head {
+    flex-wrap: wrap;
+  }
+  .book-head > .row {
+    width: 100%;
+  }
+  .book-item {
+    grid-template-columns: 48px 1fr;
+  }
+  .book-item > .row {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .blog-article {
+    padding-block: var(--s-4) var(--s-6);
+  }
+  .blog-article h1 {
+    font-size: var(--t-31);
+  }
+  .prose {
+    font-size: var(--t-16);
+  }
+  .blog-editor .textarea {
+    min-height: 260px;
+  }
+
+  /* ---- editor & settings ---- */
+  .editor-foot .row,
+  .row > .btn-lg {
+    width: 100%;
+  }
+  .row > .btn-lg {
+    justify-content: center;
+  }
+  .chips[role='tablist'] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .chips[role='tablist'] .chip {
+    white-space: nowrap;
+  }
+
+  /* ---- admin ---- */
+  .admin-rail nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+  .admin-rail nav a {
+    white-space: nowrap;
+  }
+  .numbers {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* ---- inputs: iOS zooms in on anything under 16px ---- */
+  .input,
+  .textarea,
+  .select {
+    font-size: 16px;
+  }
+}
+
+/* Tablet portrait (768–1023): keep the top tabs, tighten the feed to two columns. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .feed-shell {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: var(--s-5);
+  }
+  .rail-right {
+    display: none;
+  }
+}
+
+/* Standalone (added to the home screen): no browser chrome, so respect the top inset too. */
+@media (display-mode: standalone) {
+  .topbar {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}

@@ -71,6 +71,8 @@ export const AppSettingsSchema = z.object({
   maxGenerationsPerUserPerDay: z.number().int().min(0).max(10000),
   /** Per-person upload cap in megabytes. 0 = uploads off. */
   maxUploadMbPerUser: z.number().int().min(0).max(100000),
+  /** How often the house kitchen (@foodi) shares one of its recipes to the feed. 0 = never. */
+  housePostsPerDay: z.number().int().min(0).max(24),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

@@ -40,6 +40,9 @@ export function PostPage() {
         ← Feed
       </Link>
       <PostCard post={post} detail onDeleted={() => nav('/app')} />
+      {!post.commentsEnabled ? (
+        <p className="muted small">🍳 This is a house recipe from the foodi kitchen — comments are off, but you can like it, save a copy, adapt it, or add it to one of your books from the recipe page.</p>
+      ) : (
       <section className="stack">
         <h2 style={{ fontSize: 'var(--t-20)' }}>Comments</h2>
         {comments.length === 0 && <p className="muted small">No comments yet. Ask how it went, or say what you’d change.</p>}
@@ -79,6 +82,7 @@ export function PostPage() {
           </button>
         </div>
       </section>
+      )}
     </main>
   );
 }

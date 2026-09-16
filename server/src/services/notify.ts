@@ -70,8 +70,9 @@ export function createNotifier(db: Db) {
   }
 
   function send(userId: string, kind: Kind, refs: NotifyRefs) {
-    // Never notify people about their own actions.
+    // Never notify people about their own actions, and the house account has no one reading.
     if (refs.actorId && refs.actorId === userId) return;
+    if (one(db, 'SELECT 1 FROM users WHERE id = ? AND is_system = 1', userId)) return;
     // One "like"/"follow" per actor per target; doing it again after undoing does not re-notify.
     if (kind === 'like' && one(db, 'SELECT 1 FROM notifications WHERE user_id = ? AND kind = ? AND actor_id = ? AND post_id IS ? AND blog_id IS ?', userId, kind, refs.actorId ?? null, refs.postId ?? null, refs.blogId ?? null)) return;
     if (kind === 'follow' && one(db, 'SELECT 1 FROM notifications WHERE user_id = ? AND kind = ? AND actor_id = ?', userId, kind, refs.actorId ?? null)) return;

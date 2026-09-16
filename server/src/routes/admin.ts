@@ -128,6 +128,7 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     if (!target) throw notFound('No such user.');
     const body = parse(AdminUpdateUserSchema, req.body);
     if (target.id === actor.id && (body.role === 'consumer' || body.disabled)) throw badRequest("You can't demote or disable yourself.");
+    if (body.role === 'admin' && one(db, 'SELECT 1 FROM users WHERE id = ? AND is_system = 1', target.id)) throw badRequest('The house kitchen account can’t be an admin. Disable it to hide its posts.');
     if (body.role && body.role !== target.role) {
       if (target.role === 'admin' && one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM users WHERE role = 'admin'`)!.n <= 1) {
         throw badRequest('There must be at least one admin.');
@@ -232,10 +233,14 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
   r.get('/comments', (_req, res) => {
     const rows = all<{ id: string; body: string; created_at: string; author_id: string; handle: string; target_id: string; kind: string }>(
       db,
-      `SELECT c.id, c.body, c.created_at, c.author_id, u.handle, c.post_id AS target_id, 'post' AS kind FROM comments c JOIN users u ON u.id = c.author_id
-       UNION ALL
-       SELECT c.id, c.body, c.created_at, c.author_id, u.handle, c.blog_id AS target_id, 'blog' AS kind FROM blog_comments c JOIN users u ON u.id = c.author_id
-       ORDER BY created_at DESC LIMIT 200`,
+      // Compound selects can only ORDER BY result-column names, so every column is aliased.
+      `SELECT * FROM (
+         SELECT c.id AS id, c.body AS body, c.created_at AS created_at, c.author_id AS author_id, u.handle AS handle, c.post_id AS target_id, 'post' AS kind
+           FROM comments c JOIN users u ON u.id = c.author_id
+         UNION ALL
+         SELECT c.id AS id, c.body AS body, c.created_at AS created_at, c.author_id AS author_id, u.handle AS handle, c.blog_id AS target_id, 'blog' AS kind
+           FROM blog_comments c JOIN users u ON u.id = c.author_id
+       ) ORDER BY created_at DESC LIMIT 200`,
     );
     res.json({ comments: rows.map((x) => ({ id: x.id, body: x.body, createdAt: x.created_at, authorId: x.author_id, handle: x.handle, postId: x.kind === 'post' ? x.target_id : null, blogId: x.kind === 'blog' ? x.target_id : null })) });
   });

@@ -32,6 +32,7 @@ interface PostRow {
   author_handle: string;
   author_name: string | null;
   author_avatar: string;
+  author_system: number;
   recipe_id: string;
   recipe_source: 'ai' | 'user';
   recipe_content: string;
@@ -44,7 +45,7 @@ interface PostRow {
 }
 
 const POST_SELECT = `
-  SELECT p.id, p.caption, p.created_at, p.author_id, u.handle AS author_handle, u.display_name AS author_name, u.avatar_emoji AS author_avatar,
+  SELECT p.id, p.caption, p.created_at, p.author_id, u.handle AS author_handle, u.display_name AS author_name, u.avatar_emoji AS author_avatar, u.is_system AS author_system,
          r.id AS recipe_id, r.source AS recipe_source, r.content AS recipe_content,
          r.forked_from_id, r.forked_from_title, r.forked_from_handle,
          (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count,
@@ -81,6 +82,8 @@ function toPost(db: Db, row: PostRow, me: string): Post {
     commentCount: row.comment_count,
     likedByMe: Boolean(row.liked_by_me),
     isMine: row.author_id === me,
+    isHouse: Boolean(row.author_system),
+    commentsEnabled: !row.author_system,
   };
 }
 
@@ -214,8 +217,9 @@ export function socialRoutes(db: Db, notifier: Notifier) {
   r.post('/posts/:id/comments', (req, res) => {
     const me = req.user!.id;
     const body = parse(CreateCommentSchema, req.body);
-    const target = one<{ author_id: string }>(db, 'SELECT author_id FROM posts WHERE id = ?', req.params['id']);
+    const target = one<{ author_id: string; is_system: number }>(db, 'SELECT p.author_id, u.is_system FROM posts p JOIN users u ON u.id = p.author_id WHERE p.id = ?', req.params['id']);
     if (!target) throw notFound('That post is gone.');
+    if (target.is_system) throw forbidden('Comments are off on house recipes. Like it, save it, or adapt it instead.');
     const id = newId('cmt');
     run(db, `INSERT INTO comments (id, post_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)`, id, req.params['id'], me, body.body, now());
     notifier.send(target.author_id, 'comment', { actorId: me, postId: req.params['id']!, commentId: id });

@@ -2,7 +2,8 @@ import { Link, NavLink, Outlet, useLoaderData, useNavigate, useRouteLoaderData, 
 import { auth, type Me } from '../../api/types';
 import { Wordmark } from '../../components/Logo';
 import { Avatar, Menu } from '../../components/ui';
-import { NotificationBell } from '../../components/Notifications';
+import { NotificationBell, useUnread } from '../../components/Notifications';
+import { BottomBar } from '../../components/MobileNav';
 import { requireOnboarded } from '../../lib/session';
 
 export async function appLoader({ request }: LoaderFunctionArgs) {
@@ -30,6 +31,7 @@ function Tab({ to, end, icon, label }: { to: string; end?: boolean; icon: string
 export function AppLayout() {
   const { me } = useLoaderData<typeof appLoader>();
   const nav = useNavigate();
+  const { unread, setUnread, latest } = useUnread();
   return (
     <>
       <header className="topbar">
@@ -53,7 +55,7 @@ export function AppLayout() {
                 ✨ Ask the AI for one
               </Link>
             </Menu>
-            <NotificationBell />
+            <NotificationBell unread={unread} setUnread={setUnread} latest={latest} />
             <Menu label="Your account" button={<Avatar name={me.displayName ?? '?'} emoji={me.avatar} />}>
               <div className="panel-item panel-item-static">
                 <Avatar name={me.displayName ?? '?'} emoji={me.avatar} />
@@ -97,6 +99,7 @@ export function AppLayout() {
         </div>
       </header>
       <Outlet />
+      <BottomBar me={me} unread={unread} />
     </>
   );
 }

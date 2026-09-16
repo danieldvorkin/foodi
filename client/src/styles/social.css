@@ -76,3 +76,15 @@
   object-fit: cover;
   flex: none;
 }
+
+.house-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sage-soft);
+  color: var(--sage);
+  font-size: var(--t-13);
+  font-weight: 500;
+  vertical-align: middle;
+}

@@ -306,4 +306,12 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE recipe_book_items ADD COLUMN emoji_snapshot TEXT NOT NULL DEFAULT '🔒';
     `,
   },
+  {
+    name: 'house-account',
+    sql: `
+      -- The house kitchen (@foodi) is a system account: it owns the starter recipes, nobody can
+      -- sign in as it, and its posts don't take comments.
+      ALTER TABLE users ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];

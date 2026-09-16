@@ -1162,3 +1162,47 @@ a.panel-item:hover {
   background: var(--sage);
   flex: none;
 }
+
+/* ---------- action sheets (Create / Me on phones, also usable anywhere) ---------- */
+.sheet-actions {
+  display: grid;
+  gap: 4px;
+}
+.sheet-action {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 12px 12px;
+  border-radius: var(--r-md);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  min-height: 56px;
+}
+.sheet-action:hover {
+  background: var(--flour);
+  text-decoration: none;
+}
+.sheet-action > [aria-hidden] {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--flour);
+  font-size: 20px;
+  flex: none;
+}
+.sheet-action b {
+  display: block;
+  font-weight: 500;
+}
+.sheet-action small {
+  display: block;
+  color: var(--stone);
+  font-size: var(--t-13);
+}

@@ -151,7 +151,7 @@ export function FeedPage() {
   const [params, setParams] = useSearchParams();
   const [more, setMore] = useState<FeedItem[]>([]);
   const [nextBefore, setNextBefore] = useState(data.nextBefore);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(params.get('share') === '1' && data.mine.length > 0);
   const [recipeId, setRecipeId] = useState(data.mine[0]?.id ?? '');
   const [caption, setCaption] = useState('');
   const [attachments, setAttachments] = useState<MediaItem[]>([]);
@@ -161,6 +161,16 @@ export function FeedPage() {
     setMore([]);
     setNextBefore(data.nextBefore);
   }, [data]);
+  useEffect(() => {
+    if (params.get('share') === '1') {
+      if (data.mine.length > 0) setOpen(true);
+      else toast('Cook or write a recipe first, then share it here.');
+      const next = new URLSearchParams(params);
+      next.delete('share');
+      setParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.get('share')]);
 
   async function loadMore() {
     if (!nextBefore) return;

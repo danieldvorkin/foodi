@@ -57,6 +57,11 @@ export function AdminSettings() {
             <p className="hint">0 turns uploads off. Files are stored on this server’s disk.</p>
           </div>
           <div className="field">
+            <label htmlFor="house">House kitchen posts per day</label>
+            <input id="house" className="input" type="number" min={0} max={24} value={s.housePostsPerDay} onChange={(e) => setS({ ...s, housePostsPerDay: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />
+            <p className="hint">@foodi shares one of its recipes to the feed this often until its library is all out. 0 pauses it.</p>
+          </div>
+          <div className="field">
             <label htmlFor="maint">Banner on the sign-in page</label>
             <input id="maint" className="input" value={s.maintenanceMessage} onChange={(e) => setS({ ...s, maintenanceMessage: e.target.value })} maxLength={300} placeholder="e.g. Down for maintenance tonight 10–11pm" />
           </div>

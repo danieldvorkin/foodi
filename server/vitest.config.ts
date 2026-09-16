@@ -12,6 +12,7 @@ export default defineConfig({
       FOODI_DB_PATH: ':memory:',
       FOODI_UPLOAD_DIR: `${tmpdir()}/foodi-test-uploads-${process.pid}`,
       FOODI_ENABLE_MOCK_PROVIDER: 'true',
+      FOODI_HOUSE_KITCHEN: 'false',
       FOODI_LOG_LEVEL: 'silent',
     },
   },
