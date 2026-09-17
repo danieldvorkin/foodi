@@ -32,6 +32,8 @@ import { createNotifier } from './services/notify.js';
 import { createHouse } from './services/house.js';
 import { createCommerce } from './services/commerce.js';
 import { createPermissions } from './services/permissions.js';
+import { createJobs } from './services/jobs.js';
+import { generateJobHandler } from './ai/generate-job.js';
 import { adminShopRoutes, shopRoutes } from './routes/shop.js';
 import { createStripeProvider } from './payments/stripe.js';
 import { createTestProvider } from './payments/test.js';
@@ -66,6 +68,9 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const commerce = createCommerce({ db, settings, notifier, provider: paymentProvider, appOrigin: config.appOrigin, log });
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
+  const jobs = createJobs(db, notifier, log);
+  jobs.register('generate', generateJobHandler(db, ai, notifier));
+  jobs.start();
 
   // ---- providers --------------------------------------------------------------------------
   const providers: AuthProvider[] = [];
@@ -166,7 +171,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/profile', writeLimiter, profileRoutes(db));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
-  api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier));
+  api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier, jobs));
   api.use('/social', writeLimiter, socialRoutes(db, notifier, commerce));
   api.use('/blog', writeLimiter, blogRoutes(db, notifier));
   api.use('/books', writeLimiter, bookRoutes(db, notifier));
@@ -176,7 +181,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions }));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs }));
   api.use(notFoundHandler);
   app.use('/api', api);
 
@@ -213,7 +218,9 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
     house,
     commerce,
     permissions,
+    jobs,
     close: () => {
+      jobs.stop();
       clearInterval(sweeper);
       clearInterval(houseTimer);
       db.close();

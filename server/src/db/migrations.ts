@@ -462,4 +462,28 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX shop_orders_listing ON shop_orders(listing_id, status);
     `,
   },
+  {
+    name: 'jobs',
+    sql: `
+      -- Background work (recipe generation). Claimed by the in-process worker; survives restarts.
+      CREATE TABLE jobs (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued','running','done','failed','cancelled')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        last_error TEXT,
+        last_error_code TEXT,
+        result_recipe_id TEXT REFERENCES recipes(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL,
+        run_after TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT
+      );
+      CREATE INDEX jobs_queue ON jobs(status, run_after);
+      CREATE INDEX jobs_user ON jobs(user_id, created_at DESC);
+    `,
+  },
 ];

@@ -8,17 +8,17 @@ import { decrypt, encrypt, pkcePair } from './lib/crypto.js';
 
 const ORIGIN = 'http://localhost:5100';
 
-async function boot(extraEnv: Record<string, string> = {}) {
+async function boot(extraEnv: Record<string, string> = {}, aiClients?: Parameters<typeof createApp>[0]['aiClients']) {
   const config = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0' });
   const log = createLogger('silent', false);
-  const built = await createApp({ config, log });
+  const built = await createApp({ config, log, ...(aiClients ? { aiClients } : {}) });
   // The mock IdP needs a reachable issuer; bind an ephemeral port and rewrite the origin.
   const server = built.app.listen(0);
   const port = (server.address() as { port: number }).port;
   server.close();
   built.close();
   const cfg2 = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: `http://127.0.0.1:${port}` });
-  const built2 = await createApp({ config: cfg2, log });
+  const built2 = await createApp({ config: cfg2, log, ...(aiClients ? { aiClients } : {}) });
   const server2 = built2.app.listen(port);
   return { ...built2, server: server2, base: `http://127.0.0.1:${port}`, config: cfg2 };
 }
@@ -223,7 +223,7 @@ describe('recipes', () => {
 
   it('generates a recipe that respects allergies and links ingredients to the library', async () => {
     const res = await request(b.base)
-      .post('/api/recipes/generate')
+      .post('/api/recipes/generate?sync=1')
       .set('cookie', session)
       .set('origin', ORIGIN)
       .send({ prompt: 'a quick pasta', ingredientIds: ['spinach', 'cherry-tomato'] });
@@ -244,12 +244,12 @@ describe('recipes', () => {
 
   it('requires onboarding first', async () => {
     const fresh = await signIn(b, 'mock-sam');
-    const res = await request(b.base).post('/api/recipes/generate').set('cookie', fresh).set('origin', ORIGIN).send({ prompt: 'anything' });
+    const res = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', fresh).set('origin', ORIGIN).send({ prompt: 'anything' });
     expect(res.status).toBe(400);
   });
 
   it('keeps private recipes private, and sharing makes them readable', async () => {
-    const gen = await request(b.base).post('/api/recipes/generate').set('cookie', session).set('origin', ORIGIN).send({ prompt: 'soup' });
+    const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', session).set('origin', ORIGIN).send({ prompt: 'soup' });
     const id = gen.body.recipe.id;
     const other = await signIn(b, 'mock-sam');
     expect((await request(b.base).get(`/api/recipes/${id}`).set('cookie', other)).status).toBe(403);
@@ -324,7 +324,7 @@ describe('media', () => {
   }
 
   it('sniffs type, strips metadata, enforces ownership and visibility', async () => {
-    const gen = await request(b.base).post('/api/recipes/generate').set('cookie', session).set('origin', ORIGIN).send({ prompt: 'soup' });
+    const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', session).set('origin', ORIGIN).send({ prompt: 'soup' });
     const recipeId = gen.body.recipe.id;
 
     const junk = await request(b.base).post('/api/media').set('cookie', session).set('origin', ORIGIN).set('content-type', 'image/png').send(Buffer.from('definitely not an image, just text'));
@@ -528,7 +528,7 @@ describe('security review fixes', () => {
       const admin = await signIn(b, 'mock-ada');
       const author = await signIn(b, 'mock-sam');
       await request(b.base).put('/api/profile').set('cookie', author).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
       const post = await request(b.base).post('/api/social/posts').set('cookie', author).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: 'x' });
       const viewer = await signIn(b, 'mock-priya');
       expect((await request(b.base).get(`/api/recipes/${gen.body.recipe.id}`).set('cookie', viewer)).status).toBe(200);
@@ -547,7 +547,7 @@ describe('notifications', () => {
     try {
       const author = await signIn(b, 'mock-ada');
       await request(b.base).put('/api/profile').set('cookie', author).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', author).set('origin', ORIGIN).send({ prompt: 'anything' });
       const post = await request(b.base).post('/api/social/posts').set('cookie', author).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
       const pid = post.body.post.id;
       // Own like → no notification.
@@ -600,9 +600,9 @@ describe('community', () => {
       expect((await request(b.base).get('/api/social/profiles/ada_lovelace/followers').set('cookie', priya)).body.people.map((p: { handle: string }) => p.handle)).toEqual(['sam_rivera']);
 
       // Ada and Priya each share; Sam's "following" feed only has Ada's, and Sam hears about it.
-      const gA = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'soup' });
+      const gA = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'soup' });
       await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gA.body.recipe.id, caption: '' });
-      const gP = await request(b.base).post('/api/recipes/generate').set('cookie', priya).set('origin', ORIGIN).send({ prompt: 'salad' });
+      const gP = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', priya).set('origin', ORIGIN).send({ prompt: 'salad' });
       await request(b.base).post('/api/social/posts').set('cookie', priya).set('origin', ORIGIN).send({ recipeId: gP.body.recipe.id, caption: '' });
       expect((await request(b.base).get('/api/social/feed').set('cookie', sam)).body.items).toHaveLength(2);
       const following = await request(b.base).get('/api/social/feed?scope=following').set('cookie', sam);
@@ -630,7 +630,7 @@ describe('community', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'bread' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'bread' });
 
       const draft = await request(b.base).post('/api/blog').set('cookie', ada).set('origin', ORIGIN).send({ title: 'On sourdough', body: '## Starter\n\nFeed it **daily**.', status: 'draft', recipeIds: [gen.body.recipe.id] });
       expect(draft.status).toBe(201);
@@ -676,7 +676,7 @@ describe('community', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'curry' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'curry' });
       const rid = gen.body.recipe.id;
 
       const book = await request(b.base).post('/api/books').set('cookie', sam).set('origin', ORIGIN).send({ name: 'Weeknights', emoji: '🍝' });
@@ -712,7 +712,7 @@ describe('community', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'tacos' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'tacos' });
       const rid = gen.body.recipe.id;
       expect((await request(b.base).post(`/api/recipes/${rid}/adapt`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(403);
       await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: rid, caption: '' });
@@ -810,7 +810,7 @@ describe('admin community', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'x' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'x' });
       const post = await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
       const blog = await request(b.base).post('/api/blog').set('cookie', ada).set('origin', ORIGIN).send({ title: 'T', body: 'b', status: 'published' });
       await request(b.base).post(`/api/social/posts/${post.body.post.id}/comments`).set('cookie', sam).set('origin', ORIGIN).send({ body: 'on the post' });
@@ -838,7 +838,7 @@ describe('security review 2', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'stew' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'stew' });
       const rid = gen.body.recipe.id;
       const originalTitle = gen.body.recipe.content.title;
       const post = await request(b.base).post('/api/social/posts').set('cookie', ada).set('origin', ORIGIN).send({ recipeId: rid, caption: '' });
@@ -951,7 +951,7 @@ describe('commerce (test payment provider)', () => {
   async function bookWithRecipes(b: Booted, cookie: string, n: number) {
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', cookie).set('origin', ORIGIN).send({ prompt: `dish ${i}` });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', cookie).set('origin', ORIGIN).send({ prompt: `dish ${i}` });
       ids.push(gen.body.recipe.id);
     }
     const book = await request(b.base).post('/api/books').set('cookie', cookie).set('origin', ORIGIN).send({ name: 'Paid book', emoji: '💵', visibility: 'public' });
@@ -1037,7 +1037,7 @@ describe('commerce (test payment provider)', () => {
       const ada = await signIn(b, 'mock-ada');
       const sam = await signIn(b, 'mock-sam');
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'x' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'x' });
       await request(b.base).post('/api/social/posts').set('cookie', sam).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
       const book = await request(b.base).post('/api/books').set('cookie', ada).set('origin', ORIGIN).send({ name: 'Mixed', visibility: 'public' });
       await request(b.base).post(`/api/books/${book.body.book.id}/items`).set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id });
@@ -1058,7 +1058,7 @@ describe('commerce (test payment provider)', () => {
       for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
       const { bookId } = await bookWithRecipes(b, ada, 1);
       // Something in the feed so there's a slot to fill.
-      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'y' });
+      const gen = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'y' });
       await request(b.base).post('/api/social/posts').set('cookie', sam).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
 
       expect((await request(b.base).post(`/api/commerce/books/${bookId}/promote`).set('cookie', sam).set('origin', ORIGIN).send({ packageId: 'boost-3' })).status).toBe(404);
@@ -1207,6 +1207,141 @@ describe('shop', () => {
       expect((await request(b.base).get('/api/auth/me').set('cookie', ada)).body.permissions).toEqual([]);
       expect((await request(b.base).post(`/api/admin/shop/${id}/takedown`).set('cookie', priya).set('origin', ORIGIN).send({ reason: 'Counterfeit labels' })).status).toBe(200);
       expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', sam)).body.listing).toMatchObject({ status: 'rejected', rejectionReason: 'Counterfeit labels' });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('generation jobs', () => {
+  it('queues a generation, streams job events, saves the recipe and notifies', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      // Listen to the stream first so we see the job go queued → running → done.
+      const seen: string[] = [];
+      const ac = new AbortController();
+      const res = await fetch(`${b.base}/api/notifications/stream`, { headers: { cookie: ada }, signal: ac.signal });
+      const reader = res.body!.getReader();
+      const dec = new TextDecoder();
+      const pump = (async () => {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          seen.push(dec.decode(value));
+          if (seen.join('').includes('"status":"done"')) break;
+        }
+      })();
+
+      const q = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'weeknight noodles' });
+      expect(q.status).toBe(202);
+      expect(q.body.job).toMatchObject({ kind: 'generate', prompt: 'weeknight noodles', attempts: 0 });
+      expect(['queued', 'running']).toContain(q.body.job.status);
+      await Promise.race([pump, new Promise((_, rej) => setTimeout(() => rej(new Error('no done event within 5s')), 5000))]);
+      ac.abort();
+      const text = seen.join('');
+      expect(text).toContain('event: job');
+      expect(text).toContain('"status":"running"');
+      expect(text).toContain('"status":"done"');
+
+      await b.jobs.idle();
+      const job = await request(b.base).get(`/api/recipes/jobs/${q.body.job.id}`).set('cookie', ada);
+      expect(job.body.job).toMatchObject({ status: 'done', attempts: 1 });
+      expect(job.body.job.recipeId).toMatch(/^rcp_/);
+      expect(job.body.job.recipeTitle).toBeTruthy();
+      expect((await request(b.base).get(`/api/recipes/${job.body.job.recipeId}`).set('cookie', ada)).status).toBe(200);
+      const ntf = await request(b.base).get('/api/notifications').set('cookie', ada);
+      expect(ntf.body.notifications[0]).toMatchObject({ kind: 'recipe', recipeId: job.body.job.recipeId });
+      // Other people can't see the job.
+      const sam = await signIn(b, 'mock-sam');
+      expect((await request(b.base).get(`/api/recipes/jobs/${q.body.job.id}`).set('cookie', sam)).status).toBe(404);
+      // Counted against the quota and visible in the admin log.
+      expect((await request(b.base).get('/api/admin/jobs').set('cookie', ada)).body.jobs[0].id).toBe(q.body.job.id);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('retries transient vendor failures with backoff and gives up on permanent ones', async () => {
+    const { createMockClient } = await import('./ai/mock.js');
+    const { AiError } = await import('./ai/types.js');
+    const real = createMockClient();
+    let calls = 0;
+    const flaky = {
+      ...real,
+      generate: async (input: Parameters<typeof real.generate>[0], cred: Parameters<typeof real.generate>[1]) => {
+        calls++;
+        if (input.prompt.includes('flaky') && calls < 3) throw new AiError('vendor_error', 'upstream hiccup', 502);
+        if (input.prompt.includes('doomed')) throw new AiError('credential_rejected', 'key revoked', 401);
+        return real.generate(input, cred);
+      },
+    };
+    const b = await boot({}, { mock: flaky });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      // Backoff would normally wait 5 s; pull the job forward each time it's requeued.
+      const q = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'flaky ramen' });
+      for (let i = 0; i < 40; i++) {
+        const row = b.jobs.getRow(q.body.job.id)!;
+        if (row.status === 'done' || row.status === 'failed') break;
+        if (row.status === 'queued') {
+          b.db.prepare(`UPDATE jobs SET run_after = ? WHERE id = ?`).run(new Date(0).toISOString(), row.id);
+          await b.jobs.tick();
+        }
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      const done = await request(b.base).get(`/api/recipes/jobs/${q.body.job.id}`).set('cookie', ada);
+      expect(done.body.job).toMatchObject({ status: 'done', attempts: 3 });
+      expect(done.body.job.lastError).toBeNull();
+
+      const d = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'doomed tacos' });
+      await b.jobs.idle();
+      const failed = await request(b.base).get(`/api/recipes/jobs/${d.body.job.id}`).set('cookie', ada);
+      expect(failed.body.job).toMatchObject({ status: 'failed', attempts: 1, lastErrorCode: 'credential_rejected' });
+      // The person can retry a failed job; cancelling a finished one is refused.
+      expect((await request(b.base).post(`/api/recipes/jobs/${d.body.job.id}/cancel`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(400);
+      expect((await request(b.base).post(`/api/recipes/jobs/${d.body.job.id}/retry`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      // Generation rows exist for every attempt (3 ok/failed for the flaky one + the doomed ones).
+      const gens = await request(b.base).get('/api/admin/generations').set('cookie', ada);
+      expect(gens.body.generations.length).toBeGreaterThanOrEqual(4);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('requeues jobs left running by a restart, and refuses more than three in flight', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      b.jobs.stop();
+      b.db.prepare(`INSERT INTO jobs (id, kind, user_id, payload, status, attempts, max_attempts, created_at, run_after, started_at) VALUES ('job_stuck', 'generate', (SELECT id FROM users WHERE handle = 'ada_lovelace'), '{"prompt":"stuck"}', 'running', 1, 3, ?, ?, ?)`).run(
+        new Date(Date.now() - 600_000).toISOString(),
+        new Date(Date.now() - 600_000).toISOString(),
+        new Date(Date.now() - 600_000).toISOString(),
+      );
+      b.jobs.recover();
+      expect(b.jobs.getRow('job_stuck')!.status).toBe('queued');
+      await b.jobs.tick();
+      await b.jobs.idle();
+      expect(b.jobs.getRow('job_stuck')!.status).toBe('done');
+
+      // In-flight cap: queue three without running them, the fourth is refused, cancel frees a slot.
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const q = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: `batch ${i}` });
+        expect(q.status).toBe(202);
+        ids.push(q.body.job.id);
+        b.db.prepare(`UPDATE jobs SET status = 'queued', run_after = ? WHERE id = ?`).run(new Date(Date.now() + 3600_000).toISOString(), q.body.job.id);
+      }
+      expect((await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'one too many' })).status).toBe(429);
+      expect((await request(b.base).post(`/api/recipes/jobs/${ids[0]}/cancel`).set('cookie', ada).set('origin', ORIGIN)).body.job.status).toBe('cancelled');
+      expect((await request(b.base).get('/api/recipes/jobs?active=1').set('cookie', ada)).body.jobs).toHaveLength(2);
     } finally {
       b.server.close();
       b.close();

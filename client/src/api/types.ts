@@ -17,6 +17,7 @@ import type {
   FeedItem,
   FeedScope,
   GenerationLog,
+  Job,
   Listing,
   Me,
   Order,
@@ -32,7 +33,7 @@ import type {
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
-export type { Listing, Order, AdminCommerce, CommerceConfig, Earnings, Payout, PromoPackageId, Promotion, Purchase, AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
+export type { Job, Listing, Order, AdminCommerce, CommerceConfig, Earnings, Payout, PromoPackageId, Promotion, Purchase, AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -65,8 +66,13 @@ export interface RecipeDetail {
 export const recipes = {
   list: () => api<{ recipes: RecipeSummary[] }>('/recipes'),
   get: (id: string) => api<RecipeDetail>(`/recipes/${encodeURIComponent(id)}`),
+  /** Queues the generation; the recipe arrives as a `job` event and a notification. */
   generate: (body: { prompt: string; ingredientIds: string[]; basedOnRecipeId?: string; servings?: number; timeBudgetMinutes?: number; mealType?: string; avoidTitles?: string[]; seed?: string }) =>
-    api<{ recipe: Recipe }>('/recipes/generate', { method: 'POST', body }),
+    api<{ job: Job }>('/recipes/generate', { method: 'POST', body }),
+  jobs: (activeOnly = false) => api<{ jobs: Job[] }>(`/recipes/jobs${activeOnly ? '?active=1' : ''}`),
+  job: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}`),
+  cancelJob: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  retryJob: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   create: (body: unknown) => api<{ recipe: Recipe }>('/recipes', { method: 'POST', body }),
   update: (id: string, body: unknown) => api<{ recipe: Recipe }>(`/recipes/${encodeURIComponent(id)}`, { method: 'PUT', body }),
   favorite: (id: string, favorite: boolean) => api<{ favorite: boolean }>(`/recipes/${encodeURIComponent(id)}/favorite`, { method: 'POST', body: { favorite } }),
@@ -234,7 +240,7 @@ export const notifications = {
    * Live updates. Calls `onEvent` with the unread count and, for new items, the notification.
    * Returns a stop function. If the stream can't connect the caller should fall back to polling.
    */
-  stream: (onEvent: (ev: { unread: number; notification?: Notification }) => void, onError: () => void) => {
+  stream: (onEvent: (ev: { unread: number; notification?: Notification }) => void, onError: () => void, onJob?: (job: Job) => void) => {
     const es = new EventSource('/api/notifications/stream');
     const handle = (e: MessageEvent) => {
       try {
@@ -245,6 +251,13 @@ export const notifications = {
     };
     es.addEventListener('unread', handle);
     es.addEventListener('notification', handle);
+    es.addEventListener('job', (e: MessageEvent) => {
+      try {
+        onJob?.(JSON.parse(e.data as string) as Job);
+      } catch {
+        /* ignore malformed frames */
+      }
+    });
     es.onerror = () => {
       // EventSource retries on its own; tell the caller so it can poll meanwhile.
       if (es.readyState === EventSource.CLOSED) onError();
@@ -280,6 +293,9 @@ export const admin = {
   comments: () => api<{ comments: { id: string; body: string; createdAt: string; authorId: string; handle: string; postId: string | null; blogId: string | null }[] }>('/admin/comments'),
   deleteComment: (id: string) => api<{ ok: true }>(`/admin/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generations: (status?: 'ok' | 'failed') => api<{ generations: GenerationLog[] }>(`/admin/generations${status ? `?status=${status}` : ''}`),
+  jobs: () => api<{ jobs: Job[]; counts: { queued: number; running: number; failed: number } }>('/admin/jobs'),
+  retryJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+  cancelJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   settings: () =>
     api<{ settings: AppSettings; server: { env: string; providers: string[]; mockEnabled: boolean; models: { anthropic: string; openai: string }; uploadDir: string; bootstrapFirstAdmin: boolean; adminEmails: string[]; cookieSecure: boolean } }>('/admin/settings'),
   updateSettings: (patch: Partial<AppSettings>) => api<{ settings: AppSettings }>('/admin/settings', { method: 'PUT', body: patch }),

@@ -40,6 +40,8 @@ export interface NotifyEvent {
   unread: number;
   /** Present when a new notification was just created (not on mark-read). */
   notification?: Notification;
+  /** Any other named event (e.g. 'job') with its own payload. */
+  custom?: { name: string; data: unknown };
 }
 type Listener = (ev: NotifyEvent) => void;
 
@@ -57,6 +59,11 @@ export function createNotifier(db: Db) {
         /* a dead stream; it cleans itself up on close */
       }
     }
+  }
+
+  /** Push a named event (not a stored notification) to a person's open tabs. */
+  function publish(userId: string, name: string, data: unknown) {
+    emit(userId, { unread: unreadCount(userId), custom: { name, data } });
   }
 
   function subscribe(userId: string, fn: Listener): () => void {
@@ -164,6 +171,6 @@ export function createNotifier(db: Db) {
     run(db, 'DELETE FROM notifications WHERE user_id = ? AND read_at IS NOT NULL', userId);
   }
 
-  return { send, sendToFollowers, subscribe, list, unreadCount, markRead, remove, clearRead };
+  return { send, sendToFollowers, subscribe, publish, list, unreadCount, markRead, remove, clearRead };
 }
 export type Notifier = ReturnType<typeof createNotifier>;

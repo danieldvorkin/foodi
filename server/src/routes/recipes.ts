@@ -5,7 +5,6 @@ import {
   EditRecipeSchema,
   GenerateRequestSchema,
   RecipeContentSchema,
-  getIngredient,
   type Recipe,
   type RecipeContent,
   type RecipeSummary,
@@ -14,7 +13,7 @@ import { allergenWarnings, postProcess, type createAiService } from '../ai/servi
 import type { Db } from '../db/index.js';
 import { all, one, run } from '../db/index.js';
 import { newId } from '../lib/crypto.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, forbidden, HttpError, notFound } from '../lib/errors.js';
 import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
@@ -22,6 +21,8 @@ import { getProfile } from './profile.js';
 import { coverForRecipe, mediaForRecipe } from './media.js';
 import type { Notifier } from '../services/notify.js';
 import { canReadRecipe } from '../services/access.js';
+import type { Jobs } from '../services/jobs.js';
+import { runGeneration } from '../ai/generate-job.js';
 
 export interface RecipeRow {
   id: string;
@@ -109,7 +110,7 @@ function completeAuthored(input: z.infer<typeof AuthoredRecipeSchema>): RecipeCo
   });
 }
 
-export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, notifier: Notifier) {
+export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, notifier: Notifier, jobs: Jobs) {
   const r = Router();
   r.use(requireAuth);
 
@@ -132,52 +133,48 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
     res.json({ recipes: rows.map((row) => toSummary(db, row, allergenWarnings(parseContent(row), profile))) });
   });
 
+  /**
+   * Ask the AI for a recipe. By default this queues a job and returns 202 straight away; the
+   * result arrives over the notification stream and as a notification. `?sync=1` keeps the old
+   * blocking behaviour (used by tests and scripts).
+   */
   r.post('/generate', async (req, res, next) => {
     try {
       const body = parse(GenerateRequestSchema, req.body);
       const userId = req.user!.id;
-      const profile = getProfile(db, userId);
-      if (!profile) throw badRequest('Finish onboarding before generating recipes.');
+      if (!getProfile(db, userId)) throw badRequest('Finish onboarding before generating recipes.');
       if (!body.prompt && body.ingredientIds.length === 0 && !body.basedOnRecipeId && body.avoidTitles.length === 0) throw badRequest('Tell us what you feel like, or pick some ingredients.');
-
-      const requested = body.ingredientIds.map((id) => getIngredient(id)).filter((i): i is NonNullable<typeof i> => Boolean(i));
-      const basedOn = body.basedOnRecipeId ? parseContent(loadVisible(body.basedOnRecipeId, userId)) : null;
-
-      const result = await ai.generate(userId, {
-        profile,
-        prompt: body.prompt || (requested.length ? 'Something good with what I picked.' : basedOn ? 'Adjust this recipe.' : 'Surprise me with something different.'),
-        requestedIngredients: requested,
-        servings: body.servings ?? basedOn?.servings ?? profile.householdSize,
-        timeBudgetMinutes: body.timeBudgetMinutes ?? profile.timeBudgetMinutes,
-        mealType: body.mealType ?? null,
-        basedOn,
-        avoidTitles: body.avoidTitles,
-        seed: body.seed ?? null,
-      });
-
-      const id = newId('rcp');
-      const t = now();
-      run(
-        db,
-        `INSERT INTO recipes (id, user_id, source, visibility, title, prompt, requested_ingredient_ids, provider, model, content, favorite, created_at, updated_at)
-         VALUES (?, ?, 'ai', 'private', ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-        id,
-        userId,
-        result.content.title,
-        body.prompt,
-        JSON.stringify(requested.map((i) => i.id)),
-        result.vendor,
-        result.model,
-        JSON.stringify(result.content),
-        t,
-        t,
-      );
-      ai.linkRecipeId(result.generationId, id);
-      const row = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', id)!;
-      res.status(201).json({ recipe: toRecipe(db, row, allergenWarnings(result.content, profile)) });
+      // Fail fast on things a retry can't fix, before anything is queued.
+      ai.preflight(userId, jobs.activeCount(userId));
+      if (req.query['sync'] === '1') {
+        const { recipe } = await runGeneration(db, ai, userId, body);
+        res.status(201).json({ recipe });
+        return;
+      }
+      if (jobs.activeCount(userId) >= 3) throw new HttpError(429, 'busy', 'Three recipes are already being written for you. Give them a minute.');
+      res.status(202).json({ job: jobs.enqueue('generate', userId, body) });
     } catch (e) {
       next(e);
     }
+  });
+
+  r.get('/jobs', (req, res) => res.json({ jobs: jobs.listFor(req.user!.id, req.query['active'] === '1') }));
+  r.get('/jobs/:id', (req, res) => {
+    const job = jobs.get(req.params['id']!);
+    const row = jobs.getRow(req.params['id']!);
+    if (!job || !row || row.user_id !== req.user!.id) throw notFound('No such job.');
+    res.json({ job });
+  });
+  r.post('/jobs/:id/cancel', (req, res) => {
+    if (!jobs.cancel(req.params['id']!, req.user!.id)) throw badRequest('Only queued jobs can be cancelled.');
+    res.json({ job: jobs.get(req.params['id']!) });
+  });
+  r.post('/jobs/:id/retry', (req, res) => {
+    const row = jobs.getRow(req.params['id']!);
+    if (!row || row.user_id !== req.user!.id) throw notFound('No such job.');
+    ai.preflight(req.user!.id, jobs.activeCount(req.user!.id));
+    if (!jobs.retry(row.id, req.user!.id)) throw badRequest('Only failed jobs can be retried.');
+    res.json({ job: jobs.get(row.id) });
   });
 
   /** Author your own recipe. */

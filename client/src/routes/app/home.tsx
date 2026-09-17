@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLoaderData, useNavigate, useRevalidator } from 'react-router';
+import { Link, useLoaderData, useRevalidator } from 'react-router';
 import { getIngredient, MEAL_EMOJI, MEAL_TYPES } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, profile as profileApi, recipes as recipesApi } from '../../api/types';
 import { IngredientPicker } from '../../components/IngredientPicker';
+import { JobCards } from '../../components/JobCards';
+import { dropJob, upsertJob } from '../../lib/jobs';
 import { useToast } from '../../components/Toast';
 import { Empty, Meta } from '../../components/ui';
 import { minutes, servingsLabel, timeAgo } from '../../lib/format';
@@ -46,7 +48,6 @@ function loadDraft(): Draft {
 export function Home() {
   const { recipes, pantry, profile } = useLoaderData<typeof homeLoader>();
   const me = useMe();
-  const nav = useNavigate();
   const toast = useToast();
   const { revalidate } = useRevalidator();
   const [draft, setDraft] = useState<Draft>(loadDraft);
@@ -80,15 +81,19 @@ export function Home() {
     setBusy(true);
     setLine(0);
     try {
-      const { recipe } = await recipesApi.generate({ prompt: prompt.trim(), ingredientIds: basket, ...(mealType ? { mealType } : {}) });
+      // Queued, not awaited: the card below tracks it, and a notification lands when it's ready.
+      const { job } = await recipesApi.generate({ prompt: prompt.trim(), ingredientIds: basket, ...(mealType ? { mealType } : {}) });
+      upsertJob(job);
+      setDraft({ prompt: '', basket: [], mealType: '' });
       try {
         sessionStorage.removeItem(DRAFT_KEY);
       } catch {
         /* ignore */
       }
-      nav(`/app/recipes/${recipe.id}`);
+      toast('Writing your recipe — you can keep browsing.');
     } catch (e) {
       toast(errorMessage(e), 'error');
+    } finally {
       setBusy(false);
       inFlight.current = false;
     }
@@ -171,7 +176,7 @@ export function Home() {
                       <span className="spinner" style={{ borderTopColor: 'var(--sage-ink)', borderColor: 'color-mix(in oklab, var(--sage-ink) 35%, transparent)' }} /> {COOKING_LINES[line]}
                     </>
                   ) : (
-                    'Write my recipe'
+                    '✨ Write my recipe'
                   )}
                 </button>
                 <span className="hint">Written by {vendorLabel} with your account.</span>
@@ -196,7 +201,14 @@ export function Home() {
         </section>
       )}
 
-      <section>
+      <JobCards
+        onOpened={(id) => {
+          dropJob(id);
+          revalidate();
+        }}
+      />
+
+      <section id="recipes">
         <div className="section-head">
           <h2>Your recipes</h2>
           <Link to="/app/recipes/new" className="btn btn-sm">

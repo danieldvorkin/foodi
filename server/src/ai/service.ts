@@ -21,12 +21,20 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     ...(config.enableMockProvider ? { mock: deps.clients?.['mock'] ?? createMockClient() } : {}),
   };
 
-  function assertQuota(userId: string) {
+  function assertQuota(userId: string, pending = 0) {
     const max = settings.get().maxGenerationsPerUserPerDay;
     if (max <= 0) return;
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND created_at > ? AND status = 'ok'`, userId, since);
-    if ((row?.n ?? 0) >= max) throw new HttpError(429, 'quota', `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
+    if ((row?.n ?? 0) + pending >= max) throw new HttpError(429, 'quota', `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
+  }
+
+  /** Everything that must be true before a generation is even queued. */
+  function preflight(userId: string, pending = 0) {
+    assertQuota(userId, pending);
+    const cred = store.getCredentialMeta(userId);
+    if (!cred) throw new HttpError(409, 'no_credential', 'No AI account is connected. Connect one in Settings.');
+    if (!clients[cred.vendor]) throw new HttpError(409, 'vendor_unavailable', `The ${cred.vendor} provider is not enabled on this server.`);
   }
 
   async function generate(userId: string, input: GenerateInput): Promise<{ content: RecipeContent; vendor: string; model: string; generationId: string }> {
@@ -75,7 +83,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     run(db, 'UPDATE generations SET recipe_id = ? WHERE id = ?', recipeId, generationId);
   }
 
-  return { generate, linkRecipeId, clients };
+  return { generate, linkRecipeId, preflight, clients };
 }
 
 /** Link ingredient lines to the preset library and tidy up model output. */

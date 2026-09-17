@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import type { Notification } from '@foodi/shared';
-import { notifications as api } from '../api/types';
+import { notifications as api, recipes as recipesApi } from '../api/types';
 import { timeAgo } from '../lib/format';
+import { isActive, seedJobs, upsertJob } from '../lib/jobs';
+import { useToast } from './Toast';
 import { Avatar } from './ui';
 
-export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕', sale: '💵', promo: '🚀', payout: '🏦', listing: '🛍️', order: '📦' };
+export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕', sale: '💵', promo: '🚀', payout: '🏦', listing: '🛍️', order: '📦', recipe: '✨' };
 
 export function describe(n: Notification): { text: string; to: string | null } {
   const who = n.actor?.displayName ?? 'Someone';
@@ -38,6 +40,8 @@ export function describe(n: Notification): { text: string; to: string | null } {
       return { text: n.message ?? 'Listing update', to: '/app/shop/mine' };
     case 'order':
       return { text: `${who} ${n.message ?? 'placed an order'}`, to: '/app/shop/mine' };
+    case 'recipe':
+      return { text: n.message ?? 'Your recipe is ready', to: n.recipeId ? `/app/recipes/${n.recipeId}` : '/app/cook' };
     case 'role':
       return { text: n.message ?? 'Your role changed', to: '/app/settings?tab=account' };
     default:
@@ -52,6 +56,7 @@ export function describe(n: Notification): { text: string; to: string | null } {
 export function useUnread(onNotification?: (n: Notification) => void) {
   const [unread, setUnread] = useState(0);
   const [latest, setLatest] = useState<Notification | null>(null);
+  const toast = useToast();
   const handler = useRef(onNotification);
   useEffect(() => {
     handler.current = onNotification;
@@ -61,6 +66,11 @@ export function useUnread(onNotification?: (n: Notification) => void) {
     let poll: number | null = null;
     const refresh = () => api.unread().then((r) => alive && setUnread(r.unread)).catch(() => {});
     refresh();
+    // Background recipe jobs: anything still in flight from an earlier visit, then live updates.
+    recipesApi
+      .jobs(true)
+      .then((r) => alive && seedJobs(r.jobs))
+      .catch(() => {});
     const startPolling = () => {
       if (poll !== null) return;
       poll = window.setInterval(() => document.visibilityState === 'visible' && refresh(), 30_000);
@@ -75,6 +85,12 @@ export function useUnread(onNotification?: (n: Notification) => void) {
         }
       },
       () => startPolling(),
+      (job) => {
+        if (!alive) return;
+        const prev = upsertJob(job);
+        if (prev && isActive(prev) && job.status === 'done') toast(`Your recipe is ready: “${job.recipeTitle ?? 'open Cook to see it'}”`);
+        if (prev && isActive(prev) && job.status === 'failed') toast(`Couldn’t write “${job.prompt}”: ${job.lastError ?? 'unknown error'}`, 'error');
+      },
     );
     const onVisible = () => document.visibilityState === 'visible' && refresh();
     document.addEventListener('visibilitychange', onVisible);
@@ -84,7 +100,7 @@ export function useUnread(onNotification?: (n: Notification) => void) {
       if (poll !== null) window.clearInterval(poll);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [toast]);
   return { unread, setUnread, latest };
 }
 
