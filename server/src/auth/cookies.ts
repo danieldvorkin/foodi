@@ -1,4 +1,4 @@
-import { parse, serialize } from 'cookie';
+import { parseCookie, stringifySetCookie } from 'cookie';
 import type { Request, Response } from 'express';
 import { decrypt, encrypt } from '../lib/crypto.js';
 
@@ -12,13 +12,13 @@ export interface CookieOptions {
 export function readCookie(req: Request, name: string): string | undefined {
   const header = req.headers.cookie;
   if (!header) return undefined;
-  return parse(header)[name];
+  return parseCookie(header)[name];
 }
 
 export function setSessionCookie(res: Response, token: string, expiresAt: string, opts: CookieOptions) {
   res.append(
     'set-cookie',
-    serialize(SESSION_COOKIE, token, {
+    stringifySetCookie(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: opts.secure,
       sameSite: 'lax',
@@ -29,7 +29,7 @@ export function setSessionCookie(res: Response, token: string, expiresAt: string
 }
 
 export function clearSessionCookie(res: Response, opts: CookieOptions) {
-  res.append('set-cookie', serialize(SESSION_COOKIE, '', { httpOnly: true, secure: opts.secure, sameSite: 'lax', path: '/', maxAge: 0 }));
+  res.append('set-cookie', stringifySetCookie(SESSION_COOKIE, '', { httpOnly: true, secure: opts.secure, sameSite: 'lax', path: '/', maxAge: 0 }));
 }
 
 /** The in-flight OAuth transaction (state, PKCE verifier, nonce) lives in an encrypted,
@@ -37,7 +37,7 @@ export function clearSessionCookie(res: Response, opts: CookieOptions) {
 export function setOAuthCookie(res: Response, payload: Record<string, string>, key: Buffer, opts: CookieOptions) {
   res.append(
     'set-cookie',
-    serialize(OAUTH_COOKIE, encrypt(JSON.stringify({ ...payload, iat: Date.now() }), key), {
+    stringifySetCookie(OAUTH_COOKIE, encrypt(JSON.stringify({ ...payload, iat: Date.now() }), key), {
       httpOnly: true,
       secure: opts.secure,
       sameSite: 'lax',
@@ -60,5 +60,5 @@ export function readOAuthCookie(req: Request, key: Buffer): Record<string, strin
 }
 
 export function clearOAuthCookie(res: Response, opts: CookieOptions) {
-  res.append('set-cookie', serialize(OAUTH_COOKIE, '', { httpOnly: true, secure: opts.secure, sameSite: 'lax', path: '/api/auth', maxAge: 0 }));
+  res.append('set-cookie', stringifySetCookie(OAUTH_COOKIE, '', { httpOnly: true, secure: opts.secure, sameSite: 'lax', path: '/api/auth', maxAge: 0 }));
 }
