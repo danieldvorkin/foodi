@@ -333,6 +333,15 @@ export function socialRoutes(db: Db, notifier: Notifier, commerce: Commerce) {
     res.json({ following: follow, followerCount });
   });
 
+  /** Posts this person liked. Private to them, like TikTok's Liked tab. */
+  r.get('/profiles/:handle/likes', (req, res) => {
+    const me = req.user!.id;
+    const profile = publicProfile(req.params['handle']!.toLowerCase(), me);
+    if (!profile.isMe) throw forbidden('Liked posts are private.');
+    const rows = all<PostRow>(db, `${POST_SELECT} AND p.id IN (SELECT post_id FROM likes WHERE user_id = ?) ORDER BY (SELECT created_at FROM likes l WHERE l.post_id = p.id AND l.user_id = ?) DESC LIMIT 60`, me, me, me);
+    res.json({ posts: rows.map((x) => toPost(db, x, me)) });
+  });
+
   r.get('/profiles/:handle/followers', (req, res) => {
     const me = req.user!.id;
     const profile = publicProfile(req.params['handle']!.toLowerCase(), me);

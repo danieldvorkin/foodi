@@ -499,48 +499,111 @@
   color: var(--sage);
 }
 
-/* ---------- profile ---------- */
-.profile-head {
-  display: flex;
+/* ---------- profile ----------
+   A short-video-app profile: a centred identity block, then a wall of tiles. The one place the
+   app centres text. Numbers are the second-loudest thing after the name. */
+.profile {
+  width: min(100% - 2 * var(--gutter), 860px);
+  margin-inline: auto;
+  padding-block: var(--s-6) var(--s-8);
+  display: grid;
   gap: var(--s-4);
-  align-items: flex-start;
-  padding-bottom: var(--s-5);
-  border-bottom: 1px solid var(--line);
+}
+.profile-id {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--s-2);
+  padding-bottom: var(--s-4);
+}
+.profile-id .avatar-lg {
+  width: 112px;
+  height: 112px;
+  font-size: 56px;
+  box-shadow: 0 0 0 3px var(--plate), 0 0 0 5px var(--line);
+  margin-bottom: var(--s-2);
+}
+.profile-id h1 {
+  font-size: var(--t-25);
+  letter-spacing: -0.01em;
+}
+.profile-handle {
+  color: var(--stone);
+  font-size: var(--t-14);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.profile-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--flour);
+  color: var(--stone);
+  font-size: var(--t-13);
 }
 .profile-stats {
   display: flex;
-  gap: var(--s-4);
-  flex-wrap: wrap;
+  gap: var(--s-6);
+  justify-content: center;
+  margin-top: var(--s-2);
 }
-.profile-stats button,
-.profile-stats span {
+.profile-stats > * {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
   background: none;
   border: 0;
   padding: 0;
   font: inherit;
   color: var(--stone);
-  font-size: var(--t-14);
+  font-size: var(--t-13);
   cursor: default;
 }
 .profile-stats button {
   cursor: pointer;
 }
-.profile-stats button:hover {
-  color: var(--ink);
+.profile-stats button:hover b {
+  color: var(--sage);
 }
 .profile-stats b {
   color: var(--ink);
   font-weight: 600;
+  font-size: var(--t-20);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.profile-actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.profile-actions .btn:first-child {
+  min-width: 180px;
+  justify-content: center;
+}
+.profile-bio {
+  max-width: 44ch;
+  white-space: pre-wrap;
+  margin-top: var(--s-2);
 }
 .profile-tabs {
   display: flex;
-  gap: var(--s-1);
   border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 60px;
+  background: var(--ground);
+  z-index: 5;
 }
 .profile-tabs button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: none;
   border: 0;
-  padding: 10px 14px;
+  padding: 12px 8px;
   font: inherit;
   font-size: var(--t-14);
   font-weight: 500;
@@ -554,11 +617,119 @@
 .profile-tabs button[aria-selected='true']::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: 12%;
+  right: 12%;
   bottom: -1px;
   height: 2px;
   background: var(--sage);
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+}
+.tile {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--flour);
+  color: var(--ink);
+  isolation: isolate;
+}
+.tile:hover {
+  text-decoration: none;
+}
+.tile:hover img {
+  transform: scale(1.03);
+}
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--slow) var(--ease);
+}
+.tile-emoji {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(40px, 8vw, 64px);
+  padding-bottom: 28px;
+}
+.tile-quote {
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  font-size: 96px;
+  line-height: 1;
+  color: var(--line-strong);
+  font-weight: 600;
+}
+.tile-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 28px 10px 10px;
+  font-size: var(--t-13);
+  font-weight: 500;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-wrap: pretty;
+}
+.tile-title small {
+  display: block;
+  font-weight: 400;
+  color: var(--stone);
+  font-size: var(--t-13);
+}
+.tile.has-cover .tile-title {
+  color: #fff;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0));
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+.tile.has-cover .tile-title small {
+  color: rgb(255 255 255 / 0.8);
+}
+.tile-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--plate) 88%, transparent);
+  color: var(--ink);
+  font-size: var(--t-13);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: blur(6px);
+}
+.tile-badge-right {
+  left: auto;
+  right: 8px;
+}
+.tile-book {
+  background: var(--sage-soft);
+  border-left: 4px solid var(--sage);
+}
+.tile-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-8) var(--s-4);
+  text-align: center;
+}
+.tile-empty > span {
+  font-size: 40px;
+}
+.tile-empty h3 {
+  font-size: var(--t-18);
 }
 .people {
   display: grid;

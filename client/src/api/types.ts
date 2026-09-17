@@ -82,6 +82,7 @@ export const social = {
   suggestions: () => api<{ people: Person[] }>('/social/suggestions'),
   follow: (handle: string, follow: boolean) => api<{ following: boolean; followerCount: number }>(`/social/follow/${encodeURIComponent(handle)}`, { method: 'POST', body: { follow } }),
   followers: (handle: string) => api<{ people: Person[] }>(`/social/profiles/${encodeURIComponent(handle)}/followers`),
+  liked: (handle: string) => api<{ posts: Post[] }>(`/social/profiles/${encodeURIComponent(handle)}/likes`),
   following: (handle: string) => api<{ people: Person[] }>(`/social/profiles/${encodeURIComponent(handle)}/following`),
   post: (id: string) => api<{ post: Post; comments: Comment[] }>(`/social/posts/${encodeURIComponent(id)}`),
   createPost: (recipeId: string, caption: string, mediaIds: string[] = []) => api<{ post: Post }>('/social/posts', { method: 'POST', body: { recipeId, caption, mediaIds } }),

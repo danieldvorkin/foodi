@@ -253,23 +253,34 @@
   }
 
   /* ---- profile / books / blog ---- */
-  .profile-head {
-    flex-wrap: wrap;
+  .profile {
+    padding-top: var(--s-4);
+    gap: var(--s-3);
   }
-  .profile-head > .btn,
-  .profile-head > button {
-    width: 100%;
-    justify-content: center;
-    order: 3;
+  .profile-id .avatar-lg {
+    width: 96px;
+    height: 96px;
+    font-size: 48px;
+  }
+  .profile-stats {
+    gap: var(--s-5);
   }
   .profile-tabs {
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    top: 52px;
   }
   .profile-tabs button {
-    white-space: nowrap;
-    padding: 10px 12px;
+    padding: 10px 4px;
+    font-size: var(--t-13);
+  }
+  .profile-tabs .tab-label {
+    display: inline;
+  }
+  .tiles {
+    gap: 2px;
+  }
+  .tile-title {
+    padding: 22px 6px 6px;
+    font-size: 12px;
   }
   .book-head {
     flex-wrap: wrap;
