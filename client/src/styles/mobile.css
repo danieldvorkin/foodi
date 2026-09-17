@@ -216,15 +216,26 @@
     padding: var(--s-4);
     border-radius: var(--r-md);
   }
-  .post-recipe {
-    flex-wrap: wrap;
-    padding: var(--s-3);
+  .post {
+    padding-inline: var(--s-3);
   }
-  .post-recipe > .btn {
-    display: none;
+  .post-hero {
+    border-radius: var(--r-sm);
   }
-  .post-recipe h3 {
-    font-size: var(--t-16);
+  .post-hero-name {
+    font-size: var(--t-18);
+  }
+  .post-actions {
+    gap: 0;
+  }
+  .post-action {
+    padding-inline: 8px;
+  }
+  .post-cook {
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-top: var(--s-2);
+    justify-content: center;
   }
   .blog-card h2 {
     font-size: var(--t-20);

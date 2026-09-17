@@ -567,6 +567,19 @@ describe('notifications', () => {
       await request(b.base).post(`/api/social/posts/${pid}/comments`).set('cookie', fan).set('origin', ORIGIN).send({ body: 'Looks great' });
       await request(b.base).post(`/api/recipes/${gen.body.recipe.id}/save`).set('cookie', fan).set('origin', ORIGIN);
 
+      // The feed carries the newest two comments on each post (oldest first) plus diet chips; the thread endpoint has them all.
+      for (const body of ['Second', 'Third']) await request(b.base).post(`/api/social/posts/${pid}/comments`).set('cookie', author).set('origin', ORIGIN).send({ body });
+      const feed = await request(b.base).get('/api/social/feed').set('cookie', fan);
+      const inFeed = feed.body.items.find((i: { type: string; post?: { id: string } }) => i.type === 'post' && i.post?.id === pid).post;
+      expect(inFeed.commentCount).toBe(3);
+      expect(inFeed.latestComments.map((c: { body: string }) => c.body)).toEqual(['Second', 'Third']);
+      expect(inFeed.latestComments[0].isMine).toBe(false);
+      expect(Array.isArray(inFeed.recipe.dietLabels)).toBe(true);
+      const thread = await request(b.base).get(`/api/social/posts/${pid}/comments`).set('cookie', fan);
+      expect(thread.body.comments.map((c: { body: string }) => c.body)).toEqual(['Looks great', 'Second', 'Third']);
+      expect(thread.body.comments[0].isMine).toBe(true);
+      expect((await request(b.base).get('/api/social/posts/nope/comments').set('cookie', fan)).status).toBe(404);
+
       const list = await request(b.base).get('/api/notifications').set('cookie', author);
       expect(list.body.unread).toBe(3);
       expect(list.body.notifications.map((n: { kind: string }) => n.kind).sort()).toEqual(['comment', 'like', 'save']);

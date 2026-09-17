@@ -31,6 +31,15 @@ export const UpdateSocialProfileSchema = z.object({
   avatar: z.string().trim().min(1).max(8),
 });
 
+export const CommentSchema = z.object({
+  id: z.string(),
+  body: z.string(),
+  createdAt: z.string(),
+  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string(), avatar: z.string() }),
+  isMine: z.boolean(),
+});
+export type Comment = z.infer<typeof CommentSchema>;
+
 export const PostSchema = z.object({
   id: z.string(),
   caption: z.string(),
@@ -49,6 +58,8 @@ export const PostSchema = z.object({
     servings: z.number(),
     source: z.enum(['ai', 'user']),
     ingredientCount: z.number(),
+    /** The first few diet labels ("gluten-free"), for the chips under the summary. */
+    dietLabels: z.array(z.string()).default([]),
     adaptedFrom: z.object({ id: z.string().nullable(), title: z.string(), handle: z.string() }).nullable(),
   }),
   likeCount: z.number(),
@@ -58,17 +69,10 @@ export const PostSchema = z.object({
   /** Posted by the house kitchen (@foodi): likeable, saveable, shelveable — but not commentable. */
   isHouse: z.boolean(),
   commentsEnabled: z.boolean(),
+  /** The newest couple of comments, so the feed can show a conversation without a click. */
+  latestComments: z.array(CommentSchema).default([]),
 });
 export type Post = z.infer<typeof PostSchema>;
-
-export const CommentSchema = z.object({
-  id: z.string(),
-  body: z.string(),
-  createdAt: z.string(),
-  author: z.object({ id: z.string(), handle: z.string(), displayName: z.string(), avatar: z.string() }),
-  isMine: z.boolean(),
-});
-export type Comment = z.infer<typeof CommentSchema>;
 
 export const CreatePostSchema = z.object({
   recipeId: z.string().min(1),

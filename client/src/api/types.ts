@@ -102,6 +102,7 @@ export const social = {
   createPost: (recipeId: string, caption: string, mediaIds: string[] = []) => api<{ post: Post }>('/social/posts', { method: 'POST', body: { recipeId, caption, mediaIds } }),
   deletePost: (id: string) => api<{ ok: true }>(`/social/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   like: (id: string, liked: boolean) => api<{ liked: boolean; likeCount: number }>(`/social/posts/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } }),
+  comments: (id: string) => api<{ comments: Comment[] }>(`/social/posts/${encodeURIComponent(id)}/comments`),
   comment: (id: string, body: string) => api<{ comment: Comment }>(`/social/posts/${encodeURIComponent(id)}/comments`, { method: 'POST', body: { body } }),
   deleteComment: (id: string) => api<{ ok: true }>(`/social/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   profile: (handle: string) => api<{ profile: PublicProfile; posts: Post[]; blogs: BlogPost[]; books: RecipeBook[] }>(`/social/profiles/${encodeURIComponent(handle)}`),

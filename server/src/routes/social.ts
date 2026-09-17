@@ -55,6 +55,30 @@ const POST_SELECT = `
   FROM posts p JOIN users u ON u.id = p.author_id JOIN recipes r ON r.id = p.recipe_id
   WHERE u.disabled_at IS NULL`;
 
+interface CommentRow {
+  id: string;
+  body: string;
+  created_at: string;
+  author_id: string;
+  handle: string;
+  display_name: string | null;
+  avatar_emoji: string;
+}
+const COMMENT_SELECT = `SELECT c.id, c.body, c.created_at, c.author_id, u.handle, u.display_name, u.avatar_emoji FROM comments c JOIN users u ON u.id = c.author_id WHERE c.post_id = ?`;
+function toComment(c: CommentRow, me: string): Comment {
+  return { id: c.id, body: c.body, createdAt: c.created_at, author: { id: c.author_id, handle: c.handle, displayName: c.display_name ?? c.handle, avatar: c.avatar_emoji }, isMine: c.author_id === me };
+}
+/** Every comment on a post, oldest first. */
+export function commentsFor(db: Db, postId: string, me: string): Comment[] {
+  return all<CommentRow>(db, `${COMMENT_SELECT} ORDER BY c.created_at ASC LIMIT 200`, postId).map((c) => toComment(c, me));
+}
+/** The newest `n`, returned oldest-first so they read like the tail of the thread. */
+function latestComments(db: Db, postId: string, me: string, n: number): Comment[] {
+  return all<CommentRow>(db, `${COMMENT_SELECT} ORDER BY c.created_at DESC LIMIT ?`, postId, n)
+    .reverse()
+    .map((c) => toComment(c, me));
+}
+
 function toPost(db: Db, row: PostRow, me: string): Post {
   const c = RecipeContentSchema.parse(JSON.parse(row.recipe_content));
   return {
@@ -75,6 +99,7 @@ function toPost(db: Db, row: PostRow, me: string): Post {
       servings: c.servings,
       source: row.recipe_source,
       ingredientCount: c.ingredients.length,
+      dietLabels: c.dietLabels.slice(0, 3),
       adaptedFrom: row.forked_from_title
         ? { id: row.forked_from_id && one(db, 'SELECT 1 FROM recipes WHERE id = ?', row.forked_from_id) ? row.forked_from_id : null, title: row.forked_from_title, handle: row.forked_from_handle ?? '' }
         : null,
@@ -85,6 +110,7 @@ function toPost(db: Db, row: PostRow, me: string): Post {
     isMine: row.author_id === me,
     isHouse: Boolean(row.author_system),
     commentsEnabled: !row.author_system,
+    latestComments: row.author_system || !row.comment_count ? [] : latestComments(db, row.id, me, 2),
   };
 }
 
@@ -192,19 +218,14 @@ export function socialRoutes(db: Db, notifier: Notifier, commerce: Commerce) {
     const me = req.user!.id;
     const row = one<PostRow>(db, `${POST_SELECT} AND p.id = ?`, me, req.params['id']);
     if (!row) throw notFound('That post is gone.');
-    const comments = all<{ id: string; body: string; created_at: string; author_id: string; handle: string; display_name: string | null; avatar_emoji: string }>(
-      db,
-      `SELECT c.id, c.body, c.created_at, c.author_id, u.handle, u.display_name, u.avatar_emoji FROM comments c JOIN users u ON u.id = c.author_id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT 200`,
-      row.id,
-    );
-    const list: Comment[] = comments.map((c) => ({
-      id: c.id,
-      body: c.body,
-      createdAt: c.created_at,
-      author: { id: c.author_id, handle: c.handle, displayName: c.display_name ?? c.handle, avatar: c.avatar_emoji },
-      isMine: c.author_id === me,
-    }));
-    res.json({ post: toPost(db, row, me), comments: list });
+    res.json({ post: toPost(db, row, me), comments: commentsFor(db, row.id, me) });
+  });
+
+  /** Just the thread, for expanding comments inline in the feed. */
+  r.get('/posts/:id/comments', (req, res) => {
+    const me = req.user!.id;
+    if (!one(db, `${POST_SELECT} AND p.id = ?`, me, req.params['id'])) throw notFound('That post is gone.');
+    res.json({ comments: commentsFor(db, req.params['id']!, me) });
   });
 
   r.delete('/posts/:id', (req, res) => {
