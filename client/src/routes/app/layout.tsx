@@ -39,7 +39,7 @@ export function AppLayout() {
           <Wordmark to="/app" />
           <nav className="tabs" aria-label="Main">
             <Tab to="/app" end icon="📣" label="Feed" />
-            <Tab to="/app/cook" icon="🍳" label="Cook" />
+            <Tab to="/app/cook" icon="🥘" label="Cook" />
             <Tab to="/app/blog" icon="📓" label="Blog" />
             <Tab to="/app/books" icon="📚" label="Books" />
           </nav>

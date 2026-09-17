@@ -6,7 +6,6 @@ import { recipes as recipesApi } from '../../api/types';
 import { IngredientPicker } from '../../components/IngredientPicker';
 import { EmojiPicker } from '../../components/ui';
 import { useToast } from '../../components/Toast';
-import '../../styles/editor.css';
 
 export async function editorLoader({ params }: LoaderFunctionArgs) {
   if (!params['id']) return { existing: null };

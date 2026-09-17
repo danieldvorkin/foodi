@@ -2,7 +2,6 @@ import { NavLink, Outlet, useLoaderData, useRouteLoaderData, type LoaderFunction
 import type { Me } from '../../api/types';
 import { Wordmark } from '../../components/Logo';
 import { requireAdmin } from '../../lib/session';
-import '../../styles/admin.css';
 
 export async function adminLoader({ request }: LoaderFunctionArgs) {
   const me = await requireAdmin(request);

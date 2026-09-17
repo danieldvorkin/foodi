@@ -7,7 +7,6 @@ import { MediaThumb, MediaUploader } from '../../components/Media';
 import { Prose } from '../../components/Prose';
 import { useToast } from '../../components/Toast';
 import { minutes } from '../../lib/format';
-import '../../styles/social.css';
 
 export async function blogEditorLoader({ params }: LoaderFunctionArgs) {
   const [mine, existing] = await Promise.all([recipesApi.list(), params['id'] ? blogApi.get(params['id']) : Promise.resolve(null)]);

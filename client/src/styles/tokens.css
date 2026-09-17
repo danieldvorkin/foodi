@@ -70,8 +70,9 @@
   }
 }
 
-/* Explicit overrides win over the system preference. */
+/* Explicit overrides win over the system preference — including native form controls. */
 :root[data-theme='light'] {
+  color-scheme: light;
   --ground: #fafaf8;
   --plate: #ffffff;
   --flour: #f2f1ed;
@@ -87,6 +88,7 @@
   --clay-soft: #f8ece8;
 }
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --ground: #1c1b19;
   --plate: #242320;
   --flour: #2c2b27;

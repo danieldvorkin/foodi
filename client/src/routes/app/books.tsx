@@ -5,7 +5,6 @@ import { books as booksApi, type BookInput } from '../../api/types';
 import { BookCard, BookForm } from '../../components/Books';
 import { useToast } from '../../components/Toast';
 import { Empty, Sheet } from '../../components/ui';
-import '../../styles/social.css';
 
 export async function booksLoader() {
   return booksApi.mine();

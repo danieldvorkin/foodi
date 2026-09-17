@@ -291,6 +291,7 @@
   align-items: center;
   gap: var(--s-2);
   flex: none;
+  margin-left: auto;
 }
 .iconbtn {
   display: inline-grid;
@@ -350,25 +351,6 @@
 .navlink[aria-current='page'] {
   color: var(--ink);
   background: var(--flour);
-}
-@media (max-width: 760px) {
-  .topbar-inner {
-    gap: var(--s-2);
-  }
-  .tab {
-    padding: 0 12px;
-  }
-  .tab .tab-label,
-  .iconbtn-label .tab-label {
-    display: none;
-  }
-  .iconbtn-label {
-    width: 40px;
-    padding: 0;
-  }
-  .wordmark span {
-    display: none;
-  }
 }
 .wordmark {
   display: inline-flex;

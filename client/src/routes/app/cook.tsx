@@ -7,7 +7,6 @@ import { Sheet } from '../../components/ui';
 import { clock } from '../../lib/format';
 import { requireOnboarded } from '../../lib/session';
 import { useTimer } from '../../lib/useTimer';
-import '../../styles/cook.css';
 
 export async function cookLoader({ request, params }: LoaderFunctionArgs) {
   await requireOnboarded(request);
@@ -81,7 +80,8 @@ export function CookPage() {
     setI((x) => Math.max(0, x - 1));
   }
 
-  const need = step.ingredientRefs.map((r) => c.ingredients[r]).filter(Boolean);
+  // Full lines (with quantities), one per distinct line — the same item in two groups shows both, but never the same line twice.
+  const need = [...new Set(step.ingredientRefs)].map((r) => c.ingredients[r]).filter(Boolean);
   const total = step.timerSeconds ?? 0;
   const fraction = total ? 1 - timer.remaining / total : 0;
 

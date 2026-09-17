@@ -9,7 +9,6 @@ import { IngredientList, StepList } from '../../components/RecipeParts';
 import { useToast } from '../../components/Toast';
 import { Meta, Sheet } from '../../components/ui';
 import { minutes, servingsLabel } from '../../lib/format';
-import '../../styles/recipe.css';
 
 export async function recipeLoader({ params }: LoaderFunctionArgs) {
   return recipesApi.get(params['id']!);
@@ -221,53 +220,60 @@ export function RecipePage() {
           </Link>
           {isMine ? (
             <>
+              <span className="recipe-actions-sep" aria-hidden="true" />
               {source === 'ai' && (
                 <button type="button" className="btn" onClick={randomize} disabled={busy !== ''}>
-                  {busy === 'random' ? 'Rolling…' : '🎲 Randomize'}
+                  {busy === 'random' ? '🎲 Rolling…' : '🎲 Randomize'}
                 </button>
               )}
               <button type="button" className="btn" onClick={() => setTweakOpen(true)}>
-                ✏️ Adjust
-              </button>
-              <button type="button" className="btn" onClick={() => setPhotosOpen((o) => !o)} aria-expanded={photosOpen}>
-                📷 {recipe.media.length ? 'Add more photos' : 'Add photos'}
-              </button>
-              <button type="button" className="btn" onClick={() => setShareOpen(true)}>
-                📣 {visibility === 'public' ? 'Share again' : 'Share'}
+                ✏️ Adjust with AI
               </button>
               {source === 'user' && (
                 <Link to={`/app/recipes/${recipe.id}/edit`} className="btn">
-                  Edit
+                  📝 Edit by hand
                 </Link>
               )}
+              <button type="button" className="btn" onClick={() => setPhotosOpen((o) => !o)} aria-expanded={photosOpen}>
+                📷 {recipe.media.length ? 'Add more photos' : 'Add photos'}
+              </button>
+              <span className="recipe-actions-sep" aria-hidden="true" />
+              <button type="button" className="btn" onClick={() => setShareOpen(true)}>
+                📣 {visibility === 'public' ? 'Share again' : 'Share to the feed'}
+              </button>
+              <button type="button" className="btn" onClick={() => setBookOpen(true)}>
+                📚 Add to a book
+              </button>
               <button
                 type="button"
-                className="btn btn-quiet"
+                className="btn"
                 aria-pressed={recipe.favorite}
                 onClick={async () => {
                   await recipesApi.favorite(recipe.id, !recipe.favorite);
                   revalidate();
                 }}
               >
-                {recipe.favorite ? '⭐ Favorite' : '☆ Favorite'}
+                {recipe.favorite ? '⭐ Favourited' : '☆ Favourite'}
               </button>
+              <span className="recipe-actions-sep" aria-hidden="true" />
               <button type="button" className="btn btn-quiet" onClick={remove}>
-                Delete
+                🗑 Delete recipe
               </button>
             </>
           ) : (
             <>
+              <span className="recipe-actions-sep" aria-hidden="true" />
               <button type="button" className="btn" onClick={adapt} title="Make an editable copy that credits the original">
                 🍴 Adapt this recipe
               </button>
-              <button type="button" className="btn btn-quiet" onClick={save}>
+              <button type="button" className="btn" onClick={save}>
                 ⭐ Save a copy
+              </button>
+              <button type="button" className="btn" onClick={() => setBookOpen(true)}>
+                📚 Add to a book
               </button>
             </>
           )}
-          <button type="button" className="btn btn-quiet" onClick={() => setBookOpen(true)}>
-            📚 Add to book
-          </button>
         </div>
       </header>
       <AddToBook recipeId={recipe.id} open={bookOpen} onClose={() => setBookOpen(false)} />

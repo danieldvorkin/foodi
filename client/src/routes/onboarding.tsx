@@ -7,7 +7,6 @@ import { Wordmark } from '../components/Logo';
 import { ProfileStep, STEPS } from '../components/ProfileForm';
 import { useToast } from '../components/Toast';
 import { requireMe } from '../lib/session';
-import '../styles/onboarding.css';
 
 export async function onboardingLoader({ request }: LoaderFunctionArgs) {
   const me = await requireMe(request);

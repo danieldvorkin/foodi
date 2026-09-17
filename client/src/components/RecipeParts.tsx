@@ -10,16 +10,21 @@ export function ingredientLine(i: RecipeIngredient): string {
 }
 
 export function IngredientList({ ingredients, checked, onToggle, warnings = [] }: { ingredients: RecipeIngredient[]; checked?: Set<number>; onToggle?: (i: number) => void; warnings?: string[] }) {
+  // Named groups in the order they appear; anything ungrouped goes last under "Also" (or with
+  // no heading at all when nothing is grouped).
   const groups = new Map<string, number[]>();
+  const loose: number[] = [];
   ingredients.forEach((ing, idx) => {
-    const g = ing.group ?? '';
-    if (!groups.has(g)) groups.set(g, []);
-    groups.get(g)!.push(idx);
+    if (!ing.group) return loose.push(idx);
+    if (!groups.has(ing.group)) groups.set(ing.group, []);
+    groups.get(ing.group)!.push(idx);
   });
+  const sections: [string, number[]][] = [...groups.entries()];
+  if (loose.length) sections.push([groups.size ? 'Also' : '', loose]);
   const warn = new Set(warnings.map((w) => w.toLowerCase()));
   return (
     <div className="stack">
-      {[...groups.entries()].map(([g, idxs]) => (
+      {sections.map(([g, idxs]) => (
         <div key={g || '_'}>
           {g && <h4 style={{ marginBottom: 'var(--s-2)' }}>{g}</h4>}
           <ul className="ing-list">
@@ -74,9 +79,9 @@ export function StepList({ steps, ingredients }: { steps: Step[]; ingredients: R
             )}
             {s.ingredientRefs.length > 0 && (
               <div className="badges">
-                {s.ingredientRefs.map((r) => ingredients[r] && (
-                  <span key={r} className="chip chip-static">
-                    {ingredients[r]!.item}
+                {[...new Set(s.ingredientRefs.map((r) => ingredients[r]?.item.toLowerCase()).filter(Boolean))].map((item) => (
+                  <span key={item} className="chip chip-static">
+                    {item}
                   </span>
                 ))}
               </div>

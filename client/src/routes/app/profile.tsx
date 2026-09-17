@@ -8,7 +8,6 @@ import { FollowButton, PeopleList } from '../../components/People';
 import { PostCard } from '../../components/PostCard';
 import { Avatar, Empty, Sheet } from '../../components/ui';
 import { plural } from '../../lib/format';
-import '../../styles/social.css';
 
 export async function profileLoader({ params }: LoaderFunctionArgs) {
   return social.profile(params['handle']!);

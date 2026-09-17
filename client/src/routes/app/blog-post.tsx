@@ -10,7 +10,6 @@ import { useToast } from '../../components/Toast';
 import { Avatar } from '../../components/ui';
 import { minutes } from '../../lib/format';
 import { useMe } from './layout';
-import '../../styles/social.css';
 
 export async function blogPostLoader({ params }: LoaderFunctionArgs) {
   const data = await blogApi.get(params['id']!);

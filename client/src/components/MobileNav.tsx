@@ -21,7 +21,7 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
           <span className="tabbar-label">Feed</span>
         </NavLink>
         <NavLink to="/app/cook" className="tabbar-item">
-          <span className="tabbar-icon" aria-hidden="true">🍳</span>
+          <span className="tabbar-icon" aria-hidden="true">🥘</span>
           <span className="tabbar-label">Cook</span>
         </NavLink>
         <button type="button" className="tabbar-item tabbar-create" aria-label="Create" aria-haspopup="dialog" aria-expanded={sheet === 'create'} onClick={() => setSheet('create')}>

@@ -21,14 +21,18 @@ export const HOUSE_HANDLE = 'foodi';
 export function createHouse(db: Db, settings: Settings, notifier: Notifier, log: Logger) {
   function account(): { id: string } {
     const existing = one<{ id: string }>(db, 'SELECT id FROM users WHERE is_system = 1 LIMIT 1');
-    if (existing) return existing;
+    if (existing) {
+      // 🍳 reads as a magnifying glass at small sizes; the pan is clearer.
+      run(db, `UPDATE users SET avatar_emoji = '🥘' WHERE id = ? AND avatar_emoji = '🍳'`, existing.id);
+      return existing;
+    }
     // If a person already took the handle, fall back rather than fail.
     const handle = one(db, 'SELECT 1 FROM users WHERE handle = ?', HOUSE_HANDLE) ? 'foodi_kitchen' : HOUSE_HANDLE;
     const id = 'usr_foodi_kitchen';
     run(
       db,
       `INSERT INTO users (id, role, display_name, email, handle, bio, avatar_emoji, disabled_at, created_at, last_seen_at, is_system)
-       VALUES (?, 'consumer', 'foodi kitchen', NULL, ?, ?, '🍳', NULL, ?, NULL, 1)`,
+       VALUES (?, 'consumer', 'foodi kitchen', NULL, ?, ?, '🥘', NULL, ?, NULL, 1)`,
       id,
       handle,
       'Recipes from the house kitchen — tested, varied, and free to save, shelve or adapt. No AI needed.',

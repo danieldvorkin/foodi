@@ -10,7 +10,6 @@ import { FollowButton } from '../../components/People';
 import { useToast } from '../../components/Toast';
 import { Avatar, Empty, Sheet } from '../../components/ui';
 import { useMe } from './layout';
-import '../../styles/social.css';
 
 export async function feedLoader({ request }: { request: Request }) {
   const scope: FeedScope = new URL(request.url).searchParams.get('scope') === 'following' ? 'following' : 'everyone';
@@ -35,7 +34,7 @@ function LeftRail({ mine }: { mine: RecipeSummary[] }) {
             <span className="ico">📣</span> Feed
           </NavLink>
           <NavLink to="/app/cook">
-            <span className="ico">🍳</span> Cook something
+            <span className="ico">🥘</span> Cook something
           </NavLink>
           <NavLink to="/app/blog">
             <span className="ico">📓</span> Blog
@@ -218,7 +217,7 @@ export function FeedPage() {
               📓 Write a blog post
             </Link>
             <Link to="/app/cook" className="btn btn-sm">
-              🍳 Cook something
+              🥘 Cook something
             </Link>
           </div>
         </section>

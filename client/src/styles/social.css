@@ -61,14 +61,6 @@
 .comment-box .textarea {
   min-height: 64px;
 }
-.profile-head {
-  display: flex;
-  gap: var(--s-4);
-  align-items: flex-start;
-  padding-bottom: var(--s-5);
-  border-bottom: 1px solid var(--line);
-}
-
 .post-cover {
   width: 72px;
   height: 72px;

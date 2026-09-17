@@ -239,6 +239,9 @@
   .recipe-actions > .btn-lg {
     grid-column: 1 / -1;
   }
+  .recipe-actions-sep {
+    display: none;
+  }
   .recipe-actions .btn {
     justify-content: center;
     min-height: 44px;

@@ -10,7 +10,6 @@ import { BookForm } from '../../components/Books';
 import { useToast } from '../../components/Toast';
 import { Avatar, Empty, Sheet } from '../../components/ui';
 import { minutes, plural } from '../../lib/format';
-import '../../styles/social.css';
 
 export async function bookLoader({ params }: LoaderFunctionArgs) {
   return booksApi.get(params['id']!);

@@ -51,7 +51,7 @@ export function PostCard({ post, detail = false, onDeleted }: { post: Post; deta
             {' '}
             @{post.author.handle} · {timeAgo(post.createdAt)}
           </span>
-          {post.isHouse && <span className="house-pill">🍳 house recipe</span>}
+          {post.isHouse && <span className="house-pill">🥘 house recipe</span>}
         </div>
         {post.isMine && (
           <button type="button" className="btn btn-quiet btn-sm" onClick={remove}>

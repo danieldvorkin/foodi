@@ -5,7 +5,6 @@ import { auth } from '../api/types';
 import { HeroDemo } from '../components/HeroDemo';
 import { Wordmark } from '../components/Logo';
 import { maybeMe } from '../lib/session';
-import '../styles/landing.css';
 
 export async function landingLoader({ request }: LoaderFunctionArgs) {
   const me = await maybeMe();

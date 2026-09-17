@@ -5,7 +5,6 @@ import { auth, blog as blogApi } from '../../api/types';
 import { BlogCard } from '../../components/BlogCard';
 import { Empty } from '../../components/ui';
 import { useMe } from './layout';
-import '../../styles/social.css';
 
 export async function blogIndexLoader() {
   const me = await auth.me();

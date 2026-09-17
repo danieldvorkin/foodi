@@ -8,7 +8,6 @@ import { useToast } from '../../components/Toast';
 import { Empty, Meta } from '../../components/ui';
 import { minutes, servingsLabel, timeAgo } from '../../lib/format';
 import { useMe } from './layout';
-import '../../styles/home.css';
 
 export async function homeLoader() {
   const [list, pantry, prof] = await Promise.all([recipesApi.list(), profileApi.pantry(), profileApi.get()]);
