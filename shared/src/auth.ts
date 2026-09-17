@@ -29,10 +29,15 @@ export const MeSchema = z.object({
   signInMethods: z.array(z.string()),
   /** The AI account used to write recipes, if one is connected. */
   vendor: z.enum(VENDORS).nullable(),
-  credentialKind: z.enum(['oauth', 'api_key']).nullable(),
+  /** 'managed' is a key foodi made for this person on its own OpenAI organisation. */
+  credentialKind: z.enum(['oauth', 'api_key', 'managed']).nullable(),
   /** Last characters of a connected API key, so people can tell keys apart. */
   credentialHint: z.string().nullable(),
   credentialUpdatedAt: z.string().nullable(),
+  /** When foodi provides the AI: the daily allowance and what's used, so the UI can say so. */
+  managed: z.object({ limitPerDay: z.number(), usedToday: z.number(), images: z.boolean() }).nullable(),
+  /** foodi can hand this person a key on request (admin key configured, feature on, none connected yet). */
+  managedAvailable: z.boolean(),
   hasProfile: z.boolean(),
   /** Granular admin rights (see ADMIN_PERMISSIONS). Empty for consumers. */
   permissions: z.array(z.string()),

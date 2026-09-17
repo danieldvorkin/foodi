@@ -1000,6 +1000,28 @@ dialog.lightbox::backdrop {
 }
 
 /* ---------- connect cards ---------- */
+/* foodi's own AI: the fast path, ahead of the bring-your-own cards. */
+.connect-managed {
+  display: grid;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--sage-soft);
+  border: 1px solid color-mix(in srgb, var(--sage) 30%, transparent);
+}
+.connect-managed h2 {
+  font-size: var(--t-20);
+}
+.connect-steps {
+  display: grid;
+  gap: var(--s-4);
+  padding-left: 1.4em;
+}
+.connect-steps li {
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+}
 .connect-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

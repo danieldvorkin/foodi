@@ -10,7 +10,7 @@ import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type I
 export function createOpenAiClient(opts: { apiBase: string; model: string; imageModel?: string; fetchImpl?: typeof fetch }): AiClient {
   const f = opts.fetchImpl ?? fetch;
   const imageModel = opts.imageModel ?? 'gpt-image-1';
-  const bearerOf = (credential: CredentialPayload) => (credential.kind === 'api_key' ? credential.apiKey : credential.accessToken);
+  const bearerOf = (credential: CredentialPayload) => (credential.kind === 'oauth' ? credential.accessToken : credential.apiKey);
   const failFor = (res: Response, credential: CredentialPayload, text: string) => {
     if (res.status === 401 || res.status === 403) {
       return new AiError(credential.kind === 'oauth' ? 'credential_unusable' : 'credential_rejected', credential.kind === 'oauth' ? 'Your ChatGPT sign-in can’t be used for the API on this account. Connect an OpenAI API key in Settings.' : 'OpenAI rejected the connected key.', res.status);
@@ -64,7 +64,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
       return { verdict, model: opts.model, usage: { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null } };
     },
     async generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput> {
-      const bearer = credential.kind === 'api_key' ? credential.apiKey : credential.accessToken;
+      const bearer = credential.kind === 'oauth' ? credential.accessToken : credential.apiKey;
       let res: Response;
       try {
         res = await f(`${opts.apiBase}/v1/responses`, {

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Work that runs after the request has already returned: today, writing a recipe. */
-export const JOB_KINDS = ['generate', 'image'] as const;
+export const JOB_KINDS = ['generate', 'image', 'provision'] as const;
 export const JOB_STATUS = ['queued', 'running', 'done', 'failed', 'cancelled'] as const;
 
 export const JobSchema = z.object({

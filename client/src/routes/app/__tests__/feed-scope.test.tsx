@@ -24,6 +24,8 @@ const me: Me = {
   permissions: [],
   autoPhotos: true,
   aiCapabilities: { images: false, vision: false },
+  managed: null,
+  managedAvailable: false,
   createdAt: new Date().toISOString(),
 };
 

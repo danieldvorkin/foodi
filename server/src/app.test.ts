@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
@@ -11,7 +11,7 @@ import type { PhotoSource } from './photos/types.js';
 
 const ORIGIN = 'http://localhost:5100';
 
-type Seams = Pick<Parameters<typeof createApp>[0], 'aiClients' | 'photoSources' | 'photoFetch'>;
+type Seams = Pick<Parameters<typeof createApp>[0], 'aiClients' | 'photoSources' | 'photoFetch' | 'openaiAdminFetch'>;
 
 async function boot(extraEnv: Record<string, string> = {}, aiClients?: Seams['aiClients'], seams: Omit<Seams, 'aiClients'> = {}) {
   const config = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0' });
@@ -1683,6 +1683,123 @@ describe('shopping list', () => {
       expect(cleared.body.items.every((i: { checked: boolean }) => !i.checked)).toBe(true);
       const all = await request(b.base).post('/api/list/clear').set('cookie', ada).set('origin', ORIGIN).send({ checkedOnly: false });
       expect(all.body.items).toEqual([]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('managed OpenAI keys', () => {
+  /** A fake OpenAI Administration API that remembers what it created. */
+  function fakeAdmin() {
+    const accounts = new Map<string, { project: string; name: string }>();
+    let n = 0;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const path = String(input).replace(/^https?:\/\/[^/]+/, '');
+      const method = init?.method ?? 'GET';
+      const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+      if (method === 'POST' && path === '/v1/organization/projects') return json(200, { id: 'proj_test', name: 'foodi people', status: 'active' });
+      if (method === 'GET' && path.startsWith('/v1/organization/projects/')) return json(200, { id: 'proj_test', name: 'foodi people', status: 'active' });
+      let m = /^\/v1\/organization\/projects\/([^/]+)\/service_accounts$/.exec(path);
+      if (method === 'POST' && m) {
+        const id = `svc_${++n}`;
+        accounts.set(id, { project: m[1]!, name: (JSON.parse(init!.body as string) as { name: string }).name });
+        return json(200, { id, name: 'x', api_key: { id: `key_${n}`, value: `sk-svc-${n}` } });
+      }
+      m = /^\/v1\/organization\/projects\/([^/]+)\/service_accounts\/([^/]+)$/.exec(path);
+      if (method === 'DELETE' && m) {
+        accounts.delete(m[2]!);
+        return json(200, { id: m[2], deleted: true });
+      }
+      return json(404, { error: { message: 'no' } });
+    };
+    return { accounts, fetchImpl };
+  }
+  /** A person who signed up with a password: no AI attached, unlike the mock SSO personas. */
+  async function register(b: Booted, email: string): Promise<string> {
+    const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email, password: 'correct horse battery', displayName: 'Nell' });
+    expect(reg.status).toBe(201);
+    return reg.headers['set-cookie']![0]!.split(';')[0]!;
+  }
+
+  it('hands a new person a key after onboarding, caps their day, and retires it when they bring their own', async () => {
+    const admin = fakeAdmin();
+    // The 'openai' vendor is served by the mock client so generations don't touch the network.
+    const b = await boot({ OPENAI_ADMIN_KEY: 'sk-admin-test' }, { openai: createMockClient() }, { openaiAdminFetch: admin.fetchImpl });
+    try {
+      const boss = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', boss).set('origin', ORIGIN).send(PROFILE);
+      const nell = await register(b, 'nell@example.com');
+      // Before onboarding: available, but nothing issued yet.
+      let me = await request(b.base).get('/api/auth/me').set('cookie', nell);
+      expect(me.body).toMatchObject({ vendor: null, managedAvailable: true, managed: null });
+      expect(admin.accounts.size).toBe(0);
+
+      // Finishing the profile queues the key; the job issues it.
+      await request(b.base).put('/api/profile').set('cookie', nell).set('origin', ORIGIN).send(PROFILE);
+      await b.jobs.idle();
+      me = await request(b.base).get('/api/auth/me').set('cookie', nell);
+      expect(me.body).toMatchObject({ vendor: 'openai', credentialKind: 'managed', credentialHint: 'vc-1', managedAvailable: false, managed: { limitPerDay: 10, usedToday: 0, images: false } });
+      expect(admin.accounts.size).toBe(1);
+      expect([...admin.accounts.values()][0]!.name).toContain('@');
+      expect(me.body.aiCapabilities).toEqual({ images: false, vision: true }); // photos on foodi's dime are off by default
+      // The project id was remembered.
+      expect((await request(b.base).get('/api/admin/settings').set('cookie', boss)).body.server.managedKeys).toEqual({ configured: true, projectId: 'proj_test' });
+
+      // It writes recipes, and the managed allowance is the binding cap.
+      await request(b.base).put('/api/admin/settings').set('cookie', boss).set('origin', ORIGIN).send({ managedGenerationsPerUserPerDay: 1 });
+      const g1 = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', nell).set('origin', ORIGIN).send({ prompt: 'soup' });
+      expect(g1.status).toBe(201);
+      const g2 = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', nell).set('origin', ORIGIN).send({ prompt: 'more soup' });
+      expect(g2.status).toBe(429);
+      expect(g2.body.error.message).toContain("foodi's AI");
+      expect((await request(b.base).get('/api/auth/me').set('cookie', nell)).body.managed.usedToday).toBe(1);
+
+      // Bringing your own key (verified against a stubbed OpenAI) deletes foodi's service account.
+      const realFetch = globalThis.fetch;
+      const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => (String(input).includes('/v1/models') ? new Response('{"data":[]}', { status: 200 }) : realFetch(input, init)));
+      let own;
+      try {
+        own = await request(b.base).post('/api/auth/key').set('cookie', nell).set('origin', ORIGIN).send({ vendor: 'openai', apiKey: 'sk-own-0123456789abcdef0123456789' });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(own.status).toBe(200);
+      expect(own.body).toMatchObject({ vendor: 'openai', credentialKind: 'api_key', credentialHint: '6789', managed: null, managedAvailable: false });
+      expect(admin.accounts.size).toBe(0);
+      // Removing it makes foodi's available again, on request; removing foodi's retires it too.
+      await request(b.base).delete('/api/auth/key').set('cookie', nell).set('origin', ORIGIN);
+      const again = await request(b.base).post('/api/auth/managed').set('cookie', nell).set('origin', ORIGIN);
+      expect(again.status).toBe(200);
+      expect(again.body).toMatchObject({ credentialKind: 'managed', credentialHint: 'vc-2' });
+      expect(admin.accounts.size).toBe(1);
+      await request(b.base).delete('/api/auth/key').set('cookie', nell).set('origin', ORIGIN);
+      expect(admin.accounts.size).toBe(0);
+
+      // Admin can switch the feature off: new people get nothing, and the button says so.
+      await request(b.base).put('/api/admin/settings').set('cookie', boss).set('origin', ORIGIN).send({ openaiManagedKeys: false });
+      const otto = await register(b, 'otto@example.com');
+      await request(b.base).put('/api/profile').set('cookie', otto).set('origin', ORIGIN).send(PROFILE);
+      await b.jobs.idle();
+      expect((await request(b.base).get('/api/auth/me').set('cookie', otto)).body).toMatchObject({ vendor: null, managedAvailable: false });
+      expect((await request(b.base).post('/api/auth/managed').set('cookie', otto).set('origin', ORIGIN)).status).toBe(409);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('is simply absent without an admin key', async () => {
+    const b = await boot();
+    try {
+      const boss = await signIn(b, 'mock-ada');
+      const nell = await register(b, 'nell@example.com');
+      await request(b.base).put('/api/profile').set('cookie', nell).set('origin', ORIGIN).send(PROFILE);
+      await b.jobs.idle();
+      expect((await request(b.base).get('/api/auth/me').set('cookie', nell)).body).toMatchObject({ vendor: null, managedAvailable: false, managed: null });
+      expect((await request(b.base).post('/api/auth/managed').set('cookie', nell).set('origin', ORIGIN)).status).toBe(409);
+      expect((await request(b.base).get('/api/admin/settings').set('cookie', boss)).body.server.managedKeys).toEqual({ configured: false, projectId: null });
     } finally {
       b.server.close();
       b.close();

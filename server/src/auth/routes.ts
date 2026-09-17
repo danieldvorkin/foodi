@@ -9,6 +9,9 @@ import { randomToken, safeEqual } from '../lib/crypto.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import type { Settings } from '../services/settings.js';
+import { AiError } from '../ai/types.js';
+import type { Jobs } from '../services/jobs.js';
+import type { ManagedKeys } from '../services/managed-keys.js';
 import type { Audit } from '../services/audit.js';
 import type { Permissions } from '../services/permissions.js';
 import { clearOAuthCookie, clearSessionCookie, readOAuthCookie, setOAuthCookie, setSessionCookie } from './cookies.js';
@@ -24,12 +27,14 @@ interface Deps {
   audit: Audit;
   permissions: Permissions;
   ai: { capabilities(userId: string): { images: boolean; vision: boolean } };
+  managed: ManagedKeys;
+  jobs: Jobs;
 }
 
 /** A real scrypt hash of a random string, so failed logins for unknown emails take as long as known ones. */
 const DUMMY_HASH = 'scrypt$131072$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
-export function authRoutes({ config, log, store, providers, settings, audit, permissions, ai }: Deps) {
+export function authRoutes({ config, log, store, providers, settings, audit, permissions, ai, managed, jobs }: Deps) {
   const r = Router();
   const cookieOpts = { secure: config.cookieSecure };
   const byId = new Map(providers.map((p) => [p.id, p]));
@@ -62,6 +67,8 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
       permissions: user.role === 'admin' ? permissions.list(user.id) : [],
       autoPhotos: Boolean(user.auto_photos ?? 1),
       aiCapabilities: ai.capabilities(user.id),
+      managed: cred?.kind === 'managed' ? { limitPerDay: settings.get().managedGenerationsPerUserPerDay, usedToday: managed.usedToday(user.id), images: settings.get().managedImages } : null,
+      managedAvailable: !cred && managed.enabled(),
       createdAt: user.created_at,
     };
   }
@@ -87,6 +94,8 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
       res.status(401).json({ error: { code: 'unauthorized', message: 'Not signed in.' } });
       return;
     }
+    // People who finished onboarding before managed keys were switched on get theirs on the next visit.
+    managed.ensureFor(jobs, req.user.id);
     res.json(toMe(req.user.id));
   });
 
@@ -219,6 +228,8 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
       if (!p || p.kind !== 'api_key') throw notFound('That vendor is not available.');
       const verified = await p.verify(body.apiKey);
       if (!verified.ok) throw badRequest(verified.reason);
+      // Bringing your own key retires the one foodi made for you.
+      await managed.revoke(req.user!.id);
       store.setCredential(req.user!.id, p.vendor, { kind: 'api_key', apiKey: body.apiKey });
       audit.record(req.user!.id, 'credential.connect', 'user', req.user!.id, { vendor: p.vendor });
       res.json(toMe(req.user!.id));
@@ -227,10 +238,28 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
     }
   });
 
-  r.delete('/key', requireAuth, (req, res) => {
-    store.clearCredential(req.user!.id);
-    audit.record(req.user!.id, 'credential.disconnect', 'user', req.user!.id);
-    res.json(toMe(req.user!.id));
+  r.delete('/key', requireAuth, async (req, res, next) => {
+    try {
+      const wasManaged = await managed.revoke(req.user!.id);
+      store.clearCredential(req.user!.id);
+      audit.record(req.user!.id, 'credential.disconnect', 'user', req.user!.id, { managed: wasManaged });
+      res.json(toMe(req.user!.id));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  /** Ask foodi for a key right now (the automatic one is queued after onboarding; this is the button). */
+  r.post('/managed', requireAuth, async (req, res, next) => {
+    try {
+      if (!managed.enabled()) throw new HttpError(409, 'managed_off', 'foodi isn’t handing out keys on this server. Connect your own.');
+      if (store.getCredentialMeta(req.user!.id)) throw new HttpError(409, 'has_credential', 'An AI is already connected. Remove it first.');
+      const outcome = await managed.provision(req.user!.id);
+      if (outcome === 'created') audit.record(req.user!.id, 'credential.managed', 'user', req.user!.id);
+      res.json(toMe(req.user!.id));
+    } catch (e) {
+      next(e instanceof AiError ? new HttpError(502, e.code, e.message) : e);
+    }
   });
 
   r.post('/logout', requireAuth, async (req, res) => {
