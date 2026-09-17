@@ -30,6 +30,7 @@ import type {
   Recipe,
   RecipeBook,
   RecipeSummary,
+  ShoppingItem,
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
@@ -170,6 +171,15 @@ export interface BookInput {
   description: string;
   visibility: 'private' | 'public';
 }
+
+export type ListAdd = { text: string } | { fromRecipe: { recipeId: string; servings?: number; ingredientIndexes?: number[] } };
+export const list = {
+  get: () => api<{ items: ShoppingItem[]; counts: { open: number; checked: number } }>('/list'),
+  add: (body: ListAdd) => api<{ items: ShoppingItem[]; added: number; merged: number }>('/list/items', { method: 'POST', body }),
+  update: (id: string, body: { text?: string; quantity?: number | null; unit?: string | null; checked?: boolean }) => api<{ item: ShoppingItem }>(`/list/items/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  remove: (id: string) => api<{ ok: true }>(`/list/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  clear: (checkedOnly: boolean) => api<{ removed: number; items: ShoppingItem[] }>('/list/clear', { method: 'POST', body: { checkedOnly } }),
+};
 
 export const books = {
   mine: (recipeId?: string) => api<{ books: (RecipeBook & { contains?: boolean })[] }>(`/books${recipeId ? `?recipeId=${encodeURIComponent(recipeId)}` : ''}`),

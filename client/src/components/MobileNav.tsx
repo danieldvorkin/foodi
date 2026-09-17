@@ -102,6 +102,13 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
               <b>Recipe books</b>
             </span>
           </Link>
+          <Link to="/app/list" className="sheet-action" onClick={close}>
+            <span aria-hidden="true">🛒</span>
+            <span>
+              <b>Shopping list</b>
+              <small>Fills itself from recipes; tick things off in the store</small>
+            </span>
+          </Link>
           <Link to="/app/shop/mine" className="sheet-action" onClick={close}>
             <span aria-hidden="true">🛍️</span>
             <span>

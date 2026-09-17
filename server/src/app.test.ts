@@ -1616,3 +1616,76 @@ describe('link previews', () => {
     }
   });
 });
+
+describe('shopping list', () => {
+  const soup = (title: string) => ({ emoji: '🥣', title, summary: 'x', mealType: 'dinner', servings: 2, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] });
+  const ing = (item: string, quantity: string | null, unit: string | null, extra: Record<string, unknown> = {}) => ({ item, quantity, unit, preparation: null, note: null, group: null, optional: false, ingredientId: null, ...extra });
+
+  it('fills from recipes with scaling and merging, takes quick-add lines, checks, clears, and is private', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const empty = await request(b.base).get('/api/list').set('cookie', ada);
+      expect(empty.body).toEqual({ items: [], counts: { open: 0, checked: 0 } });
+
+      // A recipe for 2 added at 4 servings: numbers double, non-numeric quantities stay as words, garnishes are skipped.
+      const made = await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send({
+        ...soup('Lemon soup'),
+        ingredients: [ing('lemons', '2', null, { ingredientId: 'lemon' }), ing('olive oil', '1 1/2', 'tbsp'), ing('parsley', 'a handful', null), ing('chilli flakes', '1', 'tsp', { optional: true })],
+      });
+      const first = await request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ fromRecipe: { recipeId: made.body.recipe.id, servings: 4 } });
+      expect(first.status).toBe(201);
+      expect(first.body).toMatchObject({ added: 3, merged: 0 });
+      const byText = Object.fromEntries(first.body.items.map((i: { text: string }) => [i.text, i]));
+      expect(byText['lemons']).toMatchObject({ quantity: 4, unit: null, ingredientId: 'lemon', category: 'fruit', recipeTitle: 'Lemon soup' });
+      expect(byText['olive oil']).toMatchObject({ quantity: 3, unit: 'tbsp', category: 'oils & condiments' });
+      expect(byText['a handful parsley']).toMatchObject({ quantity: null, category: 'herbs & spices' });
+      expect(byText['chilli flakes']).toBeUndefined();
+
+      // Quick add merges into the same ingredient + unit; a different unit is its own line; unknown things go to "other".
+      const q1 = await request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ text: '3 lemons' });
+      expect(q1.body).toMatchObject({ added: 0, merged: 1 });
+      expect(q1.body.items.find((i: { text: string }) => i.text === 'lemons').quantity).toBe(7);
+      const q2 = await request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ text: '500 g lemons' });
+      expect(q2.body).toMatchObject({ added: 1, merged: 0 });
+      const q3 = await request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ text: 'birthday candles' });
+      expect(q3.body.items.find((i: { text: string }) => i.text === 'birthday candles')).toMatchObject({ category: 'other', quantity: null });
+
+      // Only the ticked ingredients when indexes are given (including an optional one).
+      const some = await request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ fromRecipe: { recipeId: made.body.recipe.id, ingredientIndexes: [3] } });
+      expect(some.body).toMatchObject({ added: 1 });
+      expect(some.body.items.find((i: { text: string }) => i.text === 'chilli flakes')).toMatchObject({ quantity: 1, unit: 'tsp' });
+
+      // Check one off, edit another, delete one.
+      const lemons = q2.body.items.find((i: { text: string }) => i.text === 'lemons');
+      const checked = await request(b.base).patch(`/api/list/items/${lemons.id}`).set('cookie', ada).set('origin', ORIGIN).send({ checked: true });
+      expect(checked.body.item.checked).toBe(true);
+      const oil = q2.body.items.find((i: { text: string }) => i.text === 'olive oil');
+      const edited = await request(b.base).patch(`/api/list/items/${oil.id}`).set('cookie', ada).set('origin', ORIGIN).send({ text: 'sunflower oil', quantity: 2 });
+      expect(edited.body.item).toMatchObject({ text: 'sunflower oil', quantity: 2, unit: 'tbsp' });
+      expect((await request(b.base).delete(`/api/list/items/${q3.body.items.find((i: { text: string }) => i.text === 'birthday candles').id}`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      const now = await request(b.base).get('/api/list').set('cookie', ada);
+      expect(now.body.counts).toEqual({ open: 4, checked: 1 });
+
+      // Someone else can't see or touch it.
+      const sam = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', sam).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).get('/api/list').set('cookie', sam)).body.items).toEqual([]);
+      expect((await request(b.base).patch(`/api/list/items/${oil.id}`).set('cookie', sam).set('origin', ORIGIN).send({ checked: true })).status).toBe(404);
+      expect((await request(b.base).delete(`/api/list/items/${oil.id}`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(404);
+      // Nor add from Ada's private recipe.
+      expect((await request(b.base).post('/api/list/items').set('cookie', sam).set('origin', ORIGIN).send({ fromRecipe: { recipeId: made.body.recipe.id } })).status).toBe(404);
+
+      // Clear checked, then everything.
+      const cleared = await request(b.base).post('/api/list/clear').set('cookie', ada).set('origin', ORIGIN).send({ checkedOnly: true });
+      expect(cleared.body.removed).toBe(1);
+      expect(cleared.body.items.every((i: { checked: boolean }) => !i.checked)).toBe(true);
+      const all = await request(b.base).post('/api/list/clear').set('cookie', ada).set('origin', ORIGIN).send({ checkedOnly: false });
+      expect(all.body.items).toEqual([]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
