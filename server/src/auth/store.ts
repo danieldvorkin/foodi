@@ -22,7 +22,7 @@ export interface UserRow {
 export interface CredentialRow {
   user_id: string;
   vendor: Vendor;
-  kind: 'oauth' | 'api_key';
+  kind: 'oauth' | 'api_key' | 'managed';
   payload_enc: string;
   expires_at: string | null;
   updated_at: string;
@@ -202,7 +202,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
   function setCredential(userId: string, vendor: Vendor, credential: CredentialPayload) {
     const expiresAt = credential.kind === 'oauth' ? credential.expiresAt : null;
     // Only the tail of an API key is kept in the clear: enough to tell two keys apart, never enough to use.
-    const hint = credential.kind === 'api_key' ? credential.apiKey.slice(-4) : null;
+    const hint = credential.kind === 'api_key' || credential.kind === 'managed' ? credential.apiKey.slice(-4) : null;
     run(
       db,
       `INSERT INTO credentials (user_id, vendor, kind, payload_enc, expires_at, updated_at, hint) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -228,7 +228,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     return { vendor: row.vendor, payload: JSON.parse(decrypt(row.payload_enc, opts.encryptionKey)) as CredentialPayload };
   }
 
-  function getCredentialMeta(userId: string): { vendor: Vendor; kind: 'oauth' | 'api_key'; hint: string | null; updatedAt: string } | null {
+  function getCredentialMeta(userId: string): { vendor: Vendor; kind: 'oauth' | 'api_key' | 'managed'; hint: string | null; updatedAt: string } | null {
     const row = one<Pick<CredentialRow, 'vendor' | 'kind' | 'hint' | 'updated_at'>>(db, 'SELECT vendor, kind, hint, updated_at FROM credentials WHERE user_id = ?', userId);
     return row ? { vendor: row.vendor, kind: row.kind, hint: row.hint, updatedAt: row.updated_at } : null;
   }

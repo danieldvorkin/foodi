@@ -51,6 +51,33 @@ export function AdminSettings() {
             <input id="max" className="input" type="number" min={0} max={10000} value={s.maxGenerationsPerUserPerDay} onChange={(e) => setS({ ...s, maxGenerationsPerUserPerDay: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />
             <p className="hint">0 means no limit. Each person pays their own vendor bill; this only caps runaway use.</p>
           </div>
+          <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend className="label">✨ foodi’s AI for new people</legend>
+            {server.managedKeys.configured ? (
+              <p className="hint">
+                Organisation admin key configured{server.managedKeys.projectId ? ` · keys live in OpenAI project ${server.managedKeys.projectId}` : ' · a project is created on first use'}. Everything these keys generate is billed to that organisation.
+              </p>
+            ) : (
+              <p className="hint">Set <code>OPENAI_ADMIN_KEY</code> (an organisation admin key from platform.openai.com → Organization → Admin keys) and restart to hand out keys automatically.</p>
+            )}
+            <label className="row" style={{ gap: 10 }}>
+              <input type="checkbox" checked={s.openaiManagedKeys} disabled={!server.managedKeys.configured} onChange={(e) => setS({ ...s, openaiManagedKeys: e.target.checked })} />
+              <span>
+                Give every person an OpenAI key when they finish onboarding <span className="muted small">— they can bring their own any time</span>
+              </span>
+            </label>
+            <div className="field">
+              <label htmlFor="managedMax">Recipes per day on a foodi key</label>
+              <input id="managedMax" className="input" type="number" min={0} max={10000} value={s.managedGenerationsPerUserPerDay} onChange={(e) => setS({ ...s, managedGenerationsPerUserPerDay: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />
+              <p className="hint">Your bill: roughly a cent or two per recipe. 0 falls back to the global cap above.</p>
+            </div>
+            <label className="row" style={{ gap: 10 }}>
+              <input type="checkbox" checked={s.managedImages} onChange={(e) => setS({ ...s, managedImages: e.target.checked })} />
+              <span>
+                Let foodi keys generate photos <span className="muted small">— gpt-image-1, a few cents each; off means library photos</span>
+              </span>
+            </label>
+          </fieldset>
           <div className="field">
             <label htmlFor="upload">Upload space per person (MB)</label>
             <input id="upload" className="input" type="number" min={0} max={100000} value={s.maxUploadMbPerUser} onChange={(e) => setS({ ...s, maxUploadMbPerUser: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />

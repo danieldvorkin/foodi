@@ -34,7 +34,8 @@ export function Onboarding() {
     setBusy(true);
     try {
       await profileApi.save(parsed.data);
-      nav(me.vendor ? '/app' : '/connect', { replace: true });
+      // With foodi handing out keys, the AI is being set up in the background: straight to the app.
+      nav(me.vendor || me.managedAvailable ? '/app' : '/connect', { replace: true });
     } catch (e) {
       toast(errorMessage(e), 'error');
       setBusy(false);

@@ -44,6 +44,8 @@ export const auth = {
   changePassword: (next: string, current?: string, email?: string) => api<{ ok: true }>('/auth/password', { method: 'POST', body: { next, ...(current ? { current } : {}), ...(email ? { email } : {}) } }),
   connectKey: (vendor: 'openai' | 'anthropic', apiKey: string) => api<Me>('/auth/key', { method: 'POST', body: { vendor, apiKey } }),
   disconnectKey: () => api<Me>('/auth/key', { method: 'DELETE' }),
+  /** Ask foodi for an OpenAI key of your own, right now (when the server hands them out). */
+  managedKey: () => api<Me>('/auth/managed', { method: 'POST' }),
   logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
   logoutEverywhere: () => api<{ ok: true }>('/auth/logout-everywhere', { method: 'POST' }),
   deleteAccount: () => api<{ ok: true }>('/auth/account', { method: 'DELETE' }),
@@ -316,7 +318,7 @@ export const admin = {
   retryJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   cancelJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   settings: () =>
-    api<{ settings: AppSettings; server: { env: string; providers: string[]; mockEnabled: boolean; models: { anthropic: string; openai: string }; uploadDir: string; bootstrapFirstAdmin: boolean; adminEmails: string[]; cookieSecure: boolean } }>('/admin/settings'),
+    api<{ settings: AppSettings; server: { env: string; providers: string[]; managedKeys: { configured: boolean; projectId: string | null }; mockEnabled: boolean; models: { anthropic: string; openai: string }; uploadDir: string; bootstrapFirstAdmin: boolean; adminEmails: string[]; cookieSecure: boolean } }>('/admin/settings'),
   updateSettings: (patch: Partial<AppSettings>) => api<{ settings: AppSettings }>('/admin/settings', { method: 'PUT', body: patch }),
   audit: () => api<{ entries: AuditEntry[] }>('/admin/audit'),
   media: () => api<{ media: { id: string; ownerId: string; handle: string; kind: string; mime: string; bytes: number; recipeId: string | null; postId: string | null; createdAt: string }[] }>('/admin/media'),

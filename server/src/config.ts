@@ -46,6 +46,10 @@ const EnvSchema = z.object({
   OPENAI_API_BASE: z.string().url().default('https://api.openai.com'),
   OPENAI_MODEL: z.string().default('gpt-5'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  /** Optional: an organisation admin key (sk-admin-…) so foodi can hand each person their own API key. */
+  OPENAI_ADMIN_KEY: z.string().optional(),
+  /** Optional: the project those keys live in; created and remembered when blank. */
+  OPENAI_PROJECT_ID: z.string().optional(),
   /** Optional photo libraries for recipe covers (Wikimedia Commons is always on). */
   PEXELS_API_KEY: z.string().optional(),
   GOOGLE_CSE_KEY: z.string().optional(),
@@ -107,6 +111,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       apiBase: e.OPENAI_API_BASE.replace(/\/$/, ''),
       model: e.OPENAI_MODEL,
       imageModel: e.OPENAI_IMAGE_MODEL,
+      adminKey: e.OPENAI_ADMIN_KEY,
+      projectId: e.OPENAI_PROJECT_ID,
     },
     anthropic: {
       apiBase: e.ANTHROPIC_API_BASE.replace(/\/$/, ''),

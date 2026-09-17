@@ -117,17 +117,50 @@ export function SettingsPage() {
         <section className="stack-lg">
           <div className="stack">
             <h3>🔌 Connected AI</h3>
-            {me.vendor ? (
+            {me.vendor && me.managed ? (
+              <div className="notice notice-sage stack" style={{ gap: 'var(--s-2)' }}>
+                <span>
+                  <b>OpenAI, provided by foodi</b> · {me.managed.usedToday} of {me.managed.limitPerDay || '∞'} recipes used today
+                  {me.credentialUpdatedAt ? ` · since ${timeAgo(me.credentialUpdatedAt)}` : ''}
+                </span>
+                <span className="small">
+                  Your own key on foodi’s OpenAI organisation, with a daily allowance{me.managed.images ? '' : ' (photos come from the library)'}. Connect your own account below for more.
+                </span>
+              </div>
+            ) : me.vendor ? (
               <div className="notice notice-sage">
                 <b>{VENDOR_LABEL[me.vendor]}</b>
                 {me.credentialKind === 'api_key' ? ` · key ending in …${me.credentialHint ?? '????'}` : ' · linked account'}
                 {me.credentialUpdatedAt ? ` · updated ${timeAgo(me.credentialUpdatedAt)}` : ''}
               </div>
+            ) : me.managedAvailable ? (
+              <div className="notice notice-sage row-between" style={{ gap: 'var(--s-3)', flexWrap: 'wrap' }}>
+                <span>
+                  <b>Nothing connected.</b> foodi can give you an OpenAI key right now.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={async () => {
+                    try {
+                      await auth.managedKey();
+                      toast('Your AI is ready');
+                      revalidate();
+                    } catch (err) {
+                      toast(errorMessage(err), 'error');
+                    }
+                  }}
+                >
+                  ✨ Use foodi’s AI
+                </button>
+              </div>
             ) : (
               <div className="notice notice-warn">Nothing connected yet — recipes can’t be written until you add a key below.</div>
             )}
             <p className="muted small measure">
-              Recipes are written with this account and billed to it, never to foodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.
+              {me.managed
+                ? 'Recipes written on foodi’s key are billed to foodi, which is why there’s a daily allowance. The key is encrypted at rest and never shown.'
+                : 'Recipes are written with this account and billed to it, never to foodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.'}
             </p>
           </div>
 

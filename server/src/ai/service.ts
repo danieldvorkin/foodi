@@ -22,11 +22,15 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
   };
 
   function assertQuota(userId: string, pending = 0) {
-    const max = settings.get().maxGenerationsPerUserPerDay;
-    if (max <= 0) return;
+    const s = settings.get();
+    // People on a key foodi provided have their own, usually smaller, allowance.
+    const managed = store.getCredentialMeta(userId)?.kind === 'managed';
+    const caps = [s.maxGenerationsPerUserPerDay, ...(managed ? [s.managedGenerationsPerUserPerDay] : [])].filter((n) => n > 0);
+    if (!caps.length) return;
+    const max = Math.min(...caps);
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND created_at > ? AND status = 'ok'`, userId, since);
-    if ((row?.n ?? 0) + pending >= max) throw new HttpError(429, 'quota', `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
+    const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND created_at > ? AND status = 'ok' AND kind = 'recipe'`, userId, since);
+    if ((row?.n ?? 0) + pending >= max) throw new HttpError(429, 'quota', managed ? `You've used today's ${max} recipes on foodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.` : `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
   }
 
   /** Everything that must be true before a generation is even queued. */
@@ -87,7 +91,9 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
   function capabilities(userId: string): { images: boolean; vision: boolean } {
     const cred = store.getCredentialMeta(userId);
     const client = cred ? clients[cred.vendor] : undefined;
-    return { images: Boolean(client?.generateImage), vision: Boolean(client?.describeImage) };
+    // Photos on foodi's dime are an admin decision (gpt-image-1 costs a few cents each).
+    const images = Boolean(client?.generateImage) && (cred?.kind !== 'managed' || settings.get().managedImages);
+    return { images, vision: Boolean(client?.describeImage) };
   }
 
   /** Log an image or vision call the same way recipe calls are logged, so admin sees cost and failure rate. */

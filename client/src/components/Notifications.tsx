@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useRevalidator } from 'react-router';
 import type { Notification } from '@foodi/shared';
 import { notifications as api, recipes as recipesApi } from '../api/types';
 import { timeAgo } from '../lib/format';
@@ -57,9 +57,12 @@ export function useUnread(onNotification?: (n: Notification) => void) {
   const [unread, setUnread] = useState(0);
   const [latest, setLatest] = useState<Notification | null>(null);
   const toast = useToast();
+  const { revalidate } = useRevalidator();
   const handler = useRef(onNotification);
+  const revalidateRef = useRef(revalidate);
   useEffect(() => {
     handler.current = onNotification;
+    revalidateRef.current = revalidate;
   });
   useEffect(() => {
     let alive = true;
@@ -88,8 +91,19 @@ export function useUnread(onNotification?: (n: Notification) => void) {
       (job) => {
         if (!alive) return;
         const prev = upsertJob(job);
-        if (prev && isActive(prev) && job.status === 'done') toast(`Your recipe is ready: “${job.recipeTitle ?? 'open Cook to see it'}”`);
-        if (prev && isActive(prev) && job.status === 'failed') toast(`Couldn’t write “${job.prompt}”: ${job.lastError ?? 'unknown error'}`, 'error');
+        const finished = prev && isActive(prev);
+        if (job.kind === 'provision') {
+          // The AI foodi set up in the background: the layout's `me` needs to learn about it.
+          if (job.status === 'done') {
+            toast('Your AI is ready — go cook something ✨');
+            revalidateRef.current();
+          }
+          if (job.status === 'failed') toast(`Couldn’t set up your AI: ${job.lastError ?? 'unknown error'}. You can connect your own key in Settings.`, 'error');
+          return;
+        }
+        if (job.kind === 'image') return; // the recipe page shows the photo arriving
+        if (finished && job.status === 'done') toast(`Your recipe is ready: “${job.recipeTitle ?? 'open Cook to see it'}”`);
+        if (finished && job.status === 'failed') toast(`Couldn’t write “${job.prompt}”: ${job.lastError ?? 'unknown error'}`, 'error');
       },
     );
     const onVisible = () => document.visibilityState === 'visible' && refresh();

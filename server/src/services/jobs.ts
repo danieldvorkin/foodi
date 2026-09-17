@@ -46,7 +46,7 @@ export function toJob(db: Db, x: JobRow): Job {
   let prompt = '';
   try {
     const p = JSON.parse(x.payload) as { prompt?: string; ingredientIds?: string[]; basedOnRecipeId?: string };
-    prompt = x.kind === 'image' ? `Photo for “${title ?? 'your recipe'}”` : p.prompt || (p.basedOnRecipeId ? 'Adjusting a recipe' : p.ingredientIds?.length ? `Something with ${p.ingredientIds.length} picked ingredients` : 'Surprise me');
+    prompt = x.kind === 'provision' ? 'Setting up your AI' : x.kind === 'image' ? `Photo for “${title ?? 'your recipe'}”` : p.prompt || (p.basedOnRecipeId ? 'Adjusting a recipe' : p.ingredientIds?.length ? `Something with ${p.ingredientIds.length} picked ingredients` : 'Surprise me');
   } catch {
     /* keep empty */
   }

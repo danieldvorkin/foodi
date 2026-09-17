@@ -27,6 +27,7 @@ import type { Notifier } from '../services/notify.js';
 import type { Permissions } from '../services/permissions.js';
 import type { Jobs } from '../services/jobs.js';
 import type { PhotoService } from '../photos/service.js';
+import type { ManagedKeys } from '../services/managed-keys.js';
 import { ADMIN_PERMISSION_IDS } from '@foodi/shared';
 
 interface Deps {
@@ -41,9 +42,10 @@ interface Deps {
   permissions: Permissions;
   jobs: Jobs;
   photos: PhotoService;
+  managed: ManagedKeys;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions, jobs, photos }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions, jobs, photos, managed }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -351,6 +353,7 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
       server: {
         env: config.env,
         providers: providerIds,
+        managedKeys: { configured: Boolean(config.openai.adminKey), projectId: managed.storedProjectId() },
         mockEnabled: config.enableMockProvider,
         models: { anthropic: config.anthropic.model, openai: config.openai.model },
         uploadDir: mediaStore.root,

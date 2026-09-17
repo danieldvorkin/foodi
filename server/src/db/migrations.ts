@@ -533,4 +533,23 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX shopping_user ON shopping_items(user_id, checked, position);
     `,
   },
+  {
+    // SQLite can't widen a CHECK constraint in place: rebuild credentials so kind may be 'managed'.
+    name: 'managed-keys',
+    sql: `
+      CREATE TABLE credentials_v2 (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        vendor TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('oauth','api_key','managed')),
+        payload_enc TEXT NOT NULL,
+        expires_at TEXT,
+        updated_at TEXT NOT NULL,
+        hint TEXT
+      );
+      INSERT INTO credentials_v2 (user_id, vendor, kind, payload_enc, expires_at, updated_at, hint)
+        SELECT user_id, vendor, kind, payload_enc, expires_at, updated_at, hint FROM credentials;
+      DROP TABLE credentials;
+      ALTER TABLE credentials_v2 RENAME TO credentials;
+    `,
+  },
 ];

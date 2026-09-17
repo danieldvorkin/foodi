@@ -13,7 +13,9 @@ export interface Identity {
 /** The secret we use to call the AI vendor on the person's behalf. Stored encrypted. */
 export type CredentialPayload =
   | { kind: 'api_key'; apiKey: string }
-  | { kind: 'oauth'; accessToken: string; refreshToken: string | null; expiresAt: string | null; idToken: string | null };
+  | { kind: 'oauth'; accessToken: string; refreshToken: string | null; expiresAt: string | null; idToken: string | null }
+  /** A key foodi created for this person on its own OpenAI organisation; the ids let us revoke it. */
+  | { kind: 'managed'; apiKey: string; projectId: string; serviceAccountId: string; keyId: string | null };
 
 export interface OAuthStartResult {
   url: string;

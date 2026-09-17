@@ -13,7 +13,8 @@ export function getProfile(db: Db, userId: string): Profile | null {
   return parsed.success ? parsed.data : null;
 }
 
-export function profileRoutes(db: Db) {
+/** `onSaved` runs after every profile save — used to hand new people an AI key once they've finished onboarding. */
+export function profileRoutes(db: Db, onSaved?: (userId: string) => void) {
   const r = Router();
   r.use(requireAuth);
 
@@ -33,6 +34,7 @@ export function profileRoutes(db: Db) {
       );
       run(db, 'UPDATE users SET display_name = ? WHERE id = ?', profile.displayName, req.user!.id);
     });
+    onSaved?.(req.user!.id);
     res.json({ profile });
   });
 

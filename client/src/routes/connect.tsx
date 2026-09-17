@@ -28,7 +28,28 @@ export function Connect() {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gettingManaged, setGettingManaged] = useState(false);
   const after = me.hasProfile ? '/app' : '/onboarding';
+
+  async function useFoodisAi() {
+    setGettingManaged(true);
+    try {
+      await auth.managedKey();
+      nav(after, { replace: true });
+    } catch (err) {
+      setError(errorMessage(err));
+      setGettingManaged(false);
+    }
+  }
+
+  async function pasteKey() {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text) setKey(text);
+    } catch {
+      setError('Couldn’t read the clipboard — paste into the box instead.');
+    }
+  }
 
   if (!vendor || !provider) {
     const oauth = providers.filter((p) => p.kind === 'oauth');
@@ -43,8 +64,25 @@ export function Connect() {
         </div>
         {me.vendor && (
           <div className="notice notice-sage">
-            Connected: <b>{me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : 'mock account'}</b> ({me.credentialKind === 'oauth' ? 'linked account' : 'API key'}).{' '}
+            Connected: <b>{me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : 'mock account'}</b> ({me.credentialKind === 'oauth' ? 'linked account' : me.credentialKind === 'managed' ? 'provided by foodi' : 'API key'}).{' '}
             <Link to={after}>Continue →</Link>
+          </div>
+        )}
+        {me.managedAvailable && (
+          <div className="connect-managed">
+            <div className="stack" style={{ gap: 'var(--s-2)' }}>
+              <h2>✨ Use foodi’s AI — no setup</h2>
+              <p className="muted measure">One tap and you can cook. foodi gives you an OpenAI key of your own, with a daily allowance. Bring your own key any time for more.</p>
+            </div>
+            <button type="button" className="btn btn-primary btn-lg" onClick={useFoodisAi} disabled={gettingManaged}>
+              {gettingManaged ? 'Setting up…' : 'Start cooking with foodi’s AI'}
+            </button>
+            {error && (
+              <p className="error-text" role="alert">
+                {error}
+              </p>
+            )}
+            <p className="hint">Or connect your own account below.</p>
           </div>
         )}
         <div className="connect-grid">
@@ -96,17 +134,26 @@ export function Connect() {
         {provider.note && <p className="muted measure">{provider.note}</p>}
       </div>
       <form onSubmit={submit} className="stack">
-        <div className="field">
-          <label htmlFor="key">API key</label>
-          <input id="key" className="input input-lg" type="password" autoComplete="off" spellCheck={false} placeholder={`${c.prefix}…`} value={key} onChange={(e) => setKey(e.target.value)} required minLength={20} />
-          <p className="hint">
-            Create one at{' '}
-            <a href={c.href} target="_blank" rel="noreferrer noopener">
-              {c.where}
+        <ol className="connect-steps">
+          <li>
+            <a href={c.href} target="_blank" rel="noreferrer noopener" className="btn">
+              Open {vendor === 'openai' ? 'OpenAI' : 'Anthropic'}’s key page ↗
             </a>
-            . It’s checked with one request, then encrypted at rest.
-          </p>
-        </div>
+            <span className="muted small">Create a key there ({c.where}) and copy it.</span>
+          </li>
+          <li>
+            <div className="field">
+              <label htmlFor="key">Paste the key here</label>
+              <div className="row" style={{ alignItems: 'stretch' }}>
+                <input id="key" className="input input-lg" type="password" autoComplete="off" spellCheck={false} placeholder={`${c.prefix}…`} value={key} onChange={(e) => setKey(e.target.value)} required minLength={20} style={{ flex: 1 }} />
+                <button type="button" className="btn" onClick={pasteKey} title="Paste from the clipboard">
+                  📋 Paste
+                </button>
+              </div>
+              <p className="hint">It’s checked with one request, then encrypted at rest. Only its last four characters are ever shown again.</p>
+            </div>
+          </li>
+        </ol>
         {error && (
           <p className="error-text" role="alert">
             {error}

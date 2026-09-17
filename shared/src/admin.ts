@@ -79,6 +79,12 @@ export const AppSettingsSchema = z.object({
   promotionsEnabled: z.boolean(),
   /** foodi's cut of each book sale, in percent. */
   platformFeePercent: z.number().int().min(0).max(50),
+  /** Hand every new person an OpenAI key from foodi's organisation (needs OPENAI_ADMIN_KEY). */
+  openaiManagedKeys: z.boolean(),
+  /** Daily recipe allowance for people on a foodi-provided key. 0 = no limit beyond the global cap. */
+  managedGenerationsPerUserPerDay: z.number().int().min(0).max(10000),
+  /** Let foodi-provided keys generate photos (gpt-image-1 costs a few cents each). */
+  managedImages: z.boolean(),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

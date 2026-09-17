@@ -35,6 +35,8 @@ import { createPermissions } from './services/permissions.js';
 import { createJobs } from './services/jobs.js';
 import { generateJobHandler } from './ai/generate-job.js';
 import { imageJobHandler } from './ai/image-job.js';
+import { createOpenAiAdmin } from './ai/openai-admin.js';
+import { createManagedKeys } from './services/managed-keys.js';
 import { createPhotoFinder } from './photos/finder.js';
 import { createGoogleSource } from './photos/google.js';
 import { createPexelsSource } from './photos/pexels.js';
@@ -58,9 +60,10 @@ export interface AppDeps {
   aiClients?: Partial<Record<string, AiClient>>;
   photoSources?: PhotoSource[];
   photoFetch?: typeof fetch;
+  openaiAdminFetch?: typeof fetch;
 }
 
-export async function createApp({ config, log, aiClients, photoSources, photoFetch }: AppDeps) {
+export async function createApp({ config, log, aiClients, photoSources, photoFetch, openaiAdminFetch }: AppDeps) {
   const db = openDb(config.dbPath);
   const store = createAuthStore(db, {
     encryptionKey: config.encryptionKey,
@@ -89,6 +92,11 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   const jobs = createJobs(db, notifier, log);
   jobs.register('generate', generateJobHandler(db, ai, notifier, jobs));
   jobs.register('image', imageJobHandler(db, ai, photos, log));
+  // Keys foodi hands out, when an organisation admin key is configured.
+  const openaiAdmin = config.openai.adminKey ? createOpenAiAdmin({ adminKey: config.openai.adminKey, apiBase: config.openai.apiBase, ...(openaiAdminFetch ? { fetchImpl: openaiAdminFetch } : {}) }) : null;
+  const managed = createManagedKeys({ db, store, settings, admin: openaiAdmin, projectId: config.openai.projectId, appName: 'foodi', log });
+  jobs.register('provision', managed.jobHandler());
+  if (!openaiAdmin) log.info('no OPENAI_ADMIN_KEY: people connect their own AI keys');
   jobs.start();
   // The house kitchen's recipes should never sit without a photo: queue library photos for any
   // that lack one (nothing to do after the first boot that finishes them).
@@ -192,8 +200,8 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.get('/health', (_req, res) => res.json({ ok: true, env: config.env }));
   api.use(['/auth/key', '/auth/register', '/auth/login', '/auth/password'], authLimiter);
   api.use('/auth/:provider/start', authLimiter);
-  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit, permissions, ai }));
-  api.use('/profile', writeLimiter, profileRoutes(db));
+  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit, permissions, ai, managed, jobs }));
+  api.use('/profile', writeLimiter, profileRoutes(db, (userId) => managed.ensureFor(jobs, userId)));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
   api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier, jobs, photos));
@@ -207,7 +215,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/list', writeLimiter, listRoutes(db).router);
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs, photos }));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs, photos, managed }));
   api.use(notFoundHandler);
   app.use('/api', api);
 
