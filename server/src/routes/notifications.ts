@@ -24,7 +24,10 @@ export function notificationRoutes(notifier: Notifier) {
     res.flushHeaders();
     const write = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     write('unread', { unread: notifier.unreadCount(userId) });
-    const off = notifier.subscribe(userId, (ev) => write(ev.notification ? 'notification' : 'unread', ev));
+    const off = notifier.subscribe(userId, (ev) => {
+      if (ev.custom) write(ev.custom.name, ev.custom.data);
+      else write(ev.notification ? 'notification' : 'unread', ev);
+    });
     const beat = setInterval(() => res.write(': ping\n\n'), 25_000);
     req.on('close', () => {
       clearInterval(beat);

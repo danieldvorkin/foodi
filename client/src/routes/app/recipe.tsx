@@ -4,6 +4,7 @@ import { MEAL_EMOJI, type MediaItem } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social as socialApi } from '../../api/types';
 import { AddToBook } from '../../components/Books';
+import { upsertJob } from '../../lib/jobs';
 import { MediaGallery, MediaThumb, MediaUploader } from '../../components/Media';
 import { IngredientList, StepList } from '../../components/RecipeParts';
 import { useToast } from '../../components/Toast';
@@ -44,9 +45,11 @@ export function RecipePage() {
     if (!tweak.trim()) return;
     setBusy('tweak');
     try {
-      const { recipe: next } = await recipesApi.generate({ prompt: tweak.trim(), ingredientIds: [], basedOnRecipeId: recipe.id });
+      const { job } = await recipesApi.generate({ prompt: tweak.trim(), ingredientIds: [], basedOnRecipeId: recipe.id });
+      upsertJob(job);
       setTweakOpen(false);
-      nav(`/app/recipes/${next.id}`);
+      setTweak('');
+      toast('Writing the new version — it’ll show up in Cook and in your notifications.');
     } catch (e) {
       toast(errorMessage(e), 'error');
     } finally {
@@ -58,15 +61,15 @@ export function RecipePage() {
   async function randomize() {
     setBusy('random');
     try {
-      const { recipe: next } = await recipesApi.generate({
+      const { job } = await recipesApi.generate({
         prompt: recipe.prompt,
         ingredientIds: recipe.requestedIngredientIds,
         mealType: c.mealType,
         avoidTitles: [c.title],
         seed: Math.random().toString(36).slice(2, 10),
       });
-      toast('Rolled a new one 🎲');
-      nav(`/app/recipes/${next.id}`);
+      upsertJob(job);
+      toast('Rolling a new one 🎲 — it’ll show up in Cook and in your notifications.');
     } catch (e) {
       toast(errorMessage(e), 'error');
     } finally {

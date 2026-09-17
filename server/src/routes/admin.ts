@@ -25,6 +25,7 @@ import type { MediaStore } from './media.js';
 import { unshareIfOrphan } from './social.js';
 import type { Notifier } from '../services/notify.js';
 import type { Permissions } from '../services/permissions.js';
+import type { Jobs } from '../services/jobs.js';
 import { ADMIN_PERMISSION_IDS } from '@foodi/shared';
 
 interface Deps {
@@ -37,9 +38,10 @@ interface Deps {
   mediaStore: MediaStore;
   notifier: Notifier;
   permissions: Permissions;
+  jobs: Jobs;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions, jobs }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -224,6 +226,25 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     });
     audit.record(req.user!.id, 'post.delete', 'post', row.id, { author: row.author_id });
     res.json({ ok: true });
+  });
+
+  // ---- background jobs --------------------------------------------------------------------
+  r.get('/jobs', (_req, res) => {
+    const list = jobs.listAll();
+    res.json({
+      jobs: list,
+      counts: { queued: list.filter((j) => j.status === 'queued').length, running: list.filter((j) => j.status === 'running').length, failed: list.filter((j) => j.status === 'failed').length },
+    });
+  });
+  r.post('/jobs/:id/retry', (req, res) => {
+    if (!jobs.retry(req.params['id']!, null)) throw badRequest('Only failed or cancelled jobs can be retried.');
+    audit.record(req.user!.id, 'job.retry', 'job', req.params['id']!);
+    res.json({ job: jobs.get(req.params['id']!) });
+  });
+  r.post('/jobs/:id/cancel', (req, res) => {
+    if (!jobs.cancel(req.params['id']!, null)) throw badRequest('Only queued jobs can be cancelled.');
+    audit.record(req.user!.id, 'job.cancel', 'job', req.params['id']!);
+    res.json({ job: jobs.get(req.params['id']!) });
   });
 
   r.get('/blog', (_req, res) => {

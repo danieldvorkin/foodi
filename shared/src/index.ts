@@ -6,3 +6,4 @@ export * from './ingredients.js';
 export * from './social.js';
 export * from './commerce.js';
 export * from './shop.js';
+export * from './jobs.js';

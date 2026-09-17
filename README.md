@@ -29,6 +29,7 @@ Open **http://localhost:5100**, click **🧪 Mock admin**, and you are cooking w
 | | |
 |---|---|
 | 📝 **Answer once** | Six screens — diet, allergies, dislikes, cuisines, skill, kitchen, time. Every recipe is written against them. Allergens are a hard rule in the prompt, then checked again against the ingredient library after the model answers. |
+| ⏳ **Written in the background** | Asking for a recipe returns instantly; a worker in the server calls the vendor (with retries and backoff), the Cook page shows a live "Writing…" card you can walk away from, and a notification links to the recipe when it's ready. Queued work survives deploys. |
 | 🧺 **Ask, or drag** | Describe what you feel like, or drag from a library of 190+ preset ingredients (with allergens, diet suitability, nutrition, storage, substitutes). Everything in the basket *must* end up in the dish. Save the basket as your pantry. |
 | 👣 **Cook mode** | One step at a time, big enough to read from across the counter. Timers start when you tap them and chime when done. "You need" chips per step. Keyboard arrows, screen stays awake, progress survives a refresh. |
 | 🎲 **Randomize · ✏️ Adjust** | Same request, a different dish. Or "make it vegan", "halve it", "no oven" — you get a new version, the old one stays. |
