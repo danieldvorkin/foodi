@@ -21,6 +21,7 @@ import { parse } from '../middleware/validate.js';
 import { getProfile } from './profile.js';
 import { coverForRecipe, mediaForRecipe } from './media.js';
 import type { Notifier } from '../services/notify.js';
+import { canReadRecipe } from '../services/access.js';
 
 export interface RecipeRow {
   id: string;
@@ -112,11 +113,11 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
   const r = Router();
   r.use(requireAuth);
 
-  /** A recipe you own, or one someone has shared publicly. */
-  function loadVisible(id: string, userId: string): RecipeRow {
+  /** A recipe you own, one someone has shared publicly, or one in a book you've bought. */
+  function loadVisible(id: string, userId: string, role: string = 'consumer'): RecipeRow {
     const row = one<RecipeRow>(db, 'SELECT * FROM recipes WHERE id = ?', id);
     if (!row) throw notFound('That recipe no longer exists.');
-    if (row.user_id !== userId && row.visibility !== 'public') throw forbidden('That recipe is private.');
+    if (!canReadRecipe(db, id, { id: userId, role })) throw forbidden('That recipe is private.');
     return row;
   }
   function loadOwned(id: string, userId: string): RecipeRow {
@@ -201,7 +202,7 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
 
   r.get('/:id', (req, res) => {
     const userId = req.user!.id;
-    const row = loadVisible(req.params['id']!, userId);
+    const row = loadVisible(req.params['id']!, userId, req.user!.role);
     const author = one<{ handle: string; display_name: string | null; avatar_emoji: string }>(db, 'SELECT handle, display_name, avatar_emoji FROM users WHERE id = ?', row.user_id);
     res.json({
       recipe: toRecipe(db, row, allergenWarnings(parseContent(row), getProfile(db, userId))),

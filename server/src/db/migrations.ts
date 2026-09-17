@@ -314,4 +314,89 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE users ADD COLUMN is_system INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    name: 'commerce',
+    sql: `
+      ALTER TABLE recipe_books ADD COLUMN for_sale INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE recipe_books ADD COLUMN price_cents INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE recipe_books ADD COLUMN sales_pitch TEXT NOT NULL DEFAULT '';
+      ALTER TABLE recipe_books ADD COLUMN preview_count INTEGER NOT NULL DEFAULT 2;
+
+      -- A buyer's access to a book. The book name is snapshotted so receipts survive deletion.
+      CREATE TABLE purchases (
+        id TEXT PRIMARY KEY,
+        buyer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        seller_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        book_id TEXT REFERENCES recipe_books(id) ON DELETE SET NULL,
+        book_name TEXT NOT NULL,
+        book_emoji TEXT NOT NULL DEFAULT '📚',
+        amount_cents INTEGER NOT NULL,
+        platform_fee_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        provider_ref TEXT,
+        status TEXT NOT NULL CHECK (status IN ('pending','paid','refunded','cancelled')),
+        created_at TEXT NOT NULL,
+        paid_at TEXT,
+        refunded_at TEXT
+      );
+      CREATE INDEX purchases_buyer ON purchases(buyer_id, status);
+      CREATE INDEX purchases_seller ON purchases(seller_id, status);
+      CREATE INDEX purchases_book ON purchases(book_id, status);
+
+      -- Paid placements of a book in the feed and rail.
+      CREATE TABLE promotions (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL REFERENCES recipe_books(id) ON DELETE CASCADE,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        package_id TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        provider_ref TEXT,
+        status TEXT NOT NULL CHECK (status IN ('pending','active','expired','cancelled','refunded')),
+        starts_at TEXT,
+        ends_at TEXT,
+        impressions INTEGER NOT NULL DEFAULT 0,
+        clicks INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX promotions_active ON promotions(status, ends_at);
+      CREATE INDEX promotions_owner ON promotions(owner_id, created_at DESC);
+
+      -- Sellers ask for their balance; an admin pays it out by hand and records it here.
+      CREATE TABLE payouts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount_cents INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('requested','paid','rejected')),
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT
+      );
+      CREATE INDEX payouts_user ON payouts(user_id, created_at DESC);
+
+      -- Notification kinds are validated in code from now on; the CHECK kept needing widening.
+      CREATE TABLE notifications_v3 (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        actor_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        post_id TEXT REFERENCES posts(id) ON DELETE CASCADE,
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE CASCADE,
+        comment_id TEXT,
+        blog_id TEXT REFERENCES blog_posts(id) ON DELETE CASCADE,
+        book_id TEXT REFERENCES recipe_books(id) ON DELETE CASCADE,
+        message TEXT,
+        read_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO notifications_v3 SELECT id, user_id, kind, actor_id, post_id, recipe_id, comment_id, blog_id, book_id, message, read_at, created_at FROM notifications;
+      DROP TABLE notifications;
+      ALTER TABLE notifications_v3 RENAME TO notifications;
+      CREATE INDEX notifications_user ON notifications(user_id, created_at DESC);
+      CREATE INDEX notifications_unread ON notifications(user_id, read_at);
+    `,
+  },
 ];

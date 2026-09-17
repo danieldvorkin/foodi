@@ -20,6 +20,7 @@ const NAV = [
   { to: '/admin/recipes', label: 'Recipes' },
   { to: '/admin/community', label: 'Feed & comments' },
   { to: '/admin/media', label: 'Photos & videos' },
+  { to: '/admin/commerce', label: 'Sales & payouts' },
   { to: '/admin/generations', label: 'Generations' },
   { to: '/admin/settings', label: 'Settings' },
   { to: '/admin/audit', label: 'Audit log' },

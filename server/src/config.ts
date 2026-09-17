@@ -28,6 +28,10 @@ const EnvSchema = z.object({
   FOODI_ENABLE_MOCK_PROVIDER: bool.optional(),
   /** Seed and run the house kitchen (@foodi starter recipes + scheduled posts). On by default. */
   FOODI_HOUSE_KITCHEN: boolDefault(true),
+  /** Stripe Checkout for book sales and promotions. Without a key, payments run in test mode. */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_API_BASE: z.string().url().default('https://api.stripe.com'),
 
   // OpenAI — "Sign in with ChatGPT" (OAuth 2.0 + PKCE + OIDC)
   OPENAI_OAUTH_CLIENT_ID: z.string().optional(),
@@ -85,6 +89,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     // (npm run setup turns it on in .env) so a missing NODE_ENV can't switch it on by accident.
     enableMockProvider: !isProd && (e.FOODI_ENABLE_MOCK_PROVIDER ?? false),
     houseKitchen: e.FOODI_HOUSE_KITCHEN,
+    stripe: e.STRIPE_SECRET_KEY ? { secretKey: e.STRIPE_SECRET_KEY, webhookSecret: e.STRIPE_WEBHOOK_SECRET ?? null, apiBase: e.STRIPE_API_BASE.replace(/\/$/, '') } : null,
     openai: {
       clientId: e.OPENAI_OAUTH_CLIENT_ID,
       clientSecret: e.OPENAI_OAUTH_CLIENT_SECRET,

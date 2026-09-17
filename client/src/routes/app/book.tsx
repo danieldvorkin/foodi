@@ -3,16 +3,19 @@ import { Link, useLoaderData, useNavigate, useRevalidator, type LoaderFunctionAr
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { MEAL_EMOJI, type BookItem } from '@foodi/shared';
+import { MEAL_EMOJI, formatMoney, type BookItem } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
-import { books as booksApi, media as mediaApi, type BookInput } from '../../api/types';
+import { books as booksApi, commerce as commerceApi, media as mediaApi, type BookInput } from '../../api/types';
 import { BookForm } from '../../components/Books';
+import { BuyButton, PromoteSheet, SellSheet } from '../../components/Commerce';
+import { useMe } from './layout';
 import { useToast } from '../../components/Toast';
 import { Avatar, Empty, Sheet } from '../../components/ui';
 import { minutes, plural } from '../../lib/format';
 
 export async function bookLoader({ params }: LoaderFunctionArgs) {
-  return booksApi.get(params['id']!);
+  const [data, config] = await Promise.all([booksApi.get(params['id']!), commerceApi.config()]);
+  return { ...data, config };
 }
 
 function Row({ item, bookId, mine, onRemove, onNote }: { item: BookItem; bookId: string; mine: boolean; onRemove: () => void; onNote: (note: string) => void }) {
@@ -20,6 +23,23 @@ function Row({ item, bookId, mine, onRemove, onNote }: { item: BookItem; bookId:
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState(item.note);
   const style = { transform: CSS.Transform.toString(transform), transition };
+  if (item.locked) {
+    return (
+      <li className="book-item is-locked">
+        <span className="emoji-tile" aria-hidden="true">
+          {item.emoji}
+        </span>
+        <div className="stack" style={{ gap: 4, minWidth: 0 }}>
+          <h3>
+            <span className="muted">🔒 {item.title}</span>
+          </h3>
+          <p className="muted small">
+            ⏱ {minutes(item.totalMinutes)} · {MEAL_EMOJI[item.mealType]} {item.mealType} · {item.difficulty} · unlocks when you buy the book
+          </p>
+        </div>
+      </li>
+    );
+  }
   return (
     <li ref={setNodeRef} style={style} className={`book-item${isDragging ? ' is-dragging' : ''}`}>
       {item.available ? (
@@ -89,14 +109,19 @@ function Row({ item, bookId, mine, onRemove, onNote }: { item: BookItem; bookId:
 
 export function BookPage() {
   const data = useLoaderData<typeof bookLoader>();
+  const me = useMe();
   const { revalidate } = useRevalidator();
   const nav = useNavigate();
   const toast = useToast();
   const [items, setItems] = useState(data.items);
   const [editing, setEditing] = useState(false);
+  const [selling, setSelling] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => setItems(data.items), [data.items]);
-  const { book } = data;
+  const { book, config } = data;
+  const paywalled = book.forSale && !book.isMine && !book.purchased && me.role !== 'admin';
+  const lockedCount = items.filter((i) => i.locked).length;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   async function onDragEnd(e: DragEndEvent) {
@@ -155,19 +180,50 @@ export function BookPage() {
             <Avatar name={book.owner.displayName} emoji={book.owner.avatar} />
             <Link to={`/app/u/${book.owner.handle}`}>{book.owner.displayName}</Link> · {plural(items.length, 'recipe')}
             {book.visibility === 'private' ? ' · 🔒 only you' : ''}
+            {book.forSale ? ` · ${formatMoney(book.priceCents)}` : ''}
+            {book.purchased ? ' · ✅ you own this' : ''}
+            {book.promoted ? ' · 🚀 promoted' : ''}
+            {book.isMine && book.salesCount > 0 ? ` · ${plural(book.salesCount, 'sale')}` : ''}
           </p>
         </div>
         {book.isMine && (
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <div className="row" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button type="button" className="btn btn-sm" onClick={() => setEditing(true)}>
               Edit
             </button>
+            {config.paymentsEnabled && (
+              <button type="button" className="btn btn-sm" onClick={() => setSelling(true)}>
+                💵 {book.forSale ? 'Sale settings' : 'Sell'}
+              </button>
+            )}
+            {config.promotionsEnabled && book.visibility === 'public' && (
+              <button type="button" className="btn btn-sm" onClick={() => setPromoting(true)}>
+                🚀 Promote
+              </button>
+            )}
             <button type="button" className="btn btn-quiet btn-sm" onClick={remove}>
               Delete
             </button>
           </div>
         )}
       </header>
+
+      {paywalled && (
+        <section className="paywall">
+          <div className="stack" style={{ gap: 6 }}>
+            <h2 style={{ fontSize: 'var(--t-20)' }}>
+              {formatMoney(book.priceCents)} · {plural(book.recipeCount, 'recipe')}
+            </h2>
+            {book.salesPitch && <p style={{ whiteSpace: 'pre-wrap' }}>{book.salesPitch}</p>}
+            <p className="muted small">
+              {book.previewCount > 0 ? `The first ${plural(Math.min(book.previewCount, book.recipeCount), 'recipe')} ${book.previewCount === 1 ? 'is' : 'are'} free to open. ` : ''}
+              Buying unlocks the whole book, forever — including cook mode, adapting, and adding to your own books.
+              {config.testMode ? ' Test mode: nothing is charged.' : ''}
+            </p>
+          </div>
+          <BuyButton book={book} size="lg" />
+        </section>
+      )}
 
       {items.length === 0 ? (
         <Empty title="Empty shelf" action={<Link to="/app" className="btn">Browse the feed</Link>}>
@@ -197,11 +253,18 @@ export function BookPage() {
           </SortableContext>
         </DndContext>
       )}
-      {book.isMine && items.length > 1 && <p className="hint">Drag the ⋮⋮ handle to reorder.</p>}
+      {book.isMine && items.length > 1 && <p className="hint">Drag the ⋮⋮ handle to reorder.{book.forSale ? ' The first few are the free preview.' : ''}</p>}
+      {paywalled && lockedCount > 0 && (
+        <div className="row" style={{ justifyContent: 'center' }}>
+          <BuyButton book={book} />
+        </div>
+      )}
 
       <Sheet open={editing} onClose={() => setEditing(false)} title="Edit book">
         <BookForm initial={book} onSave={update} busy={busy} submitLabel="Save" />
       </Sheet>
+      {book.isMine && <SellSheet key={`${book.forSale}-${book.priceCents}`} book={book} config={config} open={selling} onClose={() => setSelling(false)} onSaved={revalidate} />}
+      {book.isMine && <PromoteSheet book={book} config={config} open={promoting} onClose={() => setPromoting(false)} />}
     </main>
   );
 }

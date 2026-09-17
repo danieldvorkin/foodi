@@ -78,6 +78,23 @@ Without these, people connect an OpenAI or Anthropic API key from **Settings →
 which is the expected path for Claude anyway (Anthropic does not permit third-party
 Claude.ai sign-in).
 
+## Optional: real payments with Stripe
+
+Until you add Stripe, selling and promoting run in **test mode** — a fake checkout page completes
+orders and nothing is charged (the admin portal and every buyer-facing screen say so). To go live:
+
+1. In the Stripe dashboard create a **secret key** and a **webhook endpoint** pointing at
+   `https://foodi.fly.dev/api/payments/stripe/webhook`, subscribed to
+   `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+2. `fly secrets set STRIPE_SECRET_KEY=sk_live_… STRIPE_WEBHOOK_SECRET=whsec_…`
+3. Redeploy. Admin → Sales & payouts shows *Payment provider: Stripe*.
+
+Money model: buyers pay foodi's Stripe account; foodi keeps `platformFeePercent` (Admin →
+Sales & payouts, default 20%) of book sales and 100% of promotions. Sellers accumulate a
+balance and click **Request payout**; an admin sends the money by hand (bank transfer,
+e-transfer, PayPal) and marks the request paid, which notifies the seller. Refunds from the
+portal call Stripe's refund API and revoke the buyer's access.
+
 ## Day-2 operations
 
 ```bash

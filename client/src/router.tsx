@@ -18,6 +18,9 @@ import { BlogPostPage, blogPostLoader } from './routes/app/blog-post';
 import { BlogEditor, blogEditorLoader } from './routes/app/blog-editor';
 import { BooksPage, booksLoader } from './routes/app/books';
 import { BookPage, bookLoader } from './routes/app/book';
+import { SalesPage, salesLoader } from './routes/app/sales';
+import { PayDone, TestCheckout, testCheckoutLoader } from './routes/pay';
+import { AdminCommerce, adminCommerceLoader } from './routes/admin/commerce';
 import { AdminLayout, adminLoader } from './routes/admin/layout';
 import { AdminOverview, adminOverviewLoader } from './routes/admin/overview';
 import { AdminUsers, adminUsersLoader } from './routes/admin/users';
@@ -40,6 +43,7 @@ export const router = createBrowserRouter([
       { path: 'connect/:vendor', element: <Connect />, loader: connectLoader },
       { path: 'onboarding', element: <Onboarding />, loader: onboardingLoader },
       { path: 'cook/:id', element: <CookPage />, loader: cookLoader },
+      { path: 'pay/test/:kind/:id', element: <TestCheckout />, loader: testCheckoutLoader },
       {
         path: 'app',
         id: 'app',
@@ -60,6 +64,8 @@ export const router = createBrowserRouter([
           { path: 'books', element: <BooksPage />, loader: booksLoader },
           { path: 'books/:id', element: <BookPage />, loader: bookLoader },
           { path: 'notifications', element: <NotificationsPage />, loader: notificationsLoader },
+          { path: 'sales', element: <SalesPage />, loader: salesLoader },
+          { path: 'pay/done', element: <PayDone /> },
           { path: 'u/:handle', element: <ProfilePage />, loader: profileLoader },
           { path: 'settings', element: <SettingsPage />, loader: settingsLoader },
         ],
@@ -76,6 +82,7 @@ export const router = createBrowserRouter([
           { path: 'recipes', element: <AdminRecipes />, loader: adminRecipesLoader },
           { path: 'community', element: <AdminCommunity />, loader: adminCommunityLoader },
           { path: 'media', element: <AdminMedia />, loader: adminMediaLoader },
+          { path: 'commerce', element: <AdminCommerce />, loader: adminCommerceLoader },
           { path: 'generations', element: <AdminGenerations />, loader: adminGenerationsLoader },
           { path: 'settings', element: <AdminSettings />, loader: adminSettingsLoader },
           { path: 'audit', element: <AdminAudit />, loader: adminAuditLoader },

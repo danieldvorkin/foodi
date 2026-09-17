@@ -5,7 +5,7 @@ import { notifications as api } from '../api/types';
 import { timeAgo } from '../lib/format';
 import { Avatar } from './ui';
 
-export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕' };
+export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕', sale: '💵', promo: '🚀', payout: '🏦' };
 
 export function describe(n: Notification): { text: string; to: string | null } {
   const who = n.actor?.displayName ?? 'Someone';
@@ -28,6 +28,12 @@ export function describe(n: Notification): { text: string; to: string | null } {
       return { text: `${who} adapted ${recipe} — their version will credit you`, to: n.recipeId ? `/app/recipes/${n.recipeId}` : null };
     case 'post':
       return n.blogId ? { text: `${who} published ${blog}`, to: blogTo } : { text: `${who} shared ${recipe}`, to: postTo };
+    case 'sale':
+      return { text: `${who} ${n.message ?? 'bought one of your books'}`, to: '/app/sales' };
+    case 'promo':
+      return { text: n.message ?? 'Your promotion is live', to: n.bookId ? `/app/books/${n.bookId}` : '/app/sales' };
+    case 'payout':
+      return { text: n.message ?? 'Payout update', to: '/app/sales' };
     case 'role':
       return { text: n.message ?? 'Your role changed', to: '/app/settings?tab=account' };
     default:

@@ -96,6 +96,13 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
               {unread > 0 && <small>{unread} unread</small>}
             </span>
           </Link>
+          <Link to="/app/sales" className="sheet-action" onClick={close}>
+            <span aria-hidden="true">💵</span>
+            <span>
+              <b>Sales & payouts</b>
+              <small>Books you’ve sold, promotions, balance</small>
+            </span>
+          </Link>
           <Link to="/app/settings" className="sheet-action" onClick={close}>
             <span aria-hidden="true">⚙️</span>
             <span>

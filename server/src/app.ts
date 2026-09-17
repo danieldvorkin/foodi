@@ -30,6 +30,10 @@ import { createAudit } from './services/audit.js';
 import { createSettings } from './services/settings.js';
 import { createNotifier } from './services/notify.js';
 import { createHouse } from './services/house.js';
+import { createCommerce } from './services/commerce.js';
+import { createStripeProvider } from './payments/stripe.js';
+import { createTestProvider } from './payments/test.js';
+import { adminCommerceRoutes, commerceRoutes, stripeWebhook } from './routes/commerce.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { blogRoutes } from './routes/blog.js';
 import { bookRoutes } from './routes/books.js';
@@ -54,6 +58,9 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const notifier = createNotifier(db);
   const house = createHouse(db, settings, notifier, log);
   if (config.houseKitchen) house.ensure();
+  const paymentProvider = config.stripe ? createStripeProvider(config.stripe) : createTestProvider(config.appOrigin);
+  if (!config.stripe) log.warn('no STRIPE_SECRET_KEY: payments run in test mode (fake checkout, nothing is charged)');
+  const commerce = createCommerce({ db, settings, notifier, provider: paymentProvider, appOrigin: config.appOrigin, log });
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
 
@@ -129,6 +136,9 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
     log.warn('mock identity provider and mock AI are enabled (development only)');
   }
 
+  // Stripe's webhook needs the raw body and carries no browser origin; it authenticates by signature.
+  app.use('/api/payments/stripe/webhook', stripeWebhook(config, commerce, log));
+
   // ---- API --------------------------------------------------------------------------------
   const api = express.Router();
   api.use(express.json({ limit: '256kb', strict: true }));
@@ -154,9 +164,11 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
   api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier));
-  api.use('/social', writeLimiter, socialRoutes(db, notifier));
+  api.use('/social', writeLimiter, socialRoutes(db, notifier, commerce));
   api.use('/blog', writeLimiter, blogRoutes(db, notifier));
   api.use('/books', writeLimiter, bookRoutes(db, notifier));
+  api.use('/commerce', writeLimiter, commerceRoutes(db, commerce, settings));
+  api.use('/admin/commerce', adminCommerceRoutes(commerce, audit));
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
   api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier }));
@@ -194,6 +206,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
     store,
     providers,
     house,
+    commerce,
     close: () => {
       clearInterval(sweeper);
       clearInterval(houseTimer);

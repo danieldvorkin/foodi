@@ -4,12 +4,13 @@ import { AddBookItemSchema, RecipeContentSchema, UpsertBookSchema, type BookItem
 import type { Db } from '../db/index.js';
 import { all, one, run, tx } from '../db/index.js';
 import { newId } from '../lib/crypto.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { coverForRecipe } from './media.js';
 import type { Notifier } from '../services/notify.js';
+import { hasBoughtBook } from '../services/access.js';
 
 interface BookRow {
   id: string;
@@ -24,12 +25,21 @@ interface BookRow {
   created_at: string;
   updated_at: string;
   recipe_count: number;
+  for_sale: number;
+  price_cents: number;
+  sales_pitch: string;
+  preview_count: number;
+  sales_count: number;
+  promoted: number;
 }
 
-const BOOK_SELECT = `
+export const BOOK_SELECT = `
   SELECT k.id, k.owner_id, u.handle AS owner_handle, u.display_name AS owner_name, u.avatar_emoji AS owner_avatar,
          k.name, k.emoji, k.description, k.visibility, k.created_at, k.updated_at,
-         (SELECT COUNT(*) FROM recipe_book_items i WHERE i.book_id = k.id) AS recipe_count
+         k.for_sale, k.price_cents, k.sales_pitch, k.preview_count,
+         (SELECT COUNT(*) FROM recipe_book_items i WHERE i.book_id = k.id) AS recipe_count,
+         (SELECT COUNT(*) FROM purchases p WHERE p.book_id = k.id AND p.status = 'paid') AS sales_count,
+         EXISTS(SELECT 1 FROM promotions pr WHERE pr.book_id = k.id AND pr.status = 'active') AS promoted
   FROM recipe_books k JOIN users u ON u.id = k.owner_id
   WHERE u.disabled_at IS NULL`;
 
@@ -54,6 +64,13 @@ export function toBook(db: Db, row: BookRow, me: string): RecipeBook {
     isMine: row.owner_id === me,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    forSale: Boolean(row.for_sale),
+    priceCents: row.price_cents,
+    salesPitch: row.sales_pitch,
+    previewCount: row.preview_count,
+    purchased: row.owner_id !== me && hasBoughtBook(db, row.id, me),
+    salesCount: row.sales_count,
+    promoted: Boolean(row.promoted),
   };
 }
 
@@ -104,6 +121,9 @@ export function bookRoutes(db: Db, notifier: Notifier) {
   r.get('/:id', (req, res) => {
     const me = req.user!.id;
     const row = loadVisible(req.params['id']!, me);
+    const book = toBook(db, row, me);
+    // A book for sale shows a preview to people who haven't bought it; the rest is title-only.
+    const paywalled = book.forSale && !book.isMine && !book.purchased && req.user!.role !== 'admin';
     const items = all<{ recipe_id: string; note: string; added_at: string; title_snapshot: string; emoji_snapshot: string; content: string; visibility: string; user_id: string; handle: string; display_name: string | null }>(
       db,
       `SELECT i.recipe_id, i.note, i.added_at, i.title_snapshot, i.emoji_snapshot, r.content, r.visibility, r.user_id, u.handle, u.display_name
@@ -112,8 +132,28 @@ export function bookRoutes(db: Db, notifier: Notifier) {
       row.id,
     );
     const list: BookItem[] = items
-      .map((x): BookItem => {
-        const available = x.visibility === 'public' || x.user_id === me;
+      .map((x, position): BookItem => {
+        const bought = book.purchased || (book.forSale && book.isMine);
+        const inPreview = paywalled && position < book.previewCount;
+        const available = x.visibility === 'public' || x.user_id === me || bought || inPreview;
+        if (paywalled && position >= book.previewCount) {
+          const c = RecipeContentSchema.parse(JSON.parse(x.content));
+          return {
+            recipeId: x.recipe_id,
+            emoji: c.emoji,
+            title: c.title,
+            summary: '',
+            totalMinutes: c.totalMinutes,
+            difficulty: c.difficulty,
+            mealType: c.mealType,
+            cover: null,
+            author: { handle: x.handle, displayName: x.display_name ?? x.handle },
+            note: '',
+            addedAt: x.added_at,
+            available: true,
+            locked: true,
+          };
+        }
         if (!available) {
           // The author took it private: the owner keeps a placeholder with the title as it was
           // when shelved, never the recipe's current content.
@@ -130,6 +170,7 @@ export function bookRoutes(db: Db, notifier: Notifier) {
             note: x.note,
             addedAt: x.added_at,
             available: false,
+            locked: false,
           };
         }
         const c = RecipeContentSchema.parse(JSON.parse(x.content));
@@ -146,11 +187,12 @@ export function bookRoutes(db: Db, notifier: Notifier) {
           note: x.note,
           addedAt: x.added_at,
           available: true,
+          locked: false,
         };
       })
       // Recipes that went private since they were added only show (as placeholders) for the book's owner.
       .filter((x) => x.available || row.owner_id === me);
-    res.json({ book: toBook(db, row, me), items: list });
+    res.json({ book, items: list });
   });
 
   r.put('/:id', (req, res) => {
@@ -166,6 +208,10 @@ export function bookRoutes(db: Db, notifier: Notifier) {
     const row = one<{ owner_id: string }>(db, 'SELECT owner_id FROM recipe_books WHERE id = ?', req.params['id']);
     if (!row) throw notFound('That book is gone.');
     if (row.owner_id !== me.id && me.role !== 'admin') throw forbidden('Only the owner can delete this book.');
+    // Sellers can't pull a book buyers paid for; an admin moderating someone else's book can.
+    if ((row.owner_id === me.id || me.role !== 'admin') && one(db, `SELECT 1 FROM purchases WHERE book_id = ? AND status = 'paid'`, req.params['id'])) {
+      throw conflict('People have paid for this book, so it can’t be deleted. Take it off sale instead, or ask an admin.');
+    }
     run(db, 'DELETE FROM recipe_books WHERE id = ?', req.params['id']);
     res.json({ ok: true });
   });
@@ -177,6 +223,7 @@ export function bookRoutes(db: Db, notifier: Notifier) {
     const body = parse(AddBookItemSchema, req.body);
     const recipe = one<{ id: string; user_id: string; visibility: string; title: string; content: string }>(db, 'SELECT id, user_id, visibility, title, content FROM recipes WHERE id = ?', body.recipeId);
     if (!recipe || (recipe.user_id !== me && recipe.visibility !== 'public')) throw notFound('That recipe is private or gone.');
+    if (row.for_sale && recipe.user_id !== me) throw badRequest('A book that’s for sale can only hold your own recipes.');
     if (row.recipe_count >= 200) throw badRequest('A book holds up to 200 recipes.');
     const already = one(db, 'SELECT 1 FROM recipe_book_items WHERE book_id = ? AND recipe_id = ?', row.id, recipe.id);
     if (!already) {

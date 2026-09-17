@@ -75,6 +75,9 @@ export function AppLayout() {
               <Link to="/app/notifications" className="panel-item" role="menuitem">
                 🔔 Notifications
               </Link>
+              <Link to="/app/sales" className="panel-item" role="menuitem">
+                💵 Sales & payouts
+              </Link>
               <Link to="/app/settings" className="panel-item" role="menuitem">
                 ⚙️ Settings
               </Link>

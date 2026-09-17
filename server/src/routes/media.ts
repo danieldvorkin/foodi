@@ -13,6 +13,7 @@ import type { Logger } from '../lib/logger.js';
 import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Settings } from '../services/settings.js';
+import { canReadRecipe } from '../services/access.js';
 
 export interface MediaRow {
   id: string;
@@ -88,10 +89,7 @@ export function mediaRoutes(db: Db, store: MediaStore, settings: Settings) {
     const userId = req.user?.id;
     if (!userId) return false;
     if (m.owner_id === userId || req.user?.role === 'admin') return true;
-    if (m.recipe_id) {
-      const rec = one<{ visibility: string }>(db, 'SELECT visibility FROM recipes WHERE id = ?', m.recipe_id);
-      if (rec?.visibility === 'public') return true;
-    }
+    if (m.recipe_id && canReadRecipe(db, m.recipe_id, req.user)) return true;
     if (m.post_id) return true; // posts are visible to every signed-in person
     if (m.blog_id) {
       const b = one<{ status: string }>(db, 'SELECT status FROM blog_posts WHERE id = ?', m.blog_id);

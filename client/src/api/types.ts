@@ -1,4 +1,5 @@
 import type {
+  AdminCommerce,
   AdminStats,
   AdminUser,
   AppSettings,
@@ -7,6 +8,12 @@ import type {
   BlogPost,
   BookItem,
   Comment,
+  CommerceConfig,
+  Earnings,
+  Payout,
+  PromoPackageId,
+  Promotion,
+  Purchase,
   FeedItem,
   FeedScope,
   GenerationLog,
@@ -23,7 +30,7 @@ import type {
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
-export type { AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
+export type { AdminCommerce, CommerceConfig, Earnings, Payout, PromoPackageId, Promotion, Purchase, AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -160,6 +167,28 @@ export const books = {
   reorder: (id: string, recipeIds: string[]) => api<{ ok: true }>(`/books/${encodeURIComponent(id)}/order`, { method: 'PUT', body: { recipeIds } }),
 };
 
+export interface SaleInput {
+  forSale: boolean;
+  priceCents: number;
+  salesPitch: string;
+  previewCount: number;
+}
+
+export const commerce = {
+  config: () => api<CommerceConfig>('/commerce/config'),
+  setSale: (bookId: string, body: SaleInput) => api<{ ok: true }>(`/commerce/books/${encodeURIComponent(bookId)}/sale`, { method: 'PUT', body }),
+  buy: (bookId: string) => api<{ url: string }>(`/commerce/books/${encodeURIComponent(bookId)}/buy`, { method: 'POST' }),
+  promote: (bookId: string, packageId: PromoPackageId) => api<{ url: string }>(`/commerce/books/${encodeURIComponent(bookId)}/promote`, { method: 'POST', body: { packageId } }),
+  featured: () => api<{ promotions: Promotion[] }>('/commerce/featured'),
+  click: (promotionId: string) => api<{ ok: true }>(`/commerce/promotions/${encodeURIComponent(promotionId)}/click`, { method: 'POST' }),
+  earnings: () => api<Earnings>('/commerce/earnings'),
+  requestPayout: () => api<{ payout: Payout }>('/commerce/payouts', { method: 'POST' }),
+  library: () => api<{ bookIds: string[] }>('/commerce/library'),
+  testOrder: (kind: 'book' | 'promo', id: string) => api<{ name: string; amountCents: number; currency: string; status: string; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}`),
+  testComplete: (kind: 'book' | 'promo', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/complete`, { method: 'POST' }),
+  testCancel: (kind: 'book' | 'promo', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+};
+
 export const notifications = {
   list: () => api<{ notifications: Notification[]; unread: number }>('/notifications'),
   unread: () => api<{ unread: number }>('/notifications/unread'),
@@ -222,5 +251,9 @@ export const admin = {
   media: () => api<{ media: { id: string; ownerId: string; handle: string; kind: string; mime: string; bytes: number; recipeId: string | null; postId: string | null; createdAt: string }[] }>('/admin/media'),
   deleteMedia: (id: string) => api<{ ok: true }>(`/admin/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   purgeSessions: () => api<{ ok: true }>('/admin/maintenance/purge-sessions', { method: 'POST' }),
+  commerce: () => api<AdminCommerce>('/admin/commerce'),
+  refund: (purchaseId: string) => api<{ ok: true }>(`/admin/commerce/purchases/${encodeURIComponent(purchaseId)}/refund`, { method: 'POST' }),
+  cancelPromotion: (id: string) => api<{ ok: true }>(`/admin/commerce/promotions/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  resolvePayout: (id: string, status: 'paid' | 'rejected', note: string) => api<{ ok: true }>(`/admin/commerce/payouts/${encodeURIComponent(id)}`, { method: 'POST', body: { status, note } }),
   notify: (message: string, userId?: string) => api<{ sent: number }>('/admin/notify', { method: 'POST', body: { message, ...(userId ? { userId } : {}) } }),
 };

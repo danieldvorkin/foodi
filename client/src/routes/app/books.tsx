@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
 import { errorMessage } from '../../api/client';
-import { books as booksApi, type BookInput } from '../../api/types';
+import { books as booksApi, commerce as commerceApi, type BookInput } from '../../api/types';
+import type { RecipeBook } from '@foodi/shared';
 import { BookCard, BookForm } from '../../components/Books';
 import { useToast } from '../../components/Toast';
 import { Empty, Sheet } from '../../components/ui';
 
 export async function booksLoader() {
-  return booksApi.mine();
+  const [mine, lib] = await Promise.all([booksApi.mine(), commerceApi.library()]);
+  const bought = (await Promise.all(lib.bookIds.map((id) => booksApi.get(id).then((r) => r.book).catch(() => null)))).filter((b): b is RecipeBook => b !== null);
+  return { books: mine.books, bought };
 }
 
 export function BooksPage() {
-  const { books } = useLoaderData<typeof booksLoader>();
+  const { books, bought } = useLoaderData<typeof booksLoader>();
   const { revalidate } = useRevalidator();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -53,8 +56,18 @@ export function BooksPage() {
           ))}
         </div>
       )}
+      {bought.length > 0 && (
+        <section className="stack">
+          <h2 style={{ fontSize: 'var(--t-20)' }}>📖 Books you’ve bought</h2>
+          <div className="book-grid">
+            {bought.map((b) => (
+              <BookCard key={b.id} book={b} />
+            ))}
+          </div>
+        </section>
+      )}
       <p className="hint">
-        Find recipes to shelve on the <Link to="/app">feed</Link> — every recipe page has an “Add to book” button.
+        Find recipes to shelve on the <Link to="/app">feed</Link> — every recipe page has an “Add to book” button. Sell a book or promote it from its page; see <Link to="/app/sales">Sales & payouts</Link> for what it earned.
       </p>
       <Sheet open={open} onClose={() => setOpen(false)} title="📚 New recipe book">
         <BookForm onSave={create} busy={busy} />

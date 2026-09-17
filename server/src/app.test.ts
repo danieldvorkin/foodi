@@ -946,3 +946,169 @@ describe('house kitchen', () => {
     }
   });
 });
+
+describe('commerce (test payment provider)', () => {
+  async function bookWithRecipes(b: Booted, cookie: string, n: number) {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', cookie).set('origin', ORIGIN).send({ prompt: `dish ${i}` });
+      ids.push(gen.body.recipe.id);
+    }
+    const book = await request(b.base).post('/api/books').set('cookie', cookie).set('origin', ORIGIN).send({ name: 'Paid book', emoji: '💵', visibility: 'public' });
+    for (const id of ids) {
+      const r = await request(b.base).post(`/api/books/${book.body.book.id}/items`).set('cookie', cookie).set('origin', ORIGIN).send({ recipeId: id });
+      if (r.status >= 300) throw new Error(`add item ${id}: ${r.status} ${JSON.stringify(r.body)}`);
+    }
+    return { bookId: book.body.book.id as string, recipeIds: ids };
+  }
+
+  it('sells a book: preview for browsers, full access after a test checkout, earnings, payout, refund', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const { bookId, recipeIds } = await bookWithRecipes(b, ada, 3);
+      const cfg = await request(b.base).get('/api/commerce/config').set('cookie', sam);
+      expect(cfg.body.testMode).toBe(true);
+
+      const sale = await request(b.base).put(`/api/commerce/books/${bookId}/sale`).set('cookie', ada).set('origin', ORIGIN).send({ forSale: true, priceCents: 999, salesPitch: 'Three dinners.', previewCount: 2 });
+      expect(sale.status).toBe(200);
+      // Browsing: two previews, one locked; the locked recipe itself is not readable.
+      const peek = await request(b.base).get(`/api/books/${bookId}`).set('cookie', sam);
+      expect(peek.body.book).toMatchObject({ forSale: true, priceCents: 999, purchased: false });
+      expect(peek.body.items.map((i: { locked: boolean }) => i.locked)).toEqual([false, false, true]);
+      expect((await request(b.base).get(`/api/recipes/${recipeIds[2]}`).set('cookie', sam)).status).toBe(403);
+      // Can't buy your own, can't add someone else's recipe to a for-sale book.
+      expect((await request(b.base).post(`/api/commerce/books/${bookId}/buy`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(400);
+
+      const buy = await request(b.base).post(`/api/commerce/books/${bookId}/buy`).set('cookie', sam).set('origin', ORIGIN);
+      expect(buy.status).toBe(200);
+      const m = /\/pay\/test\/book\/(pur_[A-Za-z0-9_-]+)$/.exec(buy.body.url);
+      expect(m).toBeTruthy();
+      const purchaseId = m![1]!;
+      // Only the buyer can see or complete the order.
+      expect((await request(b.base).get(`/api/commerce/pay/test/book/${purchaseId}`).set('cookie', ada)).status).toBe(404);
+      const order = await request(b.base).get(`/api/commerce/pay/test/book/${purchaseId}`).set('cookie', sam);
+      expect(order.body).toMatchObject({ amountCents: 999, status: 'pending' });
+      const done = await request(b.base).post(`/api/commerce/pay/test/book/${purchaseId}/complete`).set('cookie', sam).set('origin', ORIGIN);
+      expect(done.status).toBe(200);
+      // Second completion is a no-op, not a double sale.
+      await request(b.base).post(`/api/commerce/pay/test/book/${purchaseId}/complete`).set('cookie', sam).set('origin', ORIGIN);
+
+      const owned = await request(b.base).get(`/api/books/${bookId}`).set('cookie', sam);
+      expect(owned.body.book.purchased).toBe(true);
+      expect(owned.body.items.every((i: { locked: boolean }) => !i.locked)).toBe(true);
+      expect((await request(b.base).get(`/api/recipes/${recipeIds[2]}`).set('cookie', sam)).status).toBe(200);
+      expect((await request(b.base).get('/api/commerce/library').set('cookie', sam)).body.bookIds).toEqual([bookId]);
+      expect((await request(b.base).post(`/api/commerce/books/${bookId}/buy`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(409);
+      // Seller side: one sale, 20% fee, payout request.
+      const e1 = await request(b.base).get('/api/commerce/earnings').set('cookie', ada);
+      expect(e1.body).toMatchObject({ salesCount: 1, grossCents: 999, feesCents: 200, netCents: 799, availableCents: 799 });
+      expect((await request(b.base).get('/api/notifications').set('cookie', ada)).body.notifications[0].kind).toBe('sale');
+      const payout = await request(b.base).post('/api/commerce/payouts').set('cookie', ada).set('origin', ORIGIN);
+      expect(payout.status).toBe(201);
+      expect(payout.body.payout.amountCents).toBe(799);
+      expect((await request(b.base).post('/api/commerce/payouts').set('cookie', ada).set('origin', ORIGIN)).status).toBe(409);
+      // The book can't be deleted while people have paid for it.
+      expect((await request(b.base).delete(`/api/books/${bookId}`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(409);
+
+      // Admin: sees it all, pays the payout, then refunds the purchase (access is revoked).
+      const admin = await request(b.base).get('/api/admin/commerce').set('cookie', ada);
+      expect(admin.body.stats).toMatchObject({ purchases: 1, salesGrossCents: 999, platformFeesCents: 200, pendingPayouts: 1, pendingPayoutCents: 799, booksForSale: 1 });
+      expect(admin.body.provider.id).toBe('test');
+      await request(b.base).post(`/api/admin/commerce/payouts/${payout.body.payout.id}`).set('cookie', ada).set('origin', ORIGIN).send({ status: 'paid', note: 'Sent by e-transfer' });
+      const e2 = await request(b.base).get('/api/commerce/earnings').set('cookie', ada);
+      expect(e2.body).toMatchObject({ paidOutCents: 799, availableCents: 0 });
+      expect((await request(b.base).post(`/api/admin/commerce/purchases/${purchaseId}/refund`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(200);
+      expect((await request(b.base).get(`/api/recipes/${recipeIds[2]}`).set('cookie', sam)).status).toBe(403);
+      expect((await request(b.base).get('/api/commerce/earnings').set('cookie', ada)).body.salesCount).toBe(0);
+      // Consumers can't reach the admin commerce panel.
+      expect((await request(b.base).get('/api/admin/commerce').set('cookie', sam)).status).toBe(403);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('refuses to sell a book containing someone else’s recipe', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'x' });
+      await request(b.base).post('/api/social/posts').set('cookie', sam).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
+      const book = await request(b.base).post('/api/books').set('cookie', ada).set('origin', ORIGIN).send({ name: 'Mixed', visibility: 'public' });
+      await request(b.base).post(`/api/books/${book.body.book.id}/items`).set('cookie', ada).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id });
+      const sale = await request(b.base).put(`/api/commerce/books/${book.body.book.id}/sale`).set('cookie', ada).set('origin', ORIGIN).send({ forSale: true, priceCents: 500 });
+      expect(sale.status).toBe(400);
+      expect(sale.body.error.message).toMatch(/your own recipes/);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('promotes a book: paid placement lands in the feed and rail, tracks clicks, and admins can stop it', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      for (const c of [ada, sam]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const { bookId } = await bookWithRecipes(b, ada, 1);
+      // Something in the feed so there's a slot to fill.
+      const gen = await request(b.base).post('/api/recipes/generate').set('cookie', sam).set('origin', ORIGIN).send({ prompt: 'y' });
+      await request(b.base).post('/api/social/posts').set('cookie', sam).set('origin', ORIGIN).send({ recipeId: gen.body.recipe.id, caption: '' });
+
+      expect((await request(b.base).post(`/api/commerce/books/${bookId}/promote`).set('cookie', sam).set('origin', ORIGIN).send({ packageId: 'boost-3' })).status).toBe(404);
+      const promo = await request(b.base).post(`/api/commerce/books/${bookId}/promote`).set('cookie', ada).set('origin', ORIGIN).send({ packageId: 'feature-7' });
+      expect(promo.status).toBe(200);
+      const id = /\/pay\/test\/promo\/(prm_[A-Za-z0-9_-]+)$/.exec(promo.body.url)![1]!;
+      expect((await request(b.base).get('/api/commerce/featured').set('cookie', sam)).body.promotions).toHaveLength(0);
+      await request(b.base).post(`/api/commerce/pay/test/promo/${id}/complete`).set('cookie', ada).set('origin', ORIGIN);
+
+      const feed = await request(b.base).get('/api/social/feed').set('cookie', sam);
+      const kinds = feed.body.items.map((i: { type: string }) => i.type);
+      expect(kinds).toContain('promo');
+      expect(kinds).toContain('book');
+      const slot = feed.body.items.find((i: { type: string }) => i.type === 'promo');
+      expect(slot.promotion).toMatchObject({ packageId: 'feature-7', status: 'active', book: { id: bookId } });
+      expect((await request(b.base).get('/api/commerce/featured').set('cookie', sam)).body.promotions[0].id).toBe(id);
+      await request(b.base).post(`/api/commerce/promotions/${id}/click`).set('cookie', sam).set('origin', ORIGIN);
+      const mine = await request(b.base).get('/api/commerce/earnings').set('cookie', ada);
+      expect(mine.body.promotions[0]).toMatchObject({ id, clicks: 1, status: 'active' });
+      expect(mine.body.promotions[0].impressions).toBeGreaterThanOrEqual(1);
+      expect(mine.body.spentOnPromotionsCents).toBe(1499);
+      expect((await request(b.base).get(`/api/books/${bookId}`).set('cookie', sam)).body.book.promoted).toBe(true);
+
+      await request(b.base).post(`/api/admin/commerce/promotions/${id}/cancel`).set('cookie', ada).set('origin', ORIGIN);
+      expect((await request(b.base).get('/api/commerce/featured').set('cookie', sam)).body.promotions).toHaveLength(0);
+      expect((await request(b.base).get('/api/social/feed').set('cookie', sam)).body.items.some((i: { type: string }) => i.type === 'promo')).toBe(false);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('verifies Stripe webhook signatures and rejects everything else', async () => {
+    const { verifyStripeWebhook } = await import('./payments/stripe.js');
+    const { createHmac } = await import('node:crypto');
+    const secret = 'whsec_test';
+    const body = Buffer.from(JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: 'cs_1', payment_status: 'paid', metadata: { kind: 'book', refId: 'pur_x' } } } }));
+    const t = Math.floor(Date.now() / 1000);
+    const sig = createHmac('sha256', secret).update(`${t}.${body.toString()}`).digest('hex');
+    expect(verifyStripeWebhook(body, `t=${t},v1=${sig}`, secret)?.type).toBe('checkout.session.completed');
+    expect(verifyStripeWebhook(body, `t=${t},v1=${sig.replace(/^./, sig[0] === 'a' ? 'b' : 'a')}`, secret)).toBeNull();
+    expect(verifyStripeWebhook(body, `t=${t - 1000},v1=${sig}`, secret)).toBeNull();
+    expect(verifyStripeWebhook(body, undefined, secret)).toBeNull();
+    // The route itself refuses unsigned posts.
+    const b = await boot();
+    try {
+      expect((await request(b.base).post('/api/payments/stripe/webhook').set('content-type', 'application/json').send(body.toString())).status).toBe(503);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

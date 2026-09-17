@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { BOOK_EMOJI, type RecipeBook } from '@foodi/shared';
+import { BOOK_EMOJI, formatMoney, type RecipeBook } from '@foodi/shared';
 import { errorMessage } from '../api/client';
 import { books as booksApi, type BookInput } from '../api/types';
 import { plural } from '../lib/format';
@@ -18,6 +18,8 @@ export function BookCard({ book }: { book: RecipeBook }) {
         <span className="book-private">
           {plural(book.recipeCount, 'recipe')}
           {book.visibility === 'private' ? ' · 🔒 private' : ''}
+          {book.forSale ? ` · ${book.purchased ? 'owned' : formatMoney(book.priceCents)}` : ''}
+          {book.promoted ? ' · 🚀' : ''}
           {!book.isMine ? ` · by ${book.owner.displayName}` : ''}
         </span>
         {book.peek.length > 0 && (

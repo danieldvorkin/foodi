@@ -73,6 +73,11 @@ export const AppSettingsSchema = z.object({
   maxUploadMbPerUser: z.number().int().min(0).max(100000),
   /** How often the house kitchen (@foodi) shares one of its recipes to the feed. 0 = never. */
   housePostsPerDay: z.number().int().min(0).max(24),
+  /** Selling recipe books and buying promotions. Off hides every buy button. */
+  paymentsEnabled: z.boolean(),
+  promotionsEnabled: z.boolean(),
+  /** foodi's cut of each book sale, in percent. */
+  platformFeePercent: z.number().int().min(0).max(50),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 

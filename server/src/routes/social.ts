@@ -21,8 +21,9 @@ import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import { coverForRecipe, mediaForPost, type MediaRow } from './media.js';
 import { BLOG_SELECT, toBlogPost, type BlogRow } from './blog.js';
-import { booksFor } from './books.js';
+import { BOOK_SELECT, booksFor, toBook } from './books.js';
 import type { Notifier } from '../services/notify.js';
+import type { Commerce } from '../services/commerce.js';
 
 interface PostRow {
   id: string;
@@ -94,7 +95,7 @@ export function unshareIfOrphan(db: Db, recipeId: string) {
   }
 }
 
-export function socialRoutes(db: Db, notifier: Notifier) {
+export function socialRoutes(db: Db, notifier: Notifier, commerce: Commerce) {
   const r = Router();
   r.use(requireAuth);
 
@@ -121,14 +122,31 @@ export function socialRoutes(db: Db, notifier: Notifier) {
       ...scopeParams,
       ...(before ? [before] : []),
     );
+    // Public books with something in them show up as their own kind of item.
+    const scopeBook = scope === 'following' ? ` AND (k.owner_id = ? OR k.owner_id IN (SELECT followee_id FROM follows WHERE follower_id = ?))` : '';
+    const books = all<Parameters<typeof toBook>[1]>(
+      db,
+      `${BOOK_SELECT} AND k.visibility = 'public'${scopeBook}${before ? ' AND k.created_at < ?' : ''}
+       AND EXISTS(SELECT 1 FROM recipe_book_items i WHERE i.book_id = k.id) ORDER BY k.created_at DESC LIMIT 20`,
+      ...scopeParams,
+      ...(before ? [before] : []),
+    );
     const items: FeedItem[] = [
       ...posts.map((x): FeedItem => ({ type: 'post', createdAt: x.created_at, post: toPost(db, x, me) })),
       ...blogs.map((x): FeedItem => ({ type: 'blog', createdAt: x.published_at ?? x.created_at, blog: toBlogPost(db, x, me) })),
+      ...books.map((x): FeedItem => ({ type: 'book', createdAt: x.created_at, book: toBook(db, x, me) })),
     ]
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .slice(0, 20);
-    const exhausted = posts.length < 20 && blogs.length < 20;
-    res.json({ items, nextBefore: !exhausted && items.length === 20 ? items[items.length - 1]!.createdAt : null });
+    const exhausted = posts.length < 20 && blogs.length < 20 && books.length < 20;
+    const nextBefore = !exhausted && items.length === 20 ? items[items.length - 1]!.createdAt : null;
+    // Paid placements: up to three per page, clearly labelled, never counted against the page.
+    const promos = items.length ? commerce.pickForFeed(Math.min(3, Math.ceil(items.length / 6))) : [];
+    promos.forEach((promotion, i) => {
+      const at = Math.min(items.length, 2 + i * 7);
+      items.splice(at, 0, { type: 'promo', createdAt: items[at]?.createdAt ?? promotion.createdAt, promotion });
+    });
+    res.json({ items, nextBefore });
   });
 
   /** People worth following: most followed / most active you don't follow yet. */

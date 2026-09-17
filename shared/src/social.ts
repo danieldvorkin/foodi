@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DIFFICULTY, MEAL_TYPES, MediaItemSchema, RecipeContentSchema } from './recipe.js';
+import { PromotionSchema } from './commerce.js';
 
 export const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -103,7 +104,7 @@ export const EditRecipeSchema = AuthoredRecipeSchema.extend({
   revisionNotes: z.string().trim().max(2000).optional(),
 });
 
-export const NOTIFICATION_KINDS = ['like', 'comment', 'save', 'role', 'system', 'follow', 'book', 'remix', 'post'] as const;
+export const NOTIFICATION_KINDS = ['like', 'comment', 'save', 'role', 'system', 'follow', 'book', 'remix', 'post', 'sale', 'promo', 'payout'] as const;
 export const NotificationSchema = z.object({
   id: z.string(),
   kind: z.enum(NOTIFICATION_KINDS),
@@ -176,16 +177,6 @@ export const UpsertBlogPostSchema = z.object({
   coverMediaId: z.string().min(1).nullable().default(null),
 });
 
-// ---- feed ---------------------------------------------------------------------------------
-export const FEED_SCOPES = ['everyone', 'following'] as const;
-export type FeedScope = (typeof FEED_SCOPES)[number];
-
-export const FeedItemSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('post'), createdAt: z.string(), post: PostSchema }),
-  z.object({ type: z.literal('blog'), createdAt: z.string(), blog: BlogPostSchema }),
-]);
-export type FeedItem = z.infer<typeof FeedItemSchema>;
-
 // ---- recipe books -------------------------------------------------------------------------
 export const BOOK_EMOJI = ['📚', '📕', '📗', '📘', '📙', '📒', '🍝', '🥗', '🍰', '🍲', '🌮', '🍱', '🥖', '🧁', '🍳', '🎄', '🎃', '🏕️', '🎉', '💪'] as const;
 
@@ -202,6 +193,15 @@ export const RecipeBookSchema = z.object({
   isMine: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Selling: price and pitch; `purchased` is the viewer's own status, `salesCount` is public. */
+  forSale: z.boolean(),
+  priceCents: z.number(),
+  salesPitch: z.string(),
+  previewCount: z.number(),
+  purchased: z.boolean(),
+  salesCount: z.number(),
+  /** An active promotion the owner bought, if any (for the "Promoted" label). */
+  promoted: z.boolean(),
 });
 export type RecipeBook = z.infer<typeof RecipeBookSchema>;
 
@@ -219,6 +219,8 @@ export const BookItemSchema = z.object({
   addedAt: z.string(),
   /** False when the recipe went private since it was added; the owner still sees it. */
   available: z.boolean(),
+  /** True for recipes beyond the preview in a book the viewer hasn't bought. */
+  locked: z.boolean(),
 });
 export type BookItem = z.infer<typeof BookItemSchema>;
 
@@ -233,3 +235,17 @@ export const AddBookItemSchema = z.object({
   recipeId: z.string().min(1),
   note: z.string().trim().max(300).default(''),
 });
+
+// ---- feed ---------------------------------------------------------------------------------
+export const FEED_SCOPES = ['everyone', 'following'] as const;
+export type FeedScope = (typeof FEED_SCOPES)[number];
+
+export const FeedItemSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('post'), createdAt: z.string(), post: PostSchema }),
+  z.object({ type: z.literal('blog'), createdAt: z.string(), blog: BlogPostSchema }),
+  /** A public recipe book someone put together. */
+  z.object({ type: z.literal('book'), createdAt: z.string(), book: RecipeBookSchema }),
+  /** A paid placement. Always labelled. */
+  z.object({ type: z.literal('promo'), createdAt: z.string(), promotion: PromotionSchema }),
+]);
+export type FeedItem = z.infer<typeof FeedItemSchema>;

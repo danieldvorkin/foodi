@@ -5,6 +5,9 @@ import { MediaThumb, MediaUploader } from '../../components/Media';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social, type Person, type RecipeSummary } from '../../api/types';
 import { BlogCard } from '../../components/BlogCard';
+import { BookFeedCard, PromoCard } from '../../components/Commerce';
+import { formatMoney, type Promotion } from '@foodi/shared';
+import { commerce as commerceApi } from '../../api/types';
 import { PostCard } from '../../components/PostCard';
 import { FollowButton } from '../../components/People';
 import { useToast } from '../../components/Toast';
@@ -13,8 +16,8 @@ import { useMe } from './layout';
 
 export async function feedLoader({ request }: { request: Request }) {
   const scope: FeedScope = new URL(request.url).searchParams.get('scope') === 'following' ? 'following' : 'everyone';
-  const [feed, mine, sugg] = await Promise.all([social.feed(scope), recipesApi.list(), social.suggestions()]);
-  return { ...feed, scope, mine: mine.recipes, people: sugg.people };
+  const [feed, mine, sugg, featured] = await Promise.all([social.feed(scope), recipesApi.list(), social.suggestions(), commerceApi.featured().catch(() => ({ promotions: [] as Promotion[] }))]);
+  return { ...feed, scope, mine: mine.recipes, people: sugg.people, featured: featured.promotions };
 }
 
 function LeftRail({ mine }: { mine: RecipeSummary[] }) {
@@ -81,12 +84,35 @@ function LeftRail({ mine }: { mine: RecipeSummary[] }) {
   );
 }
 
-function RightRail({ people, items }: { people: Person[]; items: FeedItem[] }) {
+function RightRail({ people, items, featured }: { people: Person[]; items: FeedItem[]; featured: Promotion[] }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const blogs = items.filter((i) => i.type === 'blog').slice(0, 4);
   const suggestions = people.filter((p) => !gone.has(p.id));
   return (
     <aside className="rail rail-right" aria-label="Around foodi">
+      {featured.length > 0 && (
+        <div className="rail-section">
+          <h3>Featured books · promoted</h3>
+          <ul className="rail-list">
+            {featured.map((p) => (
+              <li key={p.id}>
+                <span className="emoji-tile" aria-hidden="true" style={{ width: 36, height: 36, fontSize: 18 }}>
+                  {p.book.emoji}
+                </span>
+                <span className="grow">
+                  <Link to={`/app/books/${p.book.id}`} className="name" onClick={() => void commerceApi.click(p.id).catch(() => {})}>
+                    {p.book.name}
+                  </Link>
+                  <span className="sub">
+                    {p.book.owner.displayName}
+                    {p.book.forSale ? ` · ${formatMoney(p.book.priceCents)}` : ''}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="rail-section">
         <h3>People to follow</h3>
         {suggestions.length === 0 ? (
@@ -258,13 +284,18 @@ export function FeedPage() {
           )
         ) : (
           <div className="stack">
-            {items.map((it) =>
-              it.type === 'post' ? (
-                <PostCard key={`p-${it.post.id}`} post={it.post} onDeleted={revalidate} />
-              ) : (
-                <BlogCard key={`b-${it.blog.id}`} post={it.blog} />
-              ),
-            )}
+            {items.map((it) => {
+              switch (it.type) {
+                case 'post':
+                  return <PostCard key={`p-${it.post.id}`} post={it.post} onDeleted={revalidate} />;
+                case 'blog':
+                  return <BlogCard key={`b-${it.blog.id}`} post={it.blog} />;
+                case 'book':
+                  return <BookFeedCard key={`k-${it.book.id}`} book={it.book} />;
+                case 'promo':
+                  return <PromoCard key={`m-${it.promotion.id}`} promotion={it.promotion} />;
+              }
+            })}
             {nextBefore && (
               <button type="button" className="btn btn-block" onClick={loadMore}>
                 Older
@@ -274,7 +305,7 @@ export function FeedPage() {
         )}
       </main>
 
-      <RightRail people={data.people} items={items} />
+      <RightRail people={data.people} items={items} featured={data.featured} />
 
       <Sheet open={open} onClose={() => setOpen(false)} title="📣 Share a recipe">
         <div className="field">
