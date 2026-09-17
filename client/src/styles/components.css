@@ -247,6 +247,8 @@
   font-size: var(--t-14);
   font-weight: 500;
   position: relative;
+  /* Own stacking context, so the ::before pill sits behind the label but in front of the bar. */
+  isolation: isolate;
   transition: color var(--fast) var(--ease);
 }
 .tab:hover {
@@ -259,12 +261,23 @@
 .tab::before {
   content: '';
   position: absolute;
-  inset: 10px 4px;
-  border-radius: var(--r-md);
+  inset: 11px 0;
+  border-radius: 999px;
   background: var(--flour);
   opacity: 0;
-  transition: opacity var(--fast) var(--ease);
+  transition: opacity var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
   z-index: -1;
+}
+/* Keyboard focus rings the pill, not the whole 60px column, so nothing appears to jump. */
+.tab:focus-visible {
+  outline: none;
+}
+.tab:focus-visible::before {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--sage);
+}
+.tab:active .tab-icon {
+  transform: translateY(-1px) scale(0.94);
 }
 .tab[aria-current='page'] {
   color: var(--ink);

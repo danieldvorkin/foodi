@@ -86,9 +86,17 @@
   padding: 6px 4px;
   min-width: 0;
 }
-.rail-list li > a:first-child,
 .rail-list li .grow {
   min-width: 0;
+}
+/* The avatar never shrinks, however long the name or bio next to it. */
+.rail-list li > a:first-child,
+.rail-list li > .avatar,
+.rail-list li > .emoji-tile {
+  flex: none;
+}
+.rail-list li > .btn {
+  flex: none;
 }
 .rail-list .name {
   display: block;
@@ -656,4 +664,12 @@
 }
 .promo-body h3 {
   font-size: var(--t-20);
+}
+
+/* Avatars wrapped in a link sit inside flex rows; the link must not give up its width. */
+.person > a,
+.blog-byline > a,
+.rail-list li > a,
+.rail-me > .avatar {
+  flex: none;
 }

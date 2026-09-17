@@ -19,7 +19,7 @@ export function useMe(): Me {
 
 function Tab({ to, end, icon, label }: { to: string; end?: boolean; icon: string; label: string }) {
   return (
-    <NavLink to={to} end={Boolean(end)} className="tab" title={label}>
+    <NavLink to={to} end={Boolean(end)} className="tab">
       <span className="tab-icon" aria-hidden="true">
         {icon}
       </span>

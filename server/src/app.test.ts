@@ -1081,6 +1081,8 @@ describe('commerce (test payment provider)', () => {
       expect(mine.body.promotions[0].impressions).toBeGreaterThanOrEqual(1);
       expect(mine.body.spentOnPromotionsCents).toBe(1499);
       expect((await request(b.base).get(`/api/books/${bookId}`).set('cookie', sam)).body.book.promoted).toBe(true);
+      // One live promotion per book at a time.
+      expect((await request(b.base).post(`/api/commerce/books/${bookId}/promote`).set('cookie', ada).set('origin', ORIGIN).send({ packageId: 'boost-3' })).status).toBe(409);
 
       await request(b.base).post(`/api/admin/commerce/promotions/${id}/cancel`).set('cookie', ada).set('origin', ORIGIN);
       expect((await request(b.base).get('/api/commerce/featured').set('cookie', sam)).body.promotions).toHaveLength(0);

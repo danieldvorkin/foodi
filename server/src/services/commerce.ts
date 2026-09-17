@@ -207,6 +207,9 @@ export function createCommerce({ db, settings, notifier, provider, appOrigin, lo
     if (!book || book.owner_id !== owner.id) throw notFound('That book is gone.');
     if (book.visibility !== 'public') throw badRequest('Make the book public before promoting it.');
     if (n('SELECT COUNT(*) AS n FROM recipe_book_items WHERE book_id = ?', bookId) === 0) throw badRequest('Put some recipes in the book first.');
+    expire();
+    const running = one<{ ends_at: string }>(db, `SELECT ends_at FROM promotions WHERE book_id = ? AND status = 'active'`, bookId);
+    if (running) throw conflict(`This book is already promoted until ${new Date(running.ends_at).toLocaleDateString()}. You can buy another package once it ends.`);
     const id = newId('prm');
     run(
       db,
@@ -277,9 +280,13 @@ export function createCommerce({ db, settings, notifier, provider, appOrigin, lo
   function expire() {
     run(db, `UPDATE promotions SET status = 'expired' WHERE status = 'active' AND ends_at < ?`, now());
   }
+  /** One entry per book, even if it somehow has more than one live promotion. */
   function activePromotions(): Promotion[] {
     expire();
-    return all<PromotionRow>(db, `${PROMOTION_SELECT} WHERE pr.status = 'active' AND k.visibility = 'public' AND u.disabled_at IS NULL ORDER BY pr.created_at DESC`).map(toPromotion);
+    const seen = new Set<string>();
+    return all<PromotionRow>(db, `${PROMOTION_SELECT} WHERE pr.status = 'active' AND k.visibility = 'public' AND u.disabled_at IS NULL ORDER BY pr.created_at DESC`)
+      .map(toPromotion)
+      .filter((p) => (seen.has(p.book.id ?? "") ? false : (seen.add(p.book.id ?? ""), true)));
   }
   /** Pick up to `count` distinct promotions, weighted by package, for one page of the feed. */
   function pickForFeed(count: number): Promotion[] {

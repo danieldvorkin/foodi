@@ -103,6 +103,25 @@ export function SellSheet({ book, config, open, onClose, onSaved }: { book: Reci
 
 /** Owner: buy a promotion package. */
 export function PromoteSheet({ book, config, open, onClose }: { book: RecipeBook; config: CommerceConfig; open: boolean; onClose: () => void }) {
+  if (book.promoted) {
+    return (
+      <Sheet open={open} onClose={onClose} title="🚀 Already promoted">
+        <p className="muted">This book is in the feed and the Featured rail right now. You can buy another package once this one ends — see the end date on your sales page.</p>
+        <div className="row">
+          <Link to="/app/sales" className="btn btn-primary" onClick={onClose}>
+            Sales & payouts
+          </Link>
+          <button type="button" className="btn btn-quiet" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </Sheet>
+    );
+  }
+  return <PromotePicker book={book} config={config} open={open} onClose={onClose} />;
+}
+
+function PromotePicker({ book, config, open, onClose }: { book: RecipeBook; config: CommerceConfig; open: boolean; onClose: () => void }) {
   const toast = useToast();
   const [pick, setPick] = useState<PromoPackageId>(config.packages[1]?.id ?? config.packages[0]!.id);
   const [busy, setBusy] = useState(false);
