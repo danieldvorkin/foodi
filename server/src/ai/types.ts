@@ -49,8 +49,8 @@ export interface AiClient {
   generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput>;
   /** Optional: make a photo of the finished dish. Absent when the vendor can't (Anthropic). */
   generateImage?(input: ImageInput, credential: CredentialPayload): Promise<ImageOutput>;
-  /** Optional: look at a photo and say whether it depicts the recipe. */
-  describeImage?(png: Buffer, recipe: { title: string; keyIngredients: string[] }, credential: CredentialPayload): Promise<VisionOutput>;
+  /** Optional: look at a photo (JPEG or PNG; the type is sniffed) and say whether it depicts the recipe. */
+  describeImage?(image: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, credential: CredentialPayload): Promise<VisionOutput>;
 }
 
 export class AiError extends Error {

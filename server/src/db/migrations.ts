@@ -494,4 +494,21 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE users ADD COLUMN auto_photos INTEGER NOT NULL DEFAULT 1;
     `,
   },
+  {
+    name: 'photo-sources',
+    sql: `
+      ALTER TABLE media ADD COLUMN source TEXT NOT NULL DEFAULT 'upload';
+      ALTER TABLE media ADD COLUMN credit TEXT;
+      ALTER TABLE media ADD COLUMN license TEXT;
+      ALTER TABLE media ADD COLUMN source_url TEXT;
+      UPDATE media SET source = 'ai' WHERE generated = 1;
+      CREATE TABLE photo_seen (
+        recipe_id TEXT NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+        source_url TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (recipe_id, source_url)
+      );
+    `,
+  },
 ];

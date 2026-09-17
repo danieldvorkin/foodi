@@ -46,6 +46,10 @@ const EnvSchema = z.object({
   OPENAI_API_BASE: z.string().url().default('https://api.openai.com'),
   OPENAI_MODEL: z.string().default('gpt-5'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  /** Optional photo libraries for recipe covers (Wikimedia Commons is always on). */
+  PEXELS_API_KEY: z.string().optional(),
+  GOOGLE_CSE_KEY: z.string().optional(),
+  GOOGLE_CSE_CX: z.string().optional(),
 
   // Anthropic — API key only (third-party Claude.ai sign-in is not permitted by Anthropic)
   ANTHROPIC_API_BASE: z.string().url().default('https://api.anthropic.com'),
@@ -108,6 +112,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       apiBase: e.ANTHROPIC_API_BASE.replace(/\/$/, ''),
       model: e.ANTHROPIC_MODEL,
     },
+    photos: { pexelsApiKey: e.PEXELS_API_KEY, googleCseKey: e.GOOGLE_CSE_KEY, googleCseCx: e.GOOGLE_CSE_CX },
     genericOAuth:
       e.GENERIC_OAUTH_CLIENT_ID && e.GENERIC_OAUTH_ISSUER && e.GENERIC_OAUTH_VENDOR
         ? {

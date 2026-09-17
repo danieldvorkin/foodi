@@ -137,7 +137,6 @@ export function SettingsPage() {
               <input
                 type="checkbox"
                 checked={me.autoPhotos}
-                disabled={!me.aiCapabilities.images}
                 style={{ marginTop: 4 }}
                 onChange={async (e) => {
                   try {
@@ -150,13 +149,13 @@ export function SettingsPage() {
                 }}
               />
               <span>
-                Also make a photo of each recipe the AI writes
+                Also give each recipe the AI writes a cover photo
                 <span className="muted small" style={{ display: 'block' }}>
                   {me.aiCapabilities.images
-                    ? 'Generated after the recipe, checked by a vision model against the dish before it’s shown, billed to your account (roughly a few cents each). You can always delete it.'
+                    ? 'Generated after the recipe and checked by a vision model against the dish before it’s shown, billed to your account (roughly a few cents each). You can always swap or delete it.'
                     : me.vendor === 'anthropic'
-                      ? 'Claude can check photos but can’t make them — connect an OpenAI key to turn this on.'
-                      : 'Connect an AI that can generate images (OpenAI) to turn this on.'}
+                      ? 'Claude can’t make pictures, so a photo of the dish is found in a photo library instead and Claude checks it (a fraction of a cent). Connect an OpenAI key to generate photos.'
+                      : 'A photo of the dish is found in a photo library after the recipe is written. Connect an AI that can generate images (OpenAI) to make them instead.'}
                 </span>
               </span>
             </label>

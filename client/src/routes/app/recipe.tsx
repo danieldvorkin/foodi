@@ -34,8 +34,14 @@ export function RecipePage() {
   const jobs = useJobs();
   const photoJob = jobs.find((j) => j.kind === 'image' && j.recipeId === recipe.id);
   const photoInFlight = Boolean(photoJob && isActive(photoJob));
-  const generatedCover = recipe.media.find((m) => m.generated);
-  const canMakePhoto = isMine && me.aiCapabilities.images && !recipe.adaptedFrom && !recipe.media.some((m) => m.kind === 'image' && !m.generated);
+  const cover = recipe.media[0] ?? null;
+  const hasUpload = recipe.media.some((m) => m.kind === 'image' && !m.generated);
+  // Auto photos other than the cover stay out of the hero: they are the owner's "tried" strip.
+  const heroItems = recipe.media.filter((m) => !m.generated || m.id === cover?.id);
+  const autoPhotos = recipe.media.filter((m) => m.generated);
+  const canAutoPhoto = isMine && !recipe.adaptedFrom && !hasUpload;
+  const canMakePhoto = canAutoPhoto && me.aiCapabilities.images;
+  const [shuffling, setShuffling] = useState(false);
   // A finished photo job means the loader data is stale until we revalidate.
   const [seenPhotoJob, setSeenPhotoJob] = useState<string | null>(null);
   if (photoJob && photoJob.status === 'done' && seenPhotoJob !== `${photoJob.id}:done`) {
@@ -155,19 +161,107 @@ export function RecipePage() {
     }
   }
 
+  async function shufflePhoto() {
+    setShuffling(true);
+    try {
+      await recipesApi.shufflePhoto(recipe.id);
+      revalidate();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    } finally {
+      setShuffling(false);
+    }
+  }
+
+  async function pickCover(m: MediaItem) {
+    if (m.id === cover?.id) return;
+    try {
+      await recipesApi.setCover(recipe.id, m.id);
+      revalidate();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  }
+
   return (
     <main className="page recipe">
-      {photoInFlight && recipe.media.length === 0 && (
+      {(photoInFlight || shuffling) && recipe.media.length === 0 && (
         <section className="recipe-hero">
           <div className="photo-shimmer" role="status" aria-live="polite">
-            <span className="spinner" /> {photoJob?.status === 'queued' && photoJob.attempts > 0 ? 'First photo didn’t pass the check — trying once more…' : 'Photographing your dish…'}
+            <span className="spinner" />{' '}
+            {shuffling ? 'Finding a photo of your dish…' : photoJob?.status === 'queued' && photoJob.attempts > 0 ? 'First photo didn’t pass the check — trying once more…' : me.aiCapabilities.images ? 'Photographing your dish…' : 'Finding a photo of your dish…'}
+          </div>
+        </section>
+      )}
+      {!photoInFlight && !shuffling && recipe.media.length === 0 && canAutoPhoto && (
+        <section className="recipe-hero">
+          <div className="photo-empty">
+            <span className="photo-empty-emoji" aria-hidden="true">
+              {c.emoji}
+            </span>
+            <div className="stack" style={{ gap: 'var(--s-2)' }}>
+              <p className="muted">No photo yet.</p>
+              <div className="row">
+                <button type="button" className="btn btn-primary btn-sm" onClick={shufflePhoto}>
+                  🎲 Find a photo
+                </button>
+                {canMakePhoto && (
+                  <button type="button" className="btn btn-sm" onClick={makePhoto}>
+                    ✨ Generate with AI
+                  </button>
+                )}
+                <button type="button" className="btn btn-sm" onClick={() => setPhotosOpen(true)}>
+                  📷 Add your own
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       )}
       {recipe.media.length > 0 && (
         <section className="recipe-hero">
-          <MediaGallery items={recipe.media} layout="hero" {...(isMine ? { onDelete: deleteMedia } : {})} />
-          {generatedCover && <p className="hint">✨ AI photo, checked against the recipe before it was shown. {isMine ? 'Delete it from the gallery if it’s not right.' : ''}</p>}
+          <MediaGallery items={heroItems} layout="hero" {...(isMine ? { onDelete: deleteMedia } : {})} />
+          <div className="photo-bar">
+            {cover && <PhotoCredit m={cover} />}
+            {canAutoPhoto && (
+              <div className="row photo-bar-actions">
+                <button type="button" className="btn btn-sm" onClick={shufflePhoto} disabled={shuffling || photoInFlight}>
+                  {shuffling ? (
+                    <>
+                      <span className="spinner" /> Finding a photo…
+                    </>
+                  ) : (
+                    '🎲 Try another photo'
+                  )}
+                </button>
+                {canMakePhoto && (
+                  <button type="button" className="btn btn-sm" onClick={makePhoto} disabled={photoInFlight || shuffling}>
+                    {photoInFlight ? '✨ Photographing…' : '✨ Generate with AI'}
+                  </button>
+                )}
+                {cover?.generated && (
+                  <button type="button" className="btn btn-quiet btn-sm" onClick={() => deleteMedia(cover)} disabled={shuffling}>
+                    🗑 Remove this photo
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {isMine && autoPhotos.length > 1 && (
+            <div className="photo-strip" role="group" aria-label="Photos tried for this recipe">
+              {autoPhotos.map((m) => (
+                <span key={m.id} className="photo-strip-cell">
+                  <button type="button" className="photo-strip-item" aria-pressed={m.id === cover?.id} onClick={() => pickCover(m)} title={m.id === cover?.id ? 'Current cover' : 'Use this photo'}>
+                    <img src={mediaApi.url(m.id)} alt="" loading="lazy" />
+                  </button>
+                  <button type="button" className="photo-strip-del" onClick={() => deleteMedia(m)} aria-label="Delete this photo">
+                    ×
+                  </button>
+                </span>
+              ))}
+              <span className="muted tiny">Tap one to use it as the cover; × deletes it.</span>
+            </div>
+          )}
         </section>
       )}
 
@@ -271,11 +365,6 @@ export function RecipePage() {
               <button type="button" className="btn" onClick={() => setPhotosOpen((o) => !o)} aria-expanded={photosOpen}>
                 📷 {recipe.media.length ? 'Add more photos' : 'Add photos'}
               </button>
-              {canMakePhoto && (
-                <button type="button" className="btn" onClick={makePhoto} disabled={photoInFlight}>
-                  {photoInFlight ? '✨ Photographing…' : generatedCover ? '✨ Redo the AI photo' : '✨ Generate a photo'}
-                </button>
-              )}
               <span className="recipe-actions-sep" aria-hidden="true" />
               <button type="button" className="btn" onClick={() => setShareOpen(true)}>
                 📣 {visibility === 'public' ? 'Share again' : 'Share to the feed'}
@@ -444,5 +533,27 @@ export function RecipePage() {
         </div>
       </Sheet>
     </main>
+  );
+}
+
+/** Who took the cover photo. AI photos say so; library photos credit the author and licence. */
+function PhotoCredit({ m }: { m: MediaItem }) {
+  if (!m.generated) return null;
+  if (m.source === 'ai') return <p className="hint photo-credit">✨ AI photo, checked against the recipe before it was shown.</p>;
+  const label =
+    m.source === 'pexels' ? `Photo by ${m.credit ?? 'a Pexels photographer'} on Pexels`
+    : m.source === 'google' ? `Photo: ${m.credit ?? 'found on the web'}`
+    : `Photo: ${m.credit ?? 'Wikimedia Commons'}${m.license ? ` · ${m.license}` : ''} · Wikimedia Commons`;
+  return (
+    <p className="hint photo-credit">
+      📷{' '}
+      {m.sourceUrl ? (
+        <a href={m.sourceUrl} target="_blank" rel="noopener noreferrer">
+          {label}
+        </a>
+      ) : (
+        label
+      )}
+    </p>
   );
 }

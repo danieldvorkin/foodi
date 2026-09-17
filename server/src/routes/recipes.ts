@@ -23,6 +23,8 @@ import type { Notifier } from '../services/notify.js';
 import { canReadRecipe } from '../services/access.js';
 import type { Jobs } from '../services/jobs.js';
 import { runGeneration } from '../ai/generate-job.js';
+import type { PhotoService } from '../photos/service.js';
+import { PhotoError } from '../photos/types.js';
 
 export interface RecipeRow {
   id: string;
@@ -110,9 +112,11 @@ function completeAuthored(input: z.infer<typeof AuthoredRecipeSchema>): RecipeCo
   });
 }
 
-export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, notifier: Notifier, jobs: Jobs) {
+export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, notifier: Notifier, jobs: Jobs, photos: PhotoService) {
   const r = Router();
   r.use(requireAuth);
+  /** One shuffle at a time per recipe: the search + download takes a few seconds. */
+  const shuffling = new Set<string>();
 
   /** A recipe you own, one someone has shared publicly, or one in a book you've bought. */
   function loadVisible(id: string, userId: string, role: string = 'consumer'): RecipeRow {
@@ -183,7 +187,39 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
     const row = loadOwned(req.params['id']!, userId);
     if (!ai.capabilities(userId).images) throw new HttpError(409, 'no_image_support', 'The connected AI can’t generate images. Connect an OpenAI key to use this.');
     if (one(db, `SELECT 1 FROM jobs WHERE user_id = ? AND kind = 'image' AND result_recipe_id = ? AND status IN ('queued','running')`, userId, row.id)) throw new HttpError(409, 'busy', 'A photo is already being made for this recipe.');
-    res.status(202).json({ job: jobs.enqueue('image', userId, { recipeId: row.id }, 2, row.id) });
+    res.status(202).json({ job: jobs.enqueue('image', userId, { recipeId: row.id, mode: 'generate' }, 2, row.id) });
+  });
+
+  /**
+   * Try another photo: the next library photo this recipe hasn't been shown becomes the cover.
+   * Synchronous (a few seconds). When the person's AI can see, candidates are checked to be this
+   * dish — or at least food — and the search keeps going until one passes. 404 `no_photo_found`
+   * only when the libraries run dry.
+   */
+  r.post('/:id/photo/shuffle', async (req, res, next) => {
+    const userId = req.user!.id;
+    try {
+      const row = loadOwned(req.params['id']!, userId);
+      if (shuffling.has(row.id)) throw new HttpError(409, 'busy', 'Still finding the last one.');
+      shuffling.add(row.id);
+      try {
+        const cred = ai.store.getCredential(userId);
+        const client = cred ? ai.clients[cred.vendor] : undefined;
+        const check = cred && client?.describeImage ? { client, credential: cred.payload, onVerdict: (r: { grade: 'match' | 'food' | 'no'; model: string; usage: { inputTokens: number | null; outputTokens: number | null }; latencyMs: number }) => ai.recordAux(userId, 'vision', client.vendor, r.model, 'ok', r.latencyMs, { ...r.usage, recipeId: row.id, errorCode: r.grade === 'no' ? 'image_rejected' : null }) } : null;
+        const media = await photos.source({ userId, recipeId: row.id, subject: parseContent(row), check });
+        res.json({ media: mediaForRecipe(db, row.id), cover: media });
+      } finally {
+        shuffling.delete(row.id);
+      }
+    } catch (err) {
+      next(err instanceof PhotoError ? new HttpError(err.code === 'no_photo_found' ? 404 : 502, err.code, err.message) : err);
+    }
+  });
+
+  /** Make one of the recipe's photos the cover. */
+  r.post('/:id/media/:mediaId/cover', (req, res) => {
+    const row = loadOwned(req.params['id']!, req.user!.id);
+    res.json({ media: photos.setCover(row.id, req.params['mediaId']!) });
   });
 
   /** Author your own recipe. */

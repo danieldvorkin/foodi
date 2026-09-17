@@ -247,6 +247,28 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     res.json({ job: jobs.get(req.params['id']!) });
   });
 
+  /**
+   * Find library photos for every house-kitchen recipe that has none. Runs as ordinary image
+   * jobs owned by the house account (no credential, so no vision vetting). Only the house
+   * kitchen: other people's recipes would spend their AI credits on the check.
+   */
+  r.post('/photos/backfill', (req, res) => {
+    const house = one<{ id: string }>(db, 'SELECT id FROM users WHERE is_system = 1');
+    if (!house) throw badRequest('The house kitchen is not set up.');
+    const missing = all<{ id: string }>(
+      db,
+      `SELECT r.id FROM recipes r
+       WHERE r.user_id = ? AND r.forked_from_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM media m WHERE m.recipe_id = r.id AND m.kind = 'image')
+         AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.result_recipe_id = r.id AND j.kind = 'image' AND j.status IN ('queued','running'))
+       ORDER BY r.created_at`,
+      house.id,
+    );
+    for (const { id } of missing) jobs.enqueue('image', house.id, { recipeId: id, mode: 'source' }, 1, id);
+    audit.record(req.user!.id, 'photos.backfill', 'user', house.id, { queued: missing.length });
+    res.json({ queued: missing.length });
+  });
+
   r.get('/blog', (_req, res) => {
     const rows = all<{ id: string; title: string; status: string; created_at: string; published_at: string | null; author_id: string; handle: string; likes: number; comments: number }>(
       db,

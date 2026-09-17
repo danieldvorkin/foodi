@@ -3,7 +3,7 @@ import express from 'express';
 import { createReadStream, statSync } from 'node:fs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { MediaItem } from '@foodi/shared';
+import type { MediaItem, PhotoSource } from '@foodi/shared';
 import type { Db } from '../db/index.js';
 import { all, one, run } from '../db/index.js';
 import { newId } from '../lib/crypto.js';
@@ -31,13 +31,17 @@ export interface MediaRow {
   position: number;
   created_at: string;
   generated: number;
+  source: PhotoSource;
+  credit: string | null;
+  license: string | null;
+  source_url: string | null;
 }
 
 export const IMAGE_LIMIT = 12 * 1024 * 1024;
 export const VIDEO_LIMIT = 120 * 1024 * 1024;
 
 export function toMediaItem(m: MediaRow): MediaItem {
-  return { id: m.id, kind: m.kind, mime: m.mime, width: m.width, height: m.height, bytes: m.bytes, createdAt: m.created_at, generated: Boolean(m.generated) };
+  return { id: m.id, kind: m.kind, mime: m.mime, width: m.width, height: m.height, bytes: m.bytes, createdAt: m.created_at, generated: Boolean(m.generated), source: m.source, credit: m.credit, license: m.license, sourceUrl: m.source_url };
 }
 
 export function mediaForRecipe(db: Db, recipeId: string): MediaItem[] {

@@ -32,10 +32,12 @@ export function createMockClient(): AiClient {
       return { png, model: 'mock-camera-1' };
     },
     /** Says yes unless the recipe title asks it not to ("reject-me" is the test hook). */
-    async describeImage(_png: Buffer, recipe: { title: string; keyIngredients: string[] }, _credential: CredentialPayload): Promise<VisionOutput> {
+    async describeImage(_png: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, _credential: CredentialPayload): Promise<VisionOutput> {
+      // "reject-me" in the title: a different dish; "not-food": not food at all.
       const reject = /reject-me/i.test(recipe.title);
+      const notFood = /not-food/i.test(recipe.title);
       return {
-        verdict: { isFood: true, matchesDish: !reject, hasProblems: false, note: reject ? 'Looks like a different dish.' : 'Plausible photo of the dish.' },
+        verdict: { isFood: !notFood, matchesDish: !reject && !notFood, hasProblems: false, note: notFood ? 'Not food.' : reject ? 'Looks like a different dish.' : 'Plausible photo of the dish.' },
         model: 'mock-eyes-1',
         usage: { inputTokens: 600, outputTokens: 40 },
       };

@@ -1,5 +1,6 @@
 import { RecipeContentSchema } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
+import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseVerdict, recipeJsonSchema, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
 import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type ImageInput, type ImageOutput, type VisionOutput } from './types.js';
 
@@ -38,7 +39,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
       if (!b64) throw new AiError('bad_output', 'The image model returned no image.');
       return { png: Buffer.from(b64, 'base64'), model: imageModel };
     },
-    async describeImage(png: Buffer, recipe: { title: string; keyIngredients: string[] }, credential: CredentialPayload): Promise<VisionOutput> {
+    async describeImage(image: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, credential: CredentialPayload): Promise<VisionOutput> {
       let res: Response;
       try {
         res = await f(`${opts.apiBase}/v1/responses`, {
@@ -46,7 +47,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
           headers: { 'content-type': 'application/json', authorization: `Bearer ${bearerOf(credential)}` },
           body: JSON.stringify({
             model: opts.model,
-            input: [{ role: 'user', content: [{ type: 'input_text', text: visionRubric(recipe) }, { type: 'input_image', image_url: `data:image/png;base64,${png.toString('base64')}`, detail: 'low' }] }],
+            input: [{ role: 'user', content: [{ type: 'input_text', text: visionRubric(recipe) }, { type: 'input_image', image_url: `data:${imageMime(image)};base64,${image.toString('base64')}`, detail: 'low' }] }],
             text: { format: { type: 'json_schema', name: 'verdict', strict: true, schema: VERDICT_SCHEMA } },
             max_output_tokens: 200,
           }),

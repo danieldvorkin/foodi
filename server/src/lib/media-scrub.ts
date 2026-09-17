@@ -52,6 +52,12 @@ function scrubPng(buf: Buffer): Buffer {
   return Buffer.concat(out);
 }
 
+/** The MIME type to declare when sending an image to a vision model: sniffed, PNG when unsure. */
+export function imageMime(buf: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
+  const m = sniffMedia(buf)?.mime;
+  return m === 'image/jpeg' || m === 'image/webp' || m === 'image/gif' ? m : 'image/png';
+}
+
 /** Sniff the real type from magic bytes; never trust the declared content-type alone. */
 export function sniffMedia(buf: Buffer): { mime: string; kind: 'image' | 'video'; ext: string } | null {
   if (buf.length < 12) return null;
