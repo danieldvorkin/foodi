@@ -957,7 +957,7 @@ dialog.lightbox::backdrop {
   display: grid;
   place-items: center;
 }
-.emoji-pick button[aria-pressed='true'] {
+.emoji-pick button[aria-checked='true'] {
   border-color: var(--sage);
   background: var(--sage-soft);
 }

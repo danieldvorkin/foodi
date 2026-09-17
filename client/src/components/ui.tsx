@@ -14,7 +14,7 @@ export function EmojiPicker({ options, value, onChange, allowCustom }: { options
     <div className="row" style={{ gap: 'var(--s-3)' }}>
       <div className="emoji-pick" role="radiogroup">
         {options.map((e) => (
-          <button key={e} type="button" role="radio" aria-checked={value === e} aria-pressed={value === e} onClick={() => onChange(e)} aria-label={e}>
+          <button key={e} type="button" role="radio" aria-checked={value === e} onClick={() => onChange(e)} aria-label={e}>
             {e}
           </button>
         ))}
@@ -148,8 +148,10 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     if (!open && d.open) d.close();
   }, [open]);
   return (
+    // A click on the <dialog> itself (not its children) is a click on the backdrop; keyboard users close with Escape, which fires onClose.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <dialog ref={ref} className="sheet" onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
-      <div className="stack" onClick={(e) => e.stopPropagation()}>
+      <div className="stack">
         <div className="row-between">
           <h2 style={{ fontSize: 'var(--t-20)' }}>{title}</h2>
           <button type="button" className="btn btn-quiet btn-sm" onClick={onClose} aria-label="Close">
@@ -210,7 +212,16 @@ export function Menu({ button, label, children, align = 'right' }: { button: Rea
         {button}
       </button>
       {open && (
-        <div className={`panel panel-menu panel-${align}`} role="menu" onClick={() => setOpen(false)}>
+        // Any activation inside the menu (click, Enter or Space on an item) closes it; the items are real links/buttons.
+        <div
+          className={`panel panel-menu panel-${align}`}
+          role="menu"
+          tabIndex={-1}
+          onClick={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') setOpen(false);
+          }}
+        >
           {children}
         </div>
       )}

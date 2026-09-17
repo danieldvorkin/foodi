@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, useLoaderData, useSearchParams, type LoaderFunctionArgs } from 'react-router';
 import { SHOP_CATEGORIES, SHOP_CATEGORY_EMOJI, formatMoney, type Listing } from '@foodi/shared';
 import { media as mediaApi, shop as shopApi } from '../../api/types';
@@ -38,15 +38,9 @@ export function ListingCard({ listing }: { listing: Listing }) {
 export function ShopPage() {
   const data = useLoaderData<typeof shopLoader>();
   const [params, setParams] = useSearchParams();
-  const [more, setMore] = useState<Listing[]>([]);
-  const [nextBefore, setNextBefore] = useState(data.nextBefore);
-  const [q, setQ] = useState(data.q);
-  useEffect(() => {
-    setMore([]);
-    setNextBefore(data.nextBefore);
-    setQ(data.q);
-  }, [data]);
-  const listings = [...data.listings, ...more];
+  const [paged, setPaged] = useDerivedState(data, (d) => ({ more: [] as Listing[], nextBefore: d.nextBefore }));
+  const [q, setQ] = useDerivedState(data.q, (initial) => initial);
+  const listings = [...data.listings, ...paged.more];
 
   function setCategory(c: string | null) {
     const next = new URLSearchParams(params);
@@ -84,11 +78,11 @@ export function ShopPage() {
       >
         <input className="input" type="search" placeholder="Search the shop" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the shop" />
         <div className="chips" role="tablist" aria-label="Category">
-          <button type="button" role="tab" className="chip" aria-selected={!data.category} aria-pressed={!data.category} onClick={() => setCategory(null)}>
+          <button type="button" role="tab" className="chip" aria-selected={!data.category} onClick={() => setCategory(null)}>
             Everything
           </button>
           {SHOP_CATEGORIES.map((c) => (
-            <button key={c} type="button" role="tab" className="chip" aria-selected={data.category === c} aria-pressed={data.category === c} onClick={() => setCategory(c)}>
+            <button key={c} type="button" role="tab" className="chip" aria-selected={data.category === c} onClick={() => setCategory(c)}>
               {SHOP_CATEGORY_EMOJI[c]} {c}
             </button>
           ))}
@@ -106,14 +100,13 @@ export function ShopPage() {
               <ListingCard key={l.id} listing={l} />
             ))}
           </div>
-          {nextBefore && (
+          {paged.nextBefore && (
             <button
               type="button"
               className="btn btn-block"
               onClick={async () => {
-                const r = await shopApi.list({ ...(data.category ? { category: data.category } : {}), ...(data.q ? { q: data.q } : {}), before: nextBefore });
-                setMore((m) => [...m, ...r.listings]);
-                setNextBefore(r.nextBefore);
+                const r = await shopApi.list({ ...(data.category ? { category: data.category } : {}), ...(data.q ? { q: data.q } : {}), before: paged.nextBefore! });
+                setPaged((p) => ({ more: [...p.more, ...r.listings], nextBefore: r.nextBefore }));
               }}
             >
               More

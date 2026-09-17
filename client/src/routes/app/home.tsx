@@ -68,7 +68,6 @@ export function Home() {
 
   useEffect(() => {
     if (!busy) return;
-    setLine(0);
     const t = window.setInterval(() => setLine((l) => Math.min(COOKING_LINES.length - 1, l + 1)), 1400);
     return () => window.clearInterval(t);
   }, [busy]);
@@ -79,6 +78,7 @@ export function Home() {
     if (!canGenerate || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
+    setLine(0);
     try {
       const { recipe } = await recipesApi.generate({ prompt: prompt.trim(), ingredientIds: basket, ...(mealType ? { mealType } : {}) });
       try {

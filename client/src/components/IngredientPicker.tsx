@@ -86,12 +86,12 @@ export function IngredientPicker({ selected, onChange, pantry = [], basketTitle 
           {!query.trim() && (
             <div className="chips picker-cats" role="tablist" aria-label="Categories">
               {pantry.length > 0 && (
-                <button type="button" role="tab" className="chip" aria-selected={category === 'pantry'} aria-pressed={category === 'pantry'} onClick={() => setCategory('pantry')}>
+                <button type="button" role="tab" className="chip" aria-selected={category === 'pantry'} onClick={() => setCategory('pantry')}>
                   🧺 My pantry
                 </button>
               )}
               {INGREDIENT_CATEGORIES.map((c) => (
-                <button key={c} type="button" role="tab" className="chip" aria-selected={category === c} aria-pressed={category === c} onClick={() => setCategory(c)}>
+                <button key={c} type="button" role="tab" className="chip" aria-selected={category === c} onClick={() => setCategory(c)}>
                   {CATEGORY_EMOJI[c]} {c}
                 </button>
               ))}

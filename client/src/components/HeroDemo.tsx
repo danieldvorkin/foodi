@@ -18,19 +18,20 @@ export function HeroDemo() {
   const [elapsed, setElapsed] = useState(0);
   const step = DEMO.steps[i]!;
 
+  // One ticking clock; every seven seconds it moves to the next step.
   useEffect(() => {
     if (reduce) return;
-    const tick = window.setInterval(() => setElapsed((e) => e + 1), 1000);
+    const tick = window.setInterval(() => {
+      setElapsed((e) => {
+        if (e + 1 >= 7) {
+          setI((x) => (x + 1) % DEMO.steps.length);
+          return 0;
+        }
+        return e + 1;
+      });
+    }, 1000);
     return () => window.clearInterval(tick);
   }, [reduce]);
-
-  useEffect(() => {
-    if (reduce) return;
-    if (elapsed >= 7) {
-      setElapsed(0);
-      setI((x) => (x + 1) % DEMO.steps.length);
-    }
-  }, [elapsed, reduce]);
 
   const total = step.timer || 1;
   const remaining = reduce ? Math.round(total * 0.62) : Math.max(0, step.timer - elapsed * Math.max(1, Math.round(step.timer / 40)));

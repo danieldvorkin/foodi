@@ -87,7 +87,7 @@ export function ListingEditor() {
           <span className="label">Category</span>
           <div className="chips" role="radiogroup">
             {SHOP_CATEGORIES.map((c) => (
-              <button key={c} type="button" role="radio" className="chip" aria-checked={f.category === c} aria-pressed={f.category === c} onClick={() => patch({ category: c })}>
+              <button key={c} type="button" role="radio" className="chip" aria-checked={f.category === c} onClick={() => patch({ category: c })}>
                 {SHOP_CATEGORY_EMOJI[c]} {c}
               </button>
             ))}
@@ -119,7 +119,7 @@ export function ListingEditor() {
             <span className="label">Condition</span>
             <div className="chips" role="radiogroup">
               {([null, 'new', 'used'] as const).map((c) => (
-                <button key={String(c)} type="button" role="radio" className="chip" aria-checked={f.condition === c} aria-pressed={f.condition === c} onClick={() => patch({ condition: c })}>
+                <button key={String(c)} type="button" role="radio" className="chip" aria-checked={f.condition === c} onClick={() => patch({ condition: c })}>
                   {c === null ? 'n/a' : c}
                 </button>
               ))}

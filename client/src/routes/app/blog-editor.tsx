@@ -97,10 +97,10 @@ export function BlogEditor() {
       </div>
 
       <div className="chips" role="tablist" aria-label="Write or preview">
-        <button type="button" role="tab" className="chip" aria-selected={!preview} aria-pressed={!preview} onClick={() => setPreview(false)}>
+        <button type="button" role="tab" className="chip" aria-selected={!preview} onClick={() => setPreview(false)}>
           ✍️ Write
         </button>
-        <button type="button" role="tab" className="chip" aria-selected={preview} aria-pressed={preview} onClick={() => setPreview(true)}>
+        <button type="button" role="tab" className="chip" aria-selected={preview} onClick={() => setPreview(true)}>
           👀 Preview
         </button>
       </div>

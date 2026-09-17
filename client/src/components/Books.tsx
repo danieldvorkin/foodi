@@ -62,10 +62,10 @@ export function BookForm({ initial, onSave, busy, submitLabel = 'Create book' }:
       <div className="field">
         <span className="label">Who can see it</span>
         <div className="chips" role="radiogroup">
-          <button type="button" role="radio" className="chip" aria-checked={visibility === 'public'} aria-pressed={visibility === 'public'} onClick={() => setVisibility('public')}>
+          <button type="button" role="radio" className="chip" aria-checked={visibility === 'public'} onClick={() => setVisibility('public')}>
             🌐 Anyone on foodi
           </button>
-          <button type="button" role="radio" className="chip" aria-checked={visibility === 'private'} aria-pressed={visibility === 'private'} onClick={() => setVisibility('private')}>
+          <button type="button" role="radio" className="chip" aria-checked={visibility === 'private'} onClick={() => setVisibility('private')}>
             🔒 Only me
           </button>
         </div>
@@ -82,15 +82,26 @@ export function BookForm({ initial, onSave, busy, submitLabel = 'Create book' }:
 /** "Add to book" sheet for a recipe: tick books on and off, or make a new one right here. */
 export function AddToBook({ recipeId, open, onClose }: { recipeId: string; open: boolean; onClose: () => void }) {
   const toast = useToast();
-  const [list, setList] = useState<(RecipeBook & { contains?: boolean })[] | null>(null);
+  // The list belongs to one "opening"; a fresh open (or another recipe) starts from loading again.
+  const requestKey = open ? recipeId : null;
+  const [loaded, setLoaded] = useState<{ key: string | null; list: (RecipeBook & { contains?: boolean })[] }>({ key: null, list: [] });
+  const list = loaded.key === requestKey && requestKey ? loaded.list : null;
+  const setList = (fn: (xs: (RecipeBook & { contains?: boolean })[] | null) => (RecipeBook & { contains?: boolean })[] | null) =>
+    setLoaded((prev) => ({ key: requestKey, list: fn(prev.key === requestKey ? prev.list : null) ?? [] }));
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    setList(null);
-    booksApi.mine(recipeId).then((r) => setList(r.books)).catch((e) => toast(errorMessage(e), 'error'));
-  }, [open, recipeId, toast]);
+    if (!requestKey) return;
+    let alive = true;
+    booksApi
+      .mine(requestKey)
+      .then((r) => alive && setLoaded({ key: requestKey, list: r.books }))
+      .catch((e) => toast(errorMessage(e), 'error'));
+    return () => {
+      alive = false;
+    };
+  }, [requestKey, toast]);
 
   async function toggle(b: RecipeBook & { contains?: boolean }) {
     const next = !b.contains;

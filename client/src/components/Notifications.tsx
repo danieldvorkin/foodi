@@ -49,9 +49,13 @@ export function describe(n: Notification): { text: string; to: string | null } {
  * Unread count shared by the bell and the notifications page. Opens one live stream per tab
  * and falls back to polling every 30s if the stream can't connect.
  */
-export function useUnread() {
+export function useUnread(onNotification?: (n: Notification) => void) {
   const [unread, setUnread] = useState(0);
   const [latest, setLatest] = useState<Notification | null>(null);
+  const handler = useRef(onNotification);
+  useEffect(() => {
+    handler.current = onNotification;
+  });
   useEffect(() => {
     let alive = true;
     let poll: number | null = null;
@@ -65,7 +69,10 @@ export function useUnread() {
       (ev) => {
         if (!alive) return;
         setUnread(ev.unread);
-        if (ev.notification) setLatest(ev.notification);
+        if (ev.notification) {
+          setLatest(ev.notification);
+          handler.current?.(ev.notification);
+        }
       },
       () => startPolling(),
     );
@@ -123,14 +130,18 @@ export function NotificationBell({ unread, setUnread, latest }: { unread: number
   const [pulse, setPulse] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
 
-  // A new one arrived while the panel is open: put it on top. Either way, nudge the bell.
-  useEffect(() => {
-    if (!latest) return;
+  // A new one arrived: put it on top of an open list and nudge the bell. Keyed on the id so it runs once per notification.
+  const [seenId, setSeenId] = useState<string | null>(null);
+  if (latest && latest.id !== seenId) {
+    setSeenId(latest.id);
     setItems((xs) => (xs && !xs.some((x) => x.id === latest.id) ? [latest, ...xs] : xs));
     setPulse(true);
+  }
+  useEffect(() => {
+    if (!pulse) return;
     const t = window.setTimeout(() => setPulse(false), 900);
     return () => window.clearTimeout(t);
-  }, [latest]);
+  }, [pulse]);
 
   useEffect(() => {
     if (!open) return;

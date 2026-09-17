@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, useLoaderData } from 'react-router';
 import type { BlogPost } from '@foodi/shared';
 import { auth, blog as blogApi } from '../../api/types';
@@ -15,13 +15,8 @@ export async function blogIndexLoader() {
 export function BlogIndex() {
   const data = useLoaderData<typeof blogIndexLoader>();
   const me = useMe();
-  const [more, setMore] = useState<BlogPost[]>([]);
-  const [nextBefore, setNextBefore] = useState(data.nextBefore);
-  useEffect(() => {
-    setMore([]);
-    setNextBefore(data.nextBefore);
-  }, [data]);
-  const posts = [...data.posts, ...more];
+  const [paged, setPaged] = useDerivedState(data, (d) => ({ more: [] as BlogPost[], nextBefore: d.nextBefore }));
+  const posts = [...data.posts, ...paged.more];
 
   return (
     <main className="page-narrow stack-lg feed">
@@ -67,14 +62,13 @@ export function BlogIndex() {
           {posts.map((p) => (
             <BlogCard key={p.id} post={p} />
           ))}
-          {nextBefore && (
+          {paged.nextBefore && (
             <button
               type="button"
               className="btn btn-block"
               onClick={async () => {
-                const r = await blogApi.list({ before: nextBefore });
-                setMore((m) => [...m, ...r.posts]);
-                setNextBefore(r.nextBefore);
+                const r = await blogApi.list({ before: paged.nextBefore! });
+                setPaged((p) => ({ more: [...p.more, ...r.posts], nextBefore: r.nextBefore }));
               }}
             >
               Older posts

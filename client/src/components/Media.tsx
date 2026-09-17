@@ -169,9 +169,11 @@ export function MediaGallery({ items, onDelete, layout = 'grid' }: { items: Medi
           </div>
         ))}
       </div>
+      {/* Clicking the <dialog> itself is the backdrop; Escape closes via onClose and arrows are handled above. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
       <dialog ref={dlg} className="lightbox" onClose={() => setOpen(null)} onClick={(e) => e.target === dlg.current && setOpen(null)}>
         {current && (
-          <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
+          <div className="lightbox-inner">
             {current.kind === 'video' ? <video src={mediaApi.url(current.id)} controls autoPlay playsInline /> : <img src={mediaApi.url(current.id)} alt="" />}
             <div className="lightbox-bar">
               <span className="muted small num">

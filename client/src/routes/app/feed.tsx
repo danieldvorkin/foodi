@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, NavLink, useLoaderData, useRevalidator, useSearchParams } from 'react-router';
 import type { FeedItem, FeedScope, MediaItem } from '@foodi/shared';
 import { MediaThumb, MediaUploader } from '../../components/Media';
@@ -177,34 +178,28 @@ export function FeedPage() {
   const { revalidate } = useRevalidator();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
-  const [more, setMore] = useState<FeedItem[]>([]);
-  const [nextBefore, setNextBefore] = useState(data.nextBefore);
+  // Older pages loaded past the first one; starts over whenever the loader revalidates.
+  const [paged, setPaged] = useDerivedState(data, (d) => ({ more: [] as FeedItem[], nextBefore: d.nextBefore }));
   const [open, setOpen] = useState(params.get('share') === '1' && data.mine.length > 0);
   const [recipeId, setRecipeId] = useState(data.mine[0]?.id ?? '');
   const [caption, setCaption] = useState('');
   const [attachments, setAttachments] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const items = [...data.items, ...more];
+  const items = [...data.items, ...paged.more];
+  const shareRequested = params.get('share') === '1';
   useEffect(() => {
-    setMore([]);
-    setNextBefore(data.nextBefore);
-  }, [data]);
-  useEffect(() => {
-    if (params.get('share') === '1') {
-      if (data.mine.length > 0) setOpen(true);
-      else toast('Cook or write a recipe first, then share it here.');
-      const next = new URLSearchParams(params);
-      next.delete('share');
-      setParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.get('share')]);
+    if (!shareRequested) return;
+    // The sheet itself opens from initial state above; here we only tidy the URL and explain when there's nothing to share.
+    if (data.mine.length === 0) toast('Cook or write a recipe first, then share it here.');
+    const next = new URLSearchParams(params);
+    next.delete('share');
+    setParams(next, { replace: true });
+  }, [shareRequested, data.mine.length, params, setParams, toast]);
 
   async function loadMore() {
-    if (!nextBefore) return;
-    const r = await social.feed(data.scope, nextBefore);
-    setMore((m) => [...m, ...r.items]);
-    setNextBefore(r.nextBefore);
+    if (!paged.nextBefore) return;
+    const r = await social.feed(data.scope, paged.nextBefore);
+    setPaged((p) => ({ more: [...p.more, ...r.items], nextBefore: r.nextBefore }));
   }
 
   async function share() {
@@ -259,7 +254,6 @@ export function FeedPage() {
               role="tab"
               className="chip"
               aria-selected={data.scope === s}
-              aria-pressed={data.scope === s}
               onClick={() => {
                 const next = new URLSearchParams(params);
                 if (s === 'everyone') next.delete('scope');
@@ -299,7 +293,7 @@ export function FeedPage() {
                   return <PromoCard key={`m-${it.promotion.id}`} promotion={it.promotion} />;
               }
             })}
-            {nextBefore && (
+            {paged.nextBefore && (
               <button type="button" className="btn btn-block" onClick={loadMore}>
                 Older
               </button>
