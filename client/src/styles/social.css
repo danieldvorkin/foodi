@@ -2,46 +2,249 @@
   font-size: var(--t-31);
 }
 .post {
-  padding: var(--s-5);
+  padding: var(--s-4) var(--s-5) var(--s-4);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--plate);
   display: grid;
-  gap: var(--s-4);
+  gap: var(--s-3);
 }
 .post-head {
   display: flex;
   align-items: center;
   gap: var(--s-3);
 }
+.post-avatar {
+  display: inline-flex;
+  flex: none;
+}
+.post-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+}
 .post-author {
-  font-weight: 500;
+  font-weight: 600;
 }
 .post-caption {
   white-space: pre-wrap;
   max-width: var(--measure);
 }
-.post-recipe {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  padding: var(--s-4);
-  border: 1px solid var(--line);
+
+/* The dish: full-width, with the recipe name set on the photo so it reads as one thing. */
+.post-hero {
+  position: relative;
+  display: block;
+  overflow: hidden;
   border-radius: var(--r-md);
-  background: var(--ground);
+  background: var(--flour);
+  aspect-ratio: 16 / 10;
+  color: #fff;
 }
-.post-recipe:hover {
+.post-hero:hover {
   text-decoration: none;
-  border-color: var(--line-strong);
 }
-.post-recipe h3 {
-  font-size: var(--t-18);
+.post-hero img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 600ms var(--ease);
 }
-.post-foot {
+.post-hero:hover img {
+  transform: scale(1.02);
+}
+.post-hero-title {
+  position: absolute;
+  inset: auto 0 0 0;
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 48px var(--s-4) var(--s-3);
+  background: linear-gradient(to top, rgba(20, 18, 14, 0.78), rgba(20, 18, 14, 0));
+}
+.post-hero-name {
+  font-size: var(--t-20);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.post-hero-time {
+  flex: none;
+  font-size: var(--t-13);
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(6px);
+}
+/* No photo yet: the emoji stands in on the soft ground, and the title goes dark. */
+.post-hero-emoji {
+  aspect-ratio: 16 / 7;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.post-hero-glyph {
+  font-size: 72px;
+  line-height: 1;
+  transform: translateY(-10px);
+}
+.post-hero-emoji .post-hero-title {
+  background: linear-gradient(to top, var(--flour) 40%, transparent);
+}
+.post-hero-emoji .post-hero-name {
+  text-shadow: none;
+}
+.post-hero-emoji .post-hero-time {
+  background: var(--plate);
+  border: 1px solid var(--line);
+}
+
+.post-body {
+  display: grid;
   gap: var(--s-2);
 }
+.post-summary {
+  color: var(--stone);
+  max-width: var(--measure);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.post-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+/* Actions: quiet text buttons, the one primary link on the right. */
+.post-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+  padding-top: var(--s-1);
+}
+.post-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-14);
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 34px;
+}
+.post-action:hover {
+  background: var(--flour);
+  text-decoration: none;
+}
+.post-action[aria-pressed='true'] {
+  color: var(--clay);
+}
+.post-action[aria-expanded='true'] {
+  background: var(--flour);
+}
+.post-action.is-off {
+  color: var(--mute);
+  cursor: default;
+}
+.post-action.is-off:hover {
+  background: none;
+}
+.post-cook {
+  margin-left: auto;
+}
+
+/* The conversation, indented under a hairline. */
+.post-thread {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+.post-thread-more {
+  justify-self: start;
+  border: 0;
+  background: none;
+  color: var(--stone);
+  font: inherit;
+  font-size: var(--t-14);
+  padding: 0;
+  cursor: pointer;
+}
+.post-thread-more:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.post-comments {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.post-comment {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+}
+.post-comment .avatar {
+  transform: scale(0.85);
+  transform-origin: top left;
+}
+.post-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+.post-comment-body .post-author {
+  font-size: var(--t-14);
+}
+.post-comment-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.post-comment-del {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+.post-comment-del:hover {
+  color: var(--ink);
+  background: var(--flour);
+}
+.post-comment-box {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-end;
+}
+.post-comment-box .textarea {
+  flex: 1;
+  min-height: 40px;
+  resize: none;
+  padding-block: 9px;
+}
+
+/* Legacy comment styles kept for blog posts. */
 .comment {
   display: flex;
   gap: var(--s-3);
@@ -60,13 +263,6 @@
 }
 .comment-box .textarea {
   min-height: 64px;
-}
-.post-cover {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--r-md);
-  object-fit: cover;
-  flex: none;
 }
 
 .house-pill {
