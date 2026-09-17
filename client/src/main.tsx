@@ -17,6 +17,7 @@ import './styles/editor.css';
 import './styles/social.css';
 import './styles/community.css';
 import './styles/admin.css';
+import './styles/list.css';
 import './styles/mobile.css';
 
 createRoot(document.getElementById('root')!).render(

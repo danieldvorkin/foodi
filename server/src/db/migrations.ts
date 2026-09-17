@@ -511,4 +511,26 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: 'shopping-list',
+    sql: `
+      CREATE TABLE shopping_items (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        quantity REAL,
+        unit TEXT,
+        ingredient_id TEXT,
+        category TEXT NOT NULL DEFAULT 'other',
+        checked INTEGER NOT NULL DEFAULT 0,
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE SET NULL,
+        recipe_title TEXT,
+        plan_entry_id TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX shopping_user ON shopping_items(user_id, checked, position);
+    `,
+  },
 ];

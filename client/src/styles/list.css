@@ -1,0 +1,170 @@
+/* ---------- shopping list ----------
+   Built for a phone in one hand in a shop: big rows, one tap to tick, the add box always in reach. */
+.list-page {
+  width: min(100% - 2 * var(--gutter), 720px);
+  margin-inline: auto;
+  padding-block: var(--s-5) var(--s-8);
+  display: grid;
+  gap: var(--s-4);
+}
+.list-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.list-head h1 {
+  font-size: var(--t-31);
+}
+.list-head-actions {
+  flex-wrap: wrap;
+}
+.list-add {
+  position: sticky;
+  top: calc(60px + env(safe-area-inset-top, 0px));
+  z-index: 2;
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+  background: var(--ground);
+}
+.list-add .input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+.list-sources {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.list-sources .chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.list-empty {
+  display: grid;
+  gap: var(--s-3);
+  justify-items: start;
+  padding: var(--s-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  color: var(--stone);
+  max-width: var(--measure);
+}
+.list-groups {
+  display: grid;
+  gap: var(--s-5);
+}
+.list-aisle {
+  font-size: var(--t-16);
+  font-weight: 600;
+  margin-bottom: var(--s-2);
+}
+.list-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--plate);
+  overflow: hidden;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+.list-row:first-child {
+  border-top: 0;
+}
+.list-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 12px var(--s-4);
+  min-height: 48px;
+  cursor: pointer;
+  min-width: 0;
+}
+.list-row-main input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--sage);
+}
+.list-row-text {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.list-qty {
+  color: var(--stone);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.list-row.is-done .list-row-text > span:not(.list-qty) {
+  text-decoration: line-through;
+  color: var(--mute);
+}
+.list-row.is-done .list-qty {
+  color: var(--mute);
+}
+.list-row-del {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font-size: 20px;
+  cursor: pointer;
+}
+.list-row-del:hover,
+.list-row-del:focus-visible {
+  color: var(--ink);
+}
+
+/* Picking ingredients from a recipe. */
+.list-pick {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.list-pick label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.list-pick label:hover {
+  background: var(--flour);
+}
+.list-pick input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--sage);
+}
+@media (max-width: 767px) {
+  .list-add {
+    top: 0;
+  }
+  .list-page {
+    padding-bottom: calc(var(--s-8) + 56px);
+  }
+}

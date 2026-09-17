@@ -76,6 +76,9 @@ export function AppLayout() {
               <Link to="/app/books" className="panel-item" role="menuitem">
                 📚 Your recipe books
               </Link>
+              <Link to="/app/list" className="panel-item" role="menuitem">
+                🛒 Shopping list
+              </Link>
               <Link to="/app/notifications" className="panel-item" role="menuitem">
                 🔔 Notifications
               </Link>
