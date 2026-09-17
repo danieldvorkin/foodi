@@ -20,6 +20,18 @@ In production the Express server serves the built client itself, so `FOODI_APP_O
 compiled out by `NODE_ENV=production` regardless of any other setting, and the first
 registrant is **not** made admin (see "Make yourself admin").
 
+## Continuous deployment (the normal path)
+
+Pushes to `main` run `.github/workflows/deploy.yml`: `npm run check` (typecheck, 41 integration
+tests, production builds) and then `flyctl deploy --remote-only --ha=false`. Pull requests run
+`.github/workflows/ci.yml` (the same checks, plus the built client as an artifact). The only
+secret is `FLY_API_TOKEN`, a deploy-scoped token (`fly tokens create deploy --app foodi`) stored
+as a repository secret. Deploys are serialised (`concurrency: deploy-production`), and a single
+machine with a volume means each deploy has a ~15-second gap — the client's error page detects
+it and reloads itself when the server is back.
+
+Everything below is the manual path: first-time setup, and a fallback if Actions is down.
+
 ## First deploy
 
 ```bash
