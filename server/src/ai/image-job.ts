@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { unlink, writeFile } from 'node:fs/promises';
 import type { Db } from '../db/index.js';
 import { one, run, tx } from '../db/index.js';
 import { newId } from '../lib/crypto.js';
@@ -80,12 +80,10 @@ export function imageJobHandler(db: Db, ai: Ai, mediaStore: MediaStore, settings
     const dims = imageSize('image/png', bytes);
     const id = newId('med');
     await writeFile(mediaStore.pathFor({ id, ext: 'png' }), bytes, { mode: 0o600 });
+    // Any earlier generated cover is replaced; uploads keep their place.
+    const stale = db.prepare(`SELECT id, ext FROM media WHERE recipe_id = ? AND generated = 1`).all(recipeId) as { id: string; ext: string }[];
     tx(db, () => {
-      // Any earlier generated cover is replaced; uploads keep their place.
-      for (const old of db.prepare(`SELECT id, ext FROM media WHERE recipe_id = ? AND generated = 1`).all(recipeId) as { id: string; ext: string }[]) {
-        run(db, 'DELETE FROM media WHERE id = ?', old.id);
-        void mediaStore.remove(old.id);
-      }
+      for (const old of stale) run(db, 'DELETE FROM media WHERE id = ?', old.id);
       run(db, 'UPDATE media SET position = position + 1 WHERE recipe_id = ?', recipeId);
       run(
         db,
@@ -99,6 +97,7 @@ export function imageJobHandler(db: Db, ai: Ai, mediaStore: MediaStore, settings
         now(),
       );
     });
+    for (const old of stale) await unlink(mediaStore.pathFor(old)).catch(() => {});
     log.info({ recipeId, mediaId: id, model: imageModel, attempt: job.attempts }, 'generated photo saved');
     return { recipeId };
   };
