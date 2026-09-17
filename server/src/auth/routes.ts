@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import { z } from 'zod';
 import { ChangePasswordSchema, ConnectKeyRequestSchema, LoginSchema, RegisterSchema, type AuthProviderInfo, type Me } from '@foodi/shared';
 import { hashPassword, needsRehash, passwordProblem, verifyPassword } from '../lib/password.js';
 import type { Config } from '../config.js';
@@ -22,12 +23,13 @@ interface Deps {
   settings: Settings;
   audit: Audit;
   permissions: Permissions;
+  ai: { capabilities(userId: string): { images: boolean; vision: boolean } };
 }
 
 /** A real scrypt hash of a random string, so failed logins for unknown emails take as long as known ones. */
 const DUMMY_HASH = 'scrypt$131072$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
-export function authRoutes({ config, log, store, providers, settings, audit, permissions }: Deps) {
+export function authRoutes({ config, log, store, providers, settings, audit, permissions, ai }: Deps) {
   const r = Router();
   const cookieOpts = { secure: config.cookieSecure };
   const byId = new Map(providers.map((p) => [p.id, p]));
@@ -58,6 +60,8 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
       credentialUpdatedAt: cred?.updatedAt ?? null,
       hasProfile: store.hasProfile(user.id),
       permissions: user.role === 'admin' ? permissions.list(user.id) : [],
+      autoPhotos: Boolean(user.auto_photos ?? 1),
+      aiCapabilities: ai.capabilities(user.id),
       createdAt: user.created_at,
     };
   }
@@ -65,6 +69,13 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
   function finishSignIn(req: Request, userId: string) {
     return store.createSession(userId, { ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null });
   }
+
+  /** Small personal switches that aren't onboarding answers. */
+  r.put('/prefs', requireAuth, (req, res) => {
+    const body = parse(z.object({ autoPhotos: z.boolean().optional() }), req.body ?? {});
+    if (body.autoPhotos !== undefined) store.setAutoPhotos(req.user!.id, body.autoPhotos);
+    res.json(toMe(req.user!.id));
+  });
 
   r.get('/providers', (_req, res) => {
     const list: AuthProviderInfo[] = providers.map((p) => ({ id: p.id, vendor: p.vendor, label: p.label, kind: p.kind, note: p.note }));

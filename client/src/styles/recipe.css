@@ -146,3 +146,28 @@
     flex-direction: column;
   }
 }
+
+/* While the AI photo is being made, the hero slot holds a quiet placeholder. */
+.photo-shimmer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  min-height: 220px;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--line-strong);
+  color: var(--stone);
+  background: linear-gradient(100deg, var(--flour) 30%, var(--plate) 50%, var(--flour) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-shimmer {
+    animation: none;
+  }
+}

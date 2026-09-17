@@ -314,10 +314,10 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
   });
 
   // ---- generations ------------------------------------------------------------------------
-  interface GenRow { id: string; user_id: string; display_name: string | null; vendor: string; model: string; status: 'ok' | 'failed'; latency_ms: number; input_tokens: number | null; output_tokens: number | null; error_code: string | null; recipe_id: string | null; created_at: string }
+  interface GenRow { id: string; kind: 'recipe' | 'image' | 'vision'; user_id: string; display_name: string | null; vendor: string; model: string; status: 'ok' | 'failed'; latency_ms: number; input_tokens: number | null; output_tokens: number | null; error_code: string | null; recipe_id: string | null; created_at: string }
   const GEN_SELECT = `SELECT g.*, u.display_name FROM generations g LEFT JOIN users u ON u.id = g.user_id`;
   const toGen = (g: GenRow): GenerationLog => ({
-    id: g.id, userId: g.user_id, userDisplayName: g.display_name, vendor: g.vendor, model: g.model, status: g.status, latencyMs: g.latency_ms,
+    id: g.id, kind: g.kind ?? 'recipe', userId: g.user_id, userDisplayName: g.display_name, vendor: g.vendor, model: g.model, status: g.status, latencyMs: g.latency_ms,
     inputTokens: g.input_tokens, outputTokens: g.output_tokens, errorCode: g.error_code, recipeId: g.recipe_id, createdAt: g.created_at,
   });
 

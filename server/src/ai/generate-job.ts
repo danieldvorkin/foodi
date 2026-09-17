@@ -7,7 +7,7 @@ import { now } from '../lib/time.js';
 import { getProfile } from '../routes/profile.js';
 import { parseContent, toRecipe, type RecipeRow } from '../routes/recipes.js';
 import { canReadRecipe } from '../services/access.js';
-import { JobError, type JobRow } from '../services/jobs.js';
+import { JobError, type JobRow, type Jobs } from '../services/jobs.js';
 import type { Notifier } from '../services/notify.js';
 import { allergenWarnings, type createAiService } from './service.js';
 import { AiError } from './types.js';
@@ -66,7 +66,7 @@ export async function runGeneration(db: Db, ai: Ai, userId: string, request: unk
 }
 
 /** The job-queue handler: same work, plus classification of failures and a notification at the end. */
-export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier) {
+export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier, jobs: Jobs) {
   return async (job: JobRow) => {
     let payload: unknown;
     try {
@@ -77,6 +77,9 @@ export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier) {
     try {
       const { recipe } = await runGeneration(db, ai, job.user_id, payload);
       notifier.send(job.user_id, 'recipe', { recipeId: recipe.id, message: `Your recipe is ready: “${recipe.content.title}”` });
+      // The photo is a separate, slower step; only when the person wants it and the vendor can.
+      const wants = one<{ auto_photos: number }>(db, 'SELECT auto_photos FROM users WHERE id = ?', job.user_id)?.auto_photos;
+      if (wants && ai.capabilities(job.user_id).images) jobs.enqueue('image', job.user_id, { recipeId: recipe.id }, 2, recipe.id);
       return { recipeId: recipe.id };
     } catch (err) {
       if (err instanceof HttpError) {

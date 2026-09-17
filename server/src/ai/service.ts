@@ -17,7 +17,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
   const { config, db, log, store, settings } = deps;
   const clients: Record<string, AiClient> = {
     anthropic: deps.clients?.['anthropic'] ?? createAnthropicClient({ apiBase: config.anthropic.apiBase, model: config.anthropic.model }),
-    openai: deps.clients?.['openai'] ?? createOpenAiClient({ apiBase: config.openai.apiBase, model: config.openai.model }),
+    openai: deps.clients?.['openai'] ?? createOpenAiClient({ apiBase: config.openai.apiBase, model: config.openai.model, imageModel: config.openai.imageModel }),
     ...(config.enableMockProvider ? { mock: deps.clients?.['mock'] ?? createMockClient() } : {}),
   };
 
@@ -83,7 +83,34 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     run(db, 'UPDATE generations SET recipe_id = ? WHERE id = ?', recipeId, generationId);
   }
 
-  return { generate, linkRecipeId, preflight, clients };
+  /** What the connected vendor can do beyond writing recipes. */
+  function capabilities(userId: string): { images: boolean; vision: boolean } {
+    const cred = store.getCredentialMeta(userId);
+    const client = cred ? clients[cred.vendor] : undefined;
+    return { images: Boolean(client?.generateImage), vision: Boolean(client?.describeImage) };
+  }
+
+  /** Log an image or vision call the same way recipe calls are logged, so admin sees cost and failure rate. */
+  function recordAux(userId: string, kind: 'image' | 'vision', vendor: string, model: string, status: 'ok' | 'failed', latencyMs: number, extra: { inputTokens?: number | null; outputTokens?: number | null; errorCode?: string | null; recipeId?: string | null } = {}) {
+    run(
+      db,
+      `INSERT INTO generations (id, user_id, vendor, model, status, latency_ms, input_tokens, output_tokens, error_code, recipe_id, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newId('gen'),
+      userId,
+      vendor,
+      model,
+      status,
+      latencyMs,
+      extra.inputTokens ?? null,
+      extra.outputTokens ?? null,
+      extra.errorCode ?? null,
+      extra.recipeId ?? null,
+      now(),
+      kind,
+    );
+  }
+
+  return { generate, linkRecipeId, preflight, capabilities, recordAux, clients, store };
 }
 
 /** Link ingredient lines to the preset library and tidy up model output. */

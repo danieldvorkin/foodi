@@ -42,14 +42,14 @@ const BACKOFF_MS = [5_000, 30_000, 120_000];
 const STUCK_AFTER_MS = 5 * 60_000;
 
 export function toJob(db: Db, x: JobRow): Job {
+  const title = x.result_recipe_id ? (one<{ title: string }>(db, 'SELECT title FROM recipes WHERE id = ?', x.result_recipe_id)?.title ?? null) : null;
   let prompt = '';
   try {
     const p = JSON.parse(x.payload) as { prompt?: string; ingredientIds?: string[]; basedOnRecipeId?: string };
-    prompt = p.prompt || (p.basedOnRecipeId ? 'Adjusting a recipe' : p.ingredientIds?.length ? `Something with ${p.ingredientIds.length} picked ingredients` : 'Surprise me');
+    prompt = x.kind === 'image' ? `Photo for “${title ?? 'your recipe'}”` : p.prompt || (p.basedOnRecipeId ? 'Adjusting a recipe' : p.ingredientIds?.length ? `Something with ${p.ingredientIds.length} picked ingredients` : 'Surprise me');
   } catch {
     /* keep empty */
   }
-  const title = x.result_recipe_id ? one<{ title: string }>(db, 'SELECT title FROM recipes WHERE id = ?', x.result_recipe_id)?.title ?? null : null;
   return {
     id: x.id,
     kind: x.kind,
@@ -89,10 +89,10 @@ export function createJobs(db: Db, notifier: Notifier, log: Logger, opts: { conc
     notifier.publish(row.user_id, 'job', toJob(db, row));
   }
 
-  function enqueue(kind: Job['kind'], userId: string, payload: unknown, maxAttempts = 3): Job {
+  function enqueue(kind: Job['kind'], userId: string, payload: unknown, maxAttempts = 3, recipeId: string | null = null): Job {
     const id = newId('job');
     const t = now();
-    run(db, `INSERT INTO jobs (id, kind, user_id, payload, status, attempts, max_attempts, created_at, run_after) VALUES (?, ?, ?, ?, 'queued', 0, ?, ?, ?)`, id, kind, userId, JSON.stringify(payload), maxAttempts, t, t);
+    run(db, `INSERT INTO jobs (id, kind, user_id, payload, status, attempts, max_attempts, created_at, run_after, result_recipe_id) VALUES (?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?)`, id, kind, userId, JSON.stringify(payload), maxAttempts, t, t, recipeId);
     const row = get(id)!;
     publish(row);
     kick();
@@ -134,6 +134,8 @@ export function createJobs(db: Db, notifier: Notifier, log: Logger, opts: { conc
   /** Jobs left 'running' by a crash or deploy go back in the queue. */
   function recover() {
     const cutoff = new Date(Date.now() - STUCK_AFTER_MS).toISOString();
+    // A job that already used all its attempts when the process died is failed, not requeued forever.
+    run(db, `UPDATE jobs SET status = 'failed', finished_at = ?, last_error = COALESCE(last_error, 'Interrupted by a restart'), last_error_code = COALESCE(last_error_code, 'interrupted') WHERE status = 'running' AND attempts >= max_attempts`, now());
     const r = run(db, `UPDATE jobs SET status = 'queued', run_after = ? WHERE status = 'running' AND started_at < ?`, now(), cutoff);
     // Anything 'running' at boot cannot actually be running — this process just started.
     const r2 = run(db, `UPDATE jobs SET status = 'queued', run_after = ? WHERE status = 'running'`, now());

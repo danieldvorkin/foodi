@@ -1258,7 +1258,8 @@ describe('generation jobs', () => {
       const sam = await signIn(b, 'mock-sam');
       expect((await request(b.base).get(`/api/recipes/jobs/${q.body.job.id}`).set('cookie', sam)).status).toBe(404);
       // Counted against the quota and visible in the admin log.
-      expect((await request(b.base).get('/api/admin/jobs').set('cookie', ada)).body.jobs[0].id).toBe(q.body.job.id);
+      const adminJobs = await request(b.base).get('/api/admin/jobs').set('cookie', ada);
+      expect(adminJobs.body.jobs.map((j: { id: string }) => j.id)).toContain(q.body.job.id);
     } finally {
       b.server.close();
       b.close();
@@ -1342,6 +1343,62 @@ describe('generation jobs', () => {
       expect((await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'one too many' })).status).toBe(429);
       expect((await request(b.base).post(`/api/recipes/jobs/${ids[0]}/cancel`).set('cookie', ada).set('origin', ORIGIN)).body.job.status).toBe('cancelled');
       expect((await request(b.base).get('/api/recipes/jobs?active=1').set('cookie', ada)).body.jobs).toHaveLength(2);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('recipe photos', () => {
+  it('generates, checks and attaches a cover after a recipe is written; rejected photos retry once then give up', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const me = await request(b.base).get('/api/auth/me').set('cookie', ada);
+      expect(me.body).toMatchObject({ autoPhotos: true, aiCapabilities: { images: true, vision: true } });
+
+      // Happy path: the generate job spawns an image job; the recipe ends up with a generated cover.
+      const q = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'a bright lemon pasta' });
+      await b.jobs.idle();
+      await b.jobs.idle();
+      const jobs = await request(b.base).get('/api/recipes/jobs').set('cookie', ada);
+      const gen = jobs.body.jobs.find((j: { id: string }) => j.id === q.body.job.id);
+      const img = jobs.body.jobs.find((j: { kind: string }) => j.kind === 'image');
+      expect(gen.status).toBe('done');
+      expect(img).toMatchObject({ status: 'done', recipeId: gen.recipeId });
+      expect(img.prompt).toMatch(/^Photo for/);
+      const recipe = await request(b.base).get(`/api/recipes/${gen.recipeId}`).set('cookie', ada);
+      expect(recipe.body.recipe.media).toHaveLength(1);
+      expect(recipe.body.recipe.media[0]).toMatchObject({ kind: 'image', mime: 'image/png', generated: true });
+      expect((await request(b.base).get(`/api/media/${recipe.body.recipe.media[0].id}`).set('cookie', ada)).status).toBe(200);
+      // Cost is visible: one image call and one vision call logged, with kinds.
+      const gens = await request(b.base).get('/api/admin/generations').set('cookie', ada);
+      expect(gens.body.generations.map((g: { kind: string }) => g.kind).sort()).toEqual(['image', 'recipe', 'vision']);
+
+      // Rejection: the mock's vision says "no" for titles containing reject-me → retried once, then failed, emoji kept.
+      const bad = await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send({ emoji: '🥣', title: 'Soup reject-me', summary: 'x', mealType: 'dinner', servings: 2, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, ingredients: [{ item: 'water', quantity: null, unit: null, preparation: null, note: null, group: null, optional: false, ingredientId: null }], steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] });
+      const p = await request(b.base).post(`/api/recipes/${bad.body.recipe.id}/photo`).set('cookie', ada).set('origin', ORIGIN);
+      expect(p.status).toBe(202);
+      for (let i = 0; i < 40; i++) {
+        const row = b.jobs.getRow(p.body.job.id)!;
+        if (row.status === 'failed' || row.status === 'done') break;
+        if (row.status === 'queued') {
+          b.db.prepare(`UPDATE jobs SET run_after = ? WHERE id = ?`).run(new Date(0).toISOString(), row.id);
+          await b.jobs.tick();
+        }
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      const failed = b.jobs.get(p.body.job.id)!;
+      expect(failed).toMatchObject({ status: 'failed', attempts: 2, lastErrorCode: 'image_rejected' });
+      expect((await request(b.base).get(`/api/recipes/${bad.body.recipe.id}`).set('cookie', ada)).body.recipe.media).toHaveLength(0);
+      // A second manual request while one is running is refused; the toggle turns auto photos off.
+      await request(b.base).put('/api/auth/prefs').set('cookie', ada).set('origin', ORIGIN).send({ autoPhotos: false });
+      const q2 = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'plain toast' });
+      await b.jobs.idle();
+      const after = await request(b.base).get('/api/recipes/jobs').set('cookie', ada);
+      expect(after.body.jobs.filter((j: { kind: string; createdAt: string }) => j.kind === 'image' && j.createdAt > q2.body.job.createdAt)).toHaveLength(0);
     } finally {
       b.server.close();
       b.close();

@@ -105,6 +105,7 @@ export function AdminGenerations() {
           <thead>
             <tr>
               <th>When</th>
+              <th>Kind</th>
               <th>Person</th>
               <th>Vendor</th>
               <th>Model</th>
@@ -118,6 +119,7 @@ export function AdminGenerations() {
             {generations.map((g) => (
               <tr key={g.id}>
                 <td>{dateTime(g.createdAt)}</td>
+                <td>{g.kind === 'image' ? '🖼️ image' : g.kind === 'vision' ? '👁️ check' : '📝 recipe'}</td>
                 <td>
                   <Link to={`/admin/users/${g.userId}`}>{g.userDisplayName ?? g.userId}</Link>
                 </td>
@@ -133,7 +135,7 @@ export function AdminGenerations() {
             ))}
             {generations.length === 0 && (
               <tr>
-                <td className="muted" colSpan={8}>
+                <td className="muted" colSpan={9}>
                   Nothing here yet.
                 </td>
               </tr>

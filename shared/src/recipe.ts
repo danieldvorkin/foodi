@@ -123,6 +123,8 @@ export const MediaItemSchema = z.object({
   height: z.number().nullable(),
   bytes: z.number(),
   createdAt: z.string(),
+  /** Made by the AI rather than uploaded; shown with an "AI photo" caption. */
+  generated: z.boolean().default(false),
 });
 export type MediaItem = z.infer<typeof MediaItemSchema>;
 

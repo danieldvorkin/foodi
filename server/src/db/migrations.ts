@@ -486,4 +486,12 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX jobs_user ON jobs(user_id, created_at DESC);
     `,
   },
+  {
+    name: 'recipe-photos',
+    sql: `
+      ALTER TABLE media ADD COLUMN generated INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE generations ADD COLUMN kind TEXT NOT NULL DEFAULT 'recipe';
+      ALTER TABLE users ADD COLUMN auto_photos INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ];

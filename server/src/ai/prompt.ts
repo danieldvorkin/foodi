@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RecipeContentSchema } from '@foodi/shared';
+import { DIET_LABELS, RecipeContentSchema } from '@foodi/shared';
 import type { GenerateInput } from './types.js';
 
 export const RECIPE_TOOL_NAME = 'save_recipe';
@@ -81,4 +81,83 @@ function strictify(node: unknown): unknown {
     out['required'] = Object.keys(out['properties'] as object);
   }
   return out;
+}
+
+/** What we ask an image model for: the finished dish, styled to sit inside foodi's quiet design. */
+export function buildImagePrompt(recipe: { title: string; cuisine: string | null; ingredients: { item: string }[]; steps: { text: string }[] }, strict = false): string {
+  const key = recipe.ingredients.slice(0, 6).map((i) => i.item).join(', ');
+  const plating = recipe.steps[recipe.steps.length - 1]?.text.slice(0, 160) ?? '';
+  return [
+    `A photograph of ${recipe.title}${recipe.cuisine ? ` (${recipe.cuisine})` : ''}, freshly plated and ready to eat.`,
+    key ? `Visible ingredients: ${key}.` : '',
+    plating ? `Serving notes: ${plating}` : '',
+    'Natural daylight from the side, a neutral matte ceramic plate or bowl on a plain pale linen or light wood surface, shallow depth of field, slightly overhead angle.',
+    'No text, no logos, no watermarks, no hands, no people, no cutlery brand marks. Realistic food photography, not illustration.',
+    strict ? 'Show only this exact dish, centred, filling most of the frame. Do not add side dishes or decorations.' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export function visionRubric(recipe: { title: string; keyIngredients: string[] }): string {
+  return [
+    `You are checking a photo before it is shown as the cover for a recipe called "${recipe.title}".`,
+    recipe.keyIngredients.length ? `Key ingredients: ${recipe.keyIngredients.join(', ')}.` : '',
+    'Answer with JSON only, no prose, exactly: {"isFood": boolean, "matchesDish": boolean, "hasProblems": boolean, "note": string}.',
+    'isFood: is this a photograph of food? matchesDish: could this plausibly be that dish (right kind of dish and visible ingredients)?',
+    'hasProblems: any text, watermark, logo, hands, faces, people, or clearly inedible/distorted elements? note: one short sentence.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+export const VERDICT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['isFood', 'matchesDish', 'hasProblems', 'note'],
+  properties: { isFood: { type: 'boolean' }, matchesDish: { type: 'boolean' }, hasProblems: { type: 'boolean' }, note: { type: 'string' } },
+} as const;
+
+export function parseVerdict(text: string): { isFood: boolean; matchesDish: boolean; hasProblems: boolean; note: string } | null {
+  const m = /\{[\s\S]*\}/.exec(text);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]) as Record<string, unknown>;
+    if (typeof j['isFood'] !== 'boolean' || typeof j['matchesDish'] !== 'boolean' || typeof j['hasProblems'] !== 'boolean') return null;
+    return { isFood: j['isFood'], matchesDish: j['matchesDish'], hasProblems: j['hasProblems'], note: typeof j['note'] === 'string' ? j['note'].slice(0, 200) : '' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Models occasionally overrun a length limit or hand back a number as a string. Nudge the raw
+ * tool output toward the schema before validating, so a 130-character title isn't a failed
+ * (and billed) generation.
+ */
+export function coerceRecipeShape(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const r = { ...(raw as Record<string, unknown>) };
+  const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : v);
+  const int = (v: unknown) => (typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : v);
+  r['title'] = clip(r['title'], 120);
+  r['summary'] = clip(r['summary'], 400);
+  r['cuisine'] = clip(r['cuisine'], 40);
+  for (const k of ['servings', 'totalMinutes', 'activeMinutes']) r[k] = int(r[k]);
+  if (Array.isArray(r['ingredients'])) {
+    r['ingredients'] = r['ingredients'].map((i) => (i && typeof i === 'object' ? { ...(i as Record<string, unknown>), item: clip((i as Record<string, unknown>)['item'], 80), note: clip((i as Record<string, unknown>)['note'], 120), preparation: clip((i as Record<string, unknown>)['preparation'], 40) } : i));
+  }
+  if (Array.isArray(r['steps'])) {
+    r['steps'] = r['steps'].map((st) => (st && typeof st === 'object' ? { ...(st as Record<string, unknown>), title: clip((st as Record<string, unknown>)['title'], 60), text: clip((st as Record<string, unknown>)['text'], 700), tip: clip((st as Record<string, unknown>)['tip'], 300), temperature: clip((st as Record<string, unknown>)['temperature'], 60) } : st));
+  }
+  // Lists: trim to the schema's maximums and drop anything that isn't a short string.
+  const list = (v: unknown, max: number, len: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).map((x) => x.trim().slice(0, len)).slice(0, max) : []);
+  r['tags'] = list(r['tags'], 8, 30);
+  r['allergens'] = list(r['allergens'], 12, 30);
+  r['equipment'] = list(r['equipment'], 12, 40);
+  r['techniques'] = list(r['techniques'], 8, 40);
+  r['dietLabels'] = list(r['dietLabels'], 8, 30).filter((d) => (DIET_LABELS as readonly string[]).includes(d));
+  if (Array.isArray(r['substitutions'])) r['substitutions'] = r['substitutions'].slice(0, 10);
+  if (typeof r['emoji'] !== 'string' || !r['emoji']) r['emoji'] = '🍽️';
+  return r;
 }

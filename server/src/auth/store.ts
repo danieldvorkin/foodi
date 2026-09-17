@@ -16,6 +16,7 @@ export interface UserRow {
   disabled_at: string | null;
   created_at: string;
   last_seen_at: string | null;
+  auto_photos: number;
 }
 
 export interface CredentialRow {
@@ -185,6 +186,10 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     return one<{ hash: string }>(db, 'SELECT hash FROM passwords WHERE user_id = ?', userId)?.hash ?? null;
   }
 
+  function setAutoPhotos(userId: string, on: boolean) {
+    run(db, 'UPDATE users SET auto_photos = ? WHERE id = ?', on ? 1 : 0, userId);
+  }
+
   function setPasswordHash(userId: string, hash: string) {
     run(db, `INSERT INTO passwords (user_id, hash, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET hash = excluded.hash, updated_at = excluded.updated_at`, userId, hash, now());
   }
@@ -312,6 +317,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     addPasswordLogin,
     touch,
     setCredential,
+    setAutoPhotos,
     clearCredential,
     getCredential,
     getCredentialMeta,

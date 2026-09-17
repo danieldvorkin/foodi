@@ -4,7 +4,8 @@ import { MEAL_EMOJI, type MediaItem } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social as socialApi } from '../../api/types';
 import { AddToBook } from '../../components/Books';
-import { upsertJob } from '../../lib/jobs';
+import { isActive, upsertJob, useJobs } from '../../lib/jobs';
+import { useMe } from './layout';
 import { MediaGallery, MediaThumb, MediaUploader } from '../../components/Media';
 import { IngredientList, StepList } from '../../components/RecipeParts';
 import { useToast } from '../../components/Toast';
@@ -29,6 +30,18 @@ export function RecipePage() {
   const [shareOpen, setShareOpen] = useState(Boolean((location.state as { share?: boolean } | null)?.share));
   const [photosOpen, setPhotosOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
+  const me = useMe();
+  const jobs = useJobs();
+  const photoJob = jobs.find((j) => j.kind === 'image' && j.recipeId === recipe.id);
+  const photoInFlight = Boolean(photoJob && isActive(photoJob));
+  const generatedCover = recipe.media.find((m) => m.generated);
+  const canMakePhoto = isMine && me.aiCapabilities.images && !recipe.adaptedFrom && !recipe.media.some((m) => m.kind === 'image' && !m.generated);
+  // A finished photo job means the loader data is stale until we revalidate.
+  const [seenPhotoJob, setSeenPhotoJob] = useState<string | null>(null);
+  if (photoJob && photoJob.status === 'done' && seenPhotoJob !== `${photoJob.id}:done`) {
+    setSeenPhotoJob(`${photoJob.id}:done`);
+    queueMicrotask(revalidate);
+  }
   const [caption, setCaption] = useState('');
   const [attachments, setAttachments] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState<'' | 'tweak' | 'share' | 'random'>('');
@@ -132,11 +145,29 @@ export function RecipePage() {
     }
   }
 
+  async function makePhoto() {
+    try {
+      const { job } = await recipesApi.photo(recipe.id);
+      upsertJob(job);
+      toast('Making a photo — about a minute.');
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  }
+
   return (
     <main className="page recipe">
+      {photoInFlight && recipe.media.length === 0 && (
+        <section className="recipe-hero">
+          <div className="photo-shimmer" role="status" aria-live="polite">
+            <span className="spinner" /> {photoJob?.status === 'queued' && photoJob.attempts > 0 ? 'First photo didn’t pass the check — trying once more…' : 'Photographing your dish…'}
+          </div>
+        </section>
+      )}
       {recipe.media.length > 0 && (
         <section className="recipe-hero">
           <MediaGallery items={recipe.media} layout="hero" {...(isMine ? { onDelete: deleteMedia } : {})} />
+          {generatedCover && <p className="hint">✨ AI photo, checked against the recipe before it was shown. {isMine ? 'Delete it from the gallery if it’s not right.' : ''}</p>}
         </section>
       )}
 
@@ -240,6 +271,11 @@ export function RecipePage() {
               <button type="button" className="btn" onClick={() => setPhotosOpen((o) => !o)} aria-expanded={photosOpen}>
                 📷 {recipe.media.length ? 'Add more photos' : 'Add photos'}
               </button>
+              {canMakePhoto && (
+                <button type="button" className="btn" onClick={makePhoto} disabled={photoInFlight}>
+                  {photoInFlight ? '✨ Photographing…' : generatedCover ? '✨ Redo the AI photo' : '✨ Generate a photo'}
+                </button>
+              )}
               <span className="recipe-actions-sep" aria-hidden="true" />
               <button type="button" className="btn" onClick={() => setShareOpen(true)}>
                 📣 {visibility === 'public' ? 'Share again' : 'Share to the feed'}

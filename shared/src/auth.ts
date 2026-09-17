@@ -36,6 +36,10 @@ export const MeSchema = z.object({
   hasProfile: z.boolean(),
   /** Granular admin rights (see ADMIN_PERMISSIONS). Empty for consumers. */
   permissions: z.array(z.string()),
+  /** Generate a photo for each AI-written recipe (only possible when the connected vendor can). */
+  autoPhotos: z.boolean(),
+  /** What the connected vendor can do, so the UI can hide what it can't. */
+  aiCapabilities: z.object({ images: z.boolean(), vision: z.boolean() }),
   createdAt: z.string(),
 });
 
