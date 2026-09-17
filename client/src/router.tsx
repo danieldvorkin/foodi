@@ -21,6 +21,11 @@ import { BookPage, bookLoader } from './routes/app/book';
 import { SalesPage, salesLoader } from './routes/app/sales';
 import { PayDone, TestCheckout, testCheckoutLoader } from './routes/pay';
 import { AdminCommerce, adminCommerceLoader } from './routes/admin/commerce';
+import { AdminShop, adminShopLoader } from './routes/admin/shop';
+import { ShopPage, shopLoader } from './routes/app/shop';
+import { ListingPage, listingLoader } from './routes/app/shop-listing';
+import { ListingEditor, listingEditorLoader } from './routes/app/shop-editor';
+import { ShopMinePage, shopMineLoader } from './routes/app/shop-mine';
 import { AdminLayout, adminLoader } from './routes/admin/layout';
 import { AdminOverview, adminOverviewLoader } from './routes/admin/overview';
 import { AdminUsers, adminUsersLoader } from './routes/admin/users';
@@ -65,6 +70,11 @@ export const router = createBrowserRouter([
           { path: 'books/:id', element: <BookPage />, loader: bookLoader },
           { path: 'notifications', element: <NotificationsPage />, loader: notificationsLoader },
           { path: 'sales', element: <SalesPage />, loader: salesLoader },
+          { path: 'shop', element: <ShopPage />, loader: shopLoader },
+          { path: 'shop/new', element: <ListingEditor />, loader: listingEditorLoader },
+          { path: 'shop/mine', element: <ShopMinePage />, loader: shopMineLoader },
+          { path: 'shop/:id', element: <ListingPage />, loader: listingLoader },
+          { path: 'shop/:id/edit', element: <ListingEditor />, loader: listingEditorLoader },
           { path: 'pay/done', element: <PayDone /> },
           { path: 'u/:handle', element: <ProfilePage />, loader: profileLoader },
           { path: 'settings', element: <SettingsPage />, loader: settingsLoader },
@@ -83,6 +93,7 @@ export const router = createBrowserRouter([
           { path: 'community', element: <AdminCommunity />, loader: adminCommunityLoader },
           { path: 'media', element: <AdminMedia />, loader: adminMediaLoader },
           { path: 'commerce', element: <AdminCommerce />, loader: adminCommerceLoader },
+          { path: 'shop', element: <AdminShop />, loader: adminShopLoader },
           { path: 'generations', element: <AdminGenerations />, loader: adminGenerationsLoader },
           { path: 'settings', element: <AdminSettings />, loader: adminSettingsLoader },
           { path: 'audit', element: <AdminAudit />, loader: adminAuditLoader },

@@ -83,7 +83,7 @@ export function commerceRoutes(db: Db, commerce: Commerce, settings: Settings) {
   });
 
   // ---- test-mode checkout (only when no real provider is configured) --------------------------
-  const kindParam = z.enum(['book', 'promo']);
+  const kindParam = z.enum(['book', 'promo', 'order']);
   r.get('/pay/test/:kind/:id', (req, res) => {
     if (commerce.providerId !== 'test') throw notFound('Test checkout is off.');
     res.json(commerce.pendingOrder(kindParam.parse(req.params['kind']), req.params['id']!, req.user!.id));
@@ -127,7 +127,7 @@ export function stripeWebhook(config: Config, commerce: Commerce, log: Logger) {
       const session = event.data.object as { id: string; payment_status?: string; metadata?: { kind?: string; refId?: string }; client_reference_id?: string };
       const kind = session.metadata?.kind;
       const refId = session.metadata?.refId ?? session.client_reference_id;
-      if ((kind === 'book' || kind === 'promo') && refId && session.payment_status === 'paid') {
+      if ((kind === 'book' || kind === 'promo' || kind === 'order') && refId && session.payment_status === 'paid') {
         const done = commerce.fulfil(kind, refId, session.id);
         log.info({ kind, refId, done }, 'stripe checkout completed');
       }
@@ -145,6 +145,15 @@ export function adminCommerceRoutes(commerce: Commerce, audit: Audit) {
     try {
       await commerce.refund(req.params['id']!);
       audit.record(req.user!.id, 'purchase.refund', 'purchase', req.params['id']!);
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
+  });
+  r.post('/orders/:id/refund', async (req, res, next) => {
+    try {
+      await commerce.refundOrder(req.params['id']!);
+      audit.record(req.user!.id, 'order.refund', 'order', req.params['id']!);
       res.json({ ok: true });
     } catch (e) {
       next(e);

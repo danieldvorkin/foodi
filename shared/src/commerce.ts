@@ -73,6 +73,7 @@ export const PayoutSchema = z.object({
 export type Payout = z.infer<typeof PayoutSchema>;
 
 export const EarningsSchema = z.object({
+  /** Book sales + shop orders. */
   salesCount: z.number(),
   grossCents: z.number(),
   feesCents: z.number(),
@@ -111,6 +112,9 @@ export const AdminCommerceSchema = z.object({
     pendingPayouts: z.number(),
     pendingPayoutCents: z.number(),
     booksForSale: z.number(),
+    shopOrders: z.number(),
+    shopGrossCents: z.number(),
+    shopFeesCents: z.number(),
   }),
   provider: z.object({ id: z.enum(PAYMENT_PROVIDERS), webhookConfigured: z.boolean() }),
   purchases: z.array(PurchaseSchema),

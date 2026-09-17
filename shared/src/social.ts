@@ -104,7 +104,7 @@ export const EditRecipeSchema = AuthoredRecipeSchema.extend({
   revisionNotes: z.string().trim().max(2000).optional(),
 });
 
-export const NOTIFICATION_KINDS = ['like', 'comment', 'save', 'role', 'system', 'follow', 'book', 'remix', 'post', 'sale', 'promo', 'payout'] as const;
+export const NOTIFICATION_KINDS = ['like', 'comment', 'save', 'role', 'system', 'follow', 'book', 'remix', 'post', 'sale', 'promo', 'payout', 'listing', 'order'] as const;
 export const NotificationSchema = z.object({
   id: z.string(),
   kind: z.enum(NOTIFICATION_KINDS),

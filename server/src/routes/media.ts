@@ -27,6 +27,7 @@ export interface MediaRow {
   recipe_id: string | null;
   post_id: string | null;
   blog_id: string | null;
+  listing_id: string | null;
   position: number;
   created_at: string;
 }
@@ -94,6 +95,10 @@ export function mediaRoutes(db: Db, store: MediaStore, settings: Settings) {
     if (m.blog_id) {
       const b = one<{ status: string }>(db, 'SELECT status FROM blog_posts WHERE id = ?', m.blog_id);
       if (b?.status === 'published') return true;
+    }
+    if (m.listing_id) {
+      const l = one<{ status: string }>(db, 'SELECT status FROM shop_listings WHERE id = ?', m.listing_id);
+      if (l?.status === 'approved' || l?.status === 'sold_out') return true;
     }
     return false;
   }

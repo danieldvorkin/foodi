@@ -1,6 +1,7 @@
 import { Link, useLoaderData, useNavigate, useRevalidator, type LoaderFunctionArgs } from 'react-router';
 import { errorMessage } from '../../api/client';
 import { admin } from '../../api/types';
+import { ADMIN_PERMISSIONS } from '@foodi/shared';
 import { useToast } from '../../components/Toast';
 import { dateTime } from '../../lib/format';
 import { useAdminMe } from './layout';
@@ -10,7 +11,7 @@ export async function adminUserLoader({ params }: LoaderFunctionArgs) {
 }
 
 export function AdminUser() {
-  const { user, identities, recipes, generations } = useLoaderData<typeof adminUserLoader>();
+  const { user, identities, recipes, generations, permissions } = useLoaderData<typeof adminUserLoader>();
   const me = useAdminMe();
   const nav = useNavigate();
   const toast = useToast();
@@ -94,6 +95,34 @@ export function AdminUser() {
             <dt>Identities</dt>
             <dd>{identities.map((i) => `${i.provider}${i.email ? ` (${i.email})` : ''}`).join(', ') || '—'}</dd>
           </dl>
+          {user.role === 'admin' && (
+            <div className="stack" style={{ gap: 'var(--s-2)' }}>
+              <h3 style={{ fontSize: 'var(--t-16)' }}>Admin permissions</h3>
+              <p className="muted small">Extensions to the admin role. Every admin can moderate; these unlock specific decisions.</p>
+              {ADMIN_PERMISSIONS.map((p) => {
+                const on = permissions.includes(p.id);
+                return (
+                  <label key={p.id} className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      style={{ marginTop: 4 }}
+                      onChange={(e) => {
+                        const next = e.target.checked ? [...permissions, p.id] : permissions.filter((x) => x !== p.id);
+                        void act(() => admin.setPermissions(user.id, next), e.target.checked ? `Granted ${p.name}` : `Revoked ${p.name}`);
+                      }}
+                    />
+                    <span>
+                      <b style={{ fontWeight: 500 }}>{p.name}</b> <span className="muted small">({p.id})</span>
+                      <span className="muted small" style={{ display: 'block' }}>
+                        {p.blurb}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </section>
         <section className="stack">
           <h2 style={{ fontSize: 'var(--t-20)' }}>Recipes ({user.recipeCount})</h2>

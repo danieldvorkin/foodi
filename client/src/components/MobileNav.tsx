@@ -28,9 +28,9 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
           <span className="tabbar-plus" aria-hidden="true">＋</span>
           <span className="tabbar-label">Create</span>
         </button>
-        <NavLink to="/app/blog" className="tabbar-item">
-          <span className="tabbar-icon" aria-hidden="true">📓</span>
-          <span className="tabbar-label">Blog</span>
+        <NavLink to="/app/shop" className="tabbar-item">
+          <span className="tabbar-icon" aria-hidden="true">🛍️</span>
+          <span className="tabbar-label">Shop</span>
         </NavLink>
         <button type="button" className={`tabbar-item${sheet === 'me' ? ' is-open' : ''}`} aria-label="You" aria-haspopup="dialog" aria-expanded={sheet === 'me'} onClick={() => setSheet('me')}>
           <span className="tabbar-icon tabbar-avatar" aria-hidden="true">
@@ -71,6 +71,13 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
               <small>A story, a technique, a week of cooking</small>
             </span>
           </Link>
+          <Link to="/app/shop/new" className="sheet-action" onClick={close}>
+            <span aria-hidden="true">🛍️</span>
+            <span>
+              <b>Sell something</b>
+              <small>Gear, jars, books, classes — reviewed before it goes live</small>
+            </span>
+          </Link>
         </div>
       </Sheet>
 
@@ -83,10 +90,23 @@ export function BottomBar({ me, unread }: { me: Me; unread: number }) {
               <small>@{me.handle}</small>
             </span>
           </Link>
+          <Link to="/app/blog" className="sheet-action" onClick={close}>
+            <span aria-hidden="true">📓</span>
+            <span>
+              <b>Blog</b>
+            </span>
+          </Link>
           <Link to="/app/books" className="sheet-action" onClick={close}>
             <span aria-hidden="true">📚</span>
             <span>
               <b>Recipe books</b>
+            </span>
+          </Link>
+          <Link to="/app/shop/mine" className="sheet-action" onClick={close}>
+            <span aria-hidden="true">🛍️</span>
+            <span>
+              <b>Your shop</b>
+              <small>Listings, orders to send, purchases</small>
             </span>
           </Link>
           <Link to="/app/notifications" className="sheet-action" onClick={close}>

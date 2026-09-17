@@ -42,6 +42,7 @@ export function AppLayout() {
             <Tab to="/app/cook" icon="🥘" label="Cook" />
             <Tab to="/app/blog" icon="📓" label="Blog" />
             <Tab to="/app/books" icon="📚" label="Books" />
+            <Tab to="/app/shop" icon="🛍️" label="Shop" />
           </nav>
           <div className="topbar-actions">
             <Menu label="Write" button={<span className="iconbtn iconbtn-label"><span aria-hidden="true">✍️</span><span className="tab-label">Write</span></span>}>
@@ -53,6 +54,9 @@ export function AppLayout() {
               </Link>
               <Link to="/app/cook" className="panel-item" role="menuitem">
                 ✨ Ask the AI for one
+              </Link>
+              <Link to="/app/shop/new" className="panel-item" role="menuitem">
+                🛍️ Sell something
               </Link>
             </Menu>
             <NotificationBell unread={unread} setUnread={setUnread} latest={latest} />
@@ -74,6 +78,9 @@ export function AppLayout() {
               </Link>
               <Link to="/app/notifications" className="panel-item" role="menuitem">
                 🔔 Notifications
+              </Link>
+              <Link to="/app/shop/mine" className="panel-item" role="menuitem">
+                🛍️ Your shop
               </Link>
               <Link to="/app/sales" className="panel-item" role="menuitem">
                 💵 Sales & payouts

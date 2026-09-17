@@ -34,6 +34,8 @@ export const MeSchema = z.object({
   credentialHint: z.string().nullable(),
   credentialUpdatedAt: z.string().nullable(),
   hasProfile: z.boolean(),
+  /** Granular admin rights (see ADMIN_PERMISSIONS). Empty for consumers. */
+  permissions: z.array(z.string()),
   createdAt: z.string(),
 });
 

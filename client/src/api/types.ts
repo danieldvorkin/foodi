@@ -17,7 +17,9 @@ import type {
   FeedItem,
   FeedScope,
   GenerationLog,
+  Listing,
   Me,
+  Order,
   MediaItem,
   Notification,
   Person,
@@ -30,7 +32,7 @@ import type {
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
-export type { AdminCommerce, CommerceConfig, Earnings, Payout, PromoPackageId, Promotion, Purchase, AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
+export type { Listing, Order, AdminCommerce, CommerceConfig, Earnings, Payout, PromoPackageId, Promotion, Purchase, AdminStats, AdminUser, AppSettings, AuditEntry, AuthProviderInfo, BlogPost, BookItem, Comment, FeedItem, FeedScope, GenerationLog, Me, MediaItem, Notification, Person, Post, Profile, PublicProfile, Recipe, RecipeBook, RecipeSummary };
 
 export const auth = {
   providers: () => api<{ providers: AuthProviderInfo[]; allowSignups: boolean; maintenanceMessage: string }>('/auth/providers'),
@@ -185,9 +187,41 @@ export const commerce = {
   earnings: () => api<Earnings>('/commerce/earnings'),
   requestPayout: () => api<{ payout: Payout }>('/commerce/payouts', { method: 'POST' }),
   library: () => api<{ bookIds: string[] }>('/commerce/library'),
-  testOrder: (kind: 'book' | 'promo', id: string) => api<{ name: string; amountCents: number; currency: string; status: string; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}`),
-  testComplete: (kind: 'book' | 'promo', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/complete`, { method: 'POST' }),
-  testCancel: (kind: 'book' | 'promo', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  testOrder: (kind: 'book' | 'promo' | 'order', id: string) => api<{ name: string; amountCents: number; currency: string; status: string; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}`),
+  testComplete: (kind: 'book' | 'promo' | 'order', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/complete`, { method: 'POST' }),
+  testCancel: (kind: 'book' | 'promo' | 'order', id: string) => api<{ ok: true; returnTo: string }>(`/commerce/pay/test/${kind}/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+};
+
+export interface ListingInput {
+  title: string;
+  description: string;
+  category: Listing['category'];
+  condition: 'new' | 'used' | null;
+  priceCents: number;
+  quantity: number | null;
+  shipsFrom: string;
+  mediaIds: string[];
+  submit: boolean;
+}
+
+export const shop = {
+  list: (opts: { category?: string; q?: string; before?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.category) q.set('category', opts.category);
+    if (opts.q) q.set('q', opts.q);
+    if (opts.before) q.set('before', opts.before);
+    return api<{ listings: Listing[]; nextBefore: string | null }>(`/shop${q.size ? `?${q}` : ''}`);
+  },
+  latest: () => api<{ listings: Listing[] }>('/shop/latest'),
+  mine: () => api<{ listings: Listing[] }>('/shop/mine'),
+  get: (id: string) => api<{ listing: Listing }>(`/shop/${encodeURIComponent(id)}`),
+  create: (body: ListingInput) => api<{ listing: Listing }>('/shop', { method: 'POST', body }),
+  update: (id: string, body: ListingInput) => api<{ listing: Listing }>(`/shop/${encodeURIComponent(id)}`, { method: 'PUT', body }),
+  archive: (id: string) => api<{ ok: true }>(`/shop/${encodeURIComponent(id)}/archive`, { method: 'POST' }),
+  remove: (id: string) => api<{ ok: true }>(`/shop/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  buy: (id: string, quantity: number, note: string) => api<{ url: string }>(`/shop/${encodeURIComponent(id)}/buy`, { method: 'POST', body: { quantity, note } }),
+  orders: (role: 'buying' | 'selling') => api<{ orders: Order[] }>(`/shop/orders?role=${role}`),
+  fulfil: (orderId: string) => api<{ ok: true }>(`/shop/orders/${encodeURIComponent(orderId)}/fulfil`, { method: 'POST' }),
 };
 
 export const notifications = {
@@ -224,6 +258,7 @@ export interface AdminUserDetail {
   identities: { provider: string; email: string | null; created_at: string }[];
   recipes: { id: string; title: string; source: string; visibility: string; created_at: string }[];
   generations: GenerationLog[];
+  permissions: string[];
 }
 
 export const admin = {
@@ -252,7 +287,12 @@ export const admin = {
   media: () => api<{ media: { id: string; ownerId: string; handle: string; kind: string; mime: string; bytes: number; recipeId: string | null; postId: string | null; createdAt: string }[] }>('/admin/media'),
   deleteMedia: (id: string) => api<{ ok: true }>(`/admin/media/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   purgeSessions: () => api<{ ok: true }>('/admin/maintenance/purge-sessions', { method: 'POST' }),
-  commerce: () => api<AdminCommerce>('/admin/commerce'),
+  commerce: () => api<AdminCommerce & { orders: Order[] }>('/admin/commerce'),
+  refundOrder: (orderId: string) => api<{ ok: true }>(`/admin/commerce/orders/${encodeURIComponent(orderId)}/refund`, { method: 'POST' }),
+  shop: (status?: string) => api<{ listings: Listing[]; canApprove: boolean; pending: number }>(`/admin/shop${status ? `?status=${status}` : ''}`),
+  reviewListing: (id: string, decision: 'approve' | 'reject', reason = '') => api<{ ok: true }>(`/admin/shop/${encodeURIComponent(id)}/review`, { method: 'POST', body: { decision, reason } }),
+  takedownListing: (id: string, reason: string) => api<{ ok: true }>(`/admin/shop/${encodeURIComponent(id)}/takedown`, { method: 'POST', body: { reason } }),
+  setPermissions: (userId: string, permissions: string[]) => api<{ permissions: string[] }>(`/admin/users/${encodeURIComponent(userId)}/permissions`, { method: 'PUT', body: { permissions } }),
   refund: (purchaseId: string) => api<{ ok: true }>(`/admin/commerce/purchases/${encodeURIComponent(purchaseId)}/refund`, { method: 'POST' }),
   cancelPromotion: (id: string) => api<{ ok: true }>(`/admin/commerce/promotions/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   resolvePayout: (id: string, status: 'paid' | 'rejected', note: string) => api<{ ok: true }>(`/admin/commerce/payouts/${encodeURIComponent(id)}`, { method: 'POST', body: { status, note } }),

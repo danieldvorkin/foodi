@@ -5,7 +5,7 @@ import { notifications as api } from '../api/types';
 import { timeAgo } from '../lib/format';
 import { Avatar } from './ui';
 
-export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕', sale: '💵', promo: '🚀', payout: '🏦' };
+export const KIND_EMOJI: Record<Notification['kind'], string> = { like: '❤️', comment: '💬', save: '⭐', role: '🛠', system: '📣', follow: '👋', book: '📚', remix: '🍴', post: '🆕', sale: '💵', promo: '🚀', payout: '🏦', listing: '🛍️', order: '📦' };
 
 export function describe(n: Notification): { text: string; to: string | null } {
   const who = n.actor?.displayName ?? 'Someone';
@@ -34,6 +34,10 @@ export function describe(n: Notification): { text: string; to: string | null } {
       return { text: n.message ?? 'Your promotion is live', to: n.bookId ? `/app/books/${n.bookId}` : '/app/sales' };
     case 'payout':
       return { text: n.message ?? 'Payout update', to: '/app/sales' };
+    case 'listing':
+      return { text: n.message ?? 'Listing update', to: '/app/shop/mine' };
+    case 'order':
+      return { text: `${who} ${n.message ?? 'placed an order'}`, to: '/app/shop/mine' };
     case 'role':
       return { text: n.message ?? 'Your role changed', to: '/app/settings?tab=account' };
     default:

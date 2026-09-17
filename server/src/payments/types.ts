@@ -1,4 +1,4 @@
-export type CheckoutKind = 'book' | 'promo';
+export type CheckoutKind = 'book' | 'promo' | 'order';
 
 export interface CheckoutInput {
   kind: CheckoutKind;

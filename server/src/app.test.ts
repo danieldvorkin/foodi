@@ -1114,3 +1114,102 @@ describe('commerce (test payment provider)', () => {
     }
   });
 });
+
+describe('shop', () => {
+  it('listings need approval by an admin with the posting-approvals permission; buying, stock, fulfilment and refunds', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada'); // admin, no permissions yet
+      const sam = await signIn(b, 'mock-sam');
+      const jo = await signIn(b, 'mock-jo');
+      for (const c of [ada, sam, jo]) await request(b.base).put('/api/profile').set('cookie', c).set('origin', ORIGIN).send(PROFILE);
+      const adaId = (await request(b.base).get('/api/auth/me').set('cookie', ada)).body.id as string;
+
+      // Sam lists a jar of chilli crisp with a photo.
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+      const up = await request(b.base).post('/api/media').set('cookie', sam).set('origin', ORIGIN).set('content-type', 'image/png').send(png);
+      expect(up.status).toBe(201);
+      const create = await request(b.base)
+        .post('/api/shop')
+        .set('cookie', sam)
+        .set('origin', ORIGIN)
+        .send({ title: 'Chilli crisp, small batch', description: 'Made every Sunday. Sichuan pepper, garlic, shallots.', category: 'ingredients', priceCents: 1200, quantity: 3, shipsFrom: 'Toronto', mediaIds: [up.body.media.id] });
+      expect(create.status).toBe(201);
+      const id = create.body.listing.id;
+      expect(create.body.listing.status).toBe('pending');
+      // Not in the shop, not visible to others, but the seller can see it.
+      expect((await request(b.base).get('/api/shop').set('cookie', jo)).body.listings).toHaveLength(0);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', jo)).status).toBe(404);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', sam)).status).toBe(200);
+      expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', jo)).status).toBe(404);
+
+      // Ada is an admin but lacks the permission: she sees the queue, cannot approve.
+      const queue = await request(b.base).get('/api/admin/shop?status=pending').set('cookie', ada);
+      expect(queue.body).toMatchObject({ pending: 1, canApprove: false });
+      const denied = await request(b.base).post(`/api/admin/shop/${id}/review`).set('cookie', ada).set('origin', ORIGIN).send({ decision: 'approve' });
+      expect(denied.status).toBe(403);
+      expect(denied.body.error.message).toMatch(/posting-approvals/);
+      // Consumers can't even see the queue, or grant permissions.
+      expect((await request(b.base).get('/api/admin/shop').set('cookie', sam)).status).toBe(403);
+      expect((await request(b.base).put(`/api/admin/users/${adaId}/permissions`).set('cookie', sam).set('origin', ORIGIN).send({ permissions: ['posting-approvals'] })).status).toBe(403);
+      // Grant it (to a consumer it's refused), then approve.
+      const samId = (await request(b.base).get('/api/auth/me').set('cookie', sam)).body.id as string;
+      expect((await request(b.base).put(`/api/admin/users/${samId}/permissions`).set('cookie', ada).set('origin', ORIGIN).send({ permissions: ['posting-approvals'] })).status).toBe(400);
+      const grant = await request(b.base).put(`/api/admin/users/${adaId}/permissions`).set('cookie', ada).set('origin', ORIGIN).send({ permissions: ['posting-approvals'] });
+      expect(grant.body.permissions).toEqual(['posting-approvals']);
+      expect((await request(b.base).get('/api/auth/me').set('cookie', ada)).body.permissions).toEqual(['posting-approvals']);
+      expect((await request(b.base).post(`/api/admin/shop/${id}/review`).set('cookie', ada).set('origin', ORIGIN).send({ decision: 'reject' })).status).toBe(400); // needs a reason
+      expect((await request(b.base).post(`/api/admin/shop/${id}/review`).set('cookie', ada).set('origin', ORIGIN).send({ decision: 'approve' })).status).toBe(200);
+      expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].kind).toBe('listing');
+
+      // Live: in the shop, searchable, photo visible.
+      const shop = await request(b.base).get('/api/shop?category=ingredients&q=crisp').set('cookie', jo);
+      expect(shop.body.listings).toHaveLength(1);
+      expect((await request(b.base).get(`/api/media/${up.body.media.id}`).set('cookie', jo)).status).toBe(200);
+
+      // Jo buys two; stock drops to one when the payment lands; the seller is told and marks it sent.
+      expect((await request(b.base).post(`/api/shop/${id}/buy`).set('cookie', sam).set('origin', ORIGIN).send({ quantity: 1 })).status).toBe(400);
+      expect((await request(b.base).post(`/api/shop/${id}/buy`).set('cookie', jo).set('origin', ORIGIN).send({ quantity: 5 })).status).toBe(409);
+      const buy = await request(b.base).post(`/api/shop/${id}/buy`).set('cookie', jo).set('origin', ORIGIN).send({ quantity: 2, note: 'Leave with the concierge' });
+      expect(buy.status).toBe(200);
+      const orderId = /\/pay\/test\/order\/(ord_[A-Za-z0-9_-]+)$/.exec(buy.body.url)![1]!;
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', jo)).body.listing.quantity).toBe(3);
+      await request(b.base).post(`/api/commerce/pay/test/order/${orderId}/complete`).set('cookie', jo).set('origin', ORIGIN);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', jo)).body.listing).toMatchObject({ quantity: 1, soldCount: 2 });
+      const selling = await request(b.base).get('/api/shop/orders?role=selling').set('cookie', sam);
+      expect(selling.body.orders[0]).toMatchObject({ id: orderId, status: 'paid', quantity: 2, amountCents: 2400, note: 'Leave with the concierge' });
+      expect((await request(b.base).get('/api/notifications').set('cookie', sam)).body.notifications[0].kind).toBe('order');
+      expect((await request(b.base).post(`/api/shop/orders/${orderId}/fulfil`).set('cookie', jo).set('origin', ORIGIN)).status).toBe(404);
+      expect((await request(b.base).post(`/api/shop/orders/${orderId}/fulfil`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(200);
+      expect((await request(b.base).get('/api/shop/orders').set('cookie', jo)).body.orders[0].status).toBe('fulfilled');
+      // Earnings count it (20% fee).
+      expect((await request(b.base).get('/api/commerce/earnings').set('cookie', sam)).body).toMatchObject({ salesCount: 1, grossCents: 2400, feesCents: 480 });
+
+      // The last one sells out; a refund restocks it.
+      const buy2 = await request(b.base).post(`/api/shop/${id}/buy`).set('cookie', jo).set('origin', ORIGIN).send({ quantity: 1 });
+      const order2 = /\/(ord_[A-Za-z0-9_-]+)$/.exec(buy2.body.url)![1]!;
+      await request(b.base).post(`/api/commerce/pay/test/order/${order2}/complete`).set('cookie', jo).set('origin', ORIGIN);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', jo)).body.listing.status).toBe('sold_out');
+      expect((await request(b.base).get('/api/shop').set('cookie', jo)).body.listings).toHaveLength(0);
+      await request(b.base).post(`/api/admin/commerce/orders/${order2}/refund`).set('cookie', ada).set('origin', ORIGIN);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', jo)).body.listing).toMatchObject({ status: 'approved', quantity: 1 });
+
+      // Editing sends it back to review; a takedown needs only the admin role.
+      await request(b.base).put(`/api/shop/${id}`).set('cookie', sam).set('origin', ORIGIN).send({ title: 'Chilli crisp, extra hot', description: 'Now with more Sichuan pepper in it.', category: 'ingredients', priceCents: 1300, quantity: 1, mediaIds: [up.body.media.id] });
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', sam)).body.listing.status).toBe('pending');
+      await request(b.base).post(`/api/admin/shop/${id}/review`).set('cookie', ada).set('origin', ORIGIN).send({ decision: 'approve' });
+      // Demoting Ada wipes her permissions; re-promoting doesn't restore them.
+      const priya = await signIn(b, 'mock-priya');
+      const priyaId = (await request(b.base).get('/api/auth/me').set('cookie', priya)).body.id as string;
+      await request(b.base).patch(`/api/admin/users/${priyaId}`).set('cookie', ada).set('origin', ORIGIN).send({ role: 'admin' });
+      await request(b.base).patch(`/api/admin/users/${adaId}`).set('cookie', priya).set('origin', ORIGIN).send({ role: 'consumer' });
+      await request(b.base).patch(`/api/admin/users/${adaId}`).set('cookie', priya).set('origin', ORIGIN).send({ role: 'admin' });
+      expect((await request(b.base).get('/api/auth/me').set('cookie', ada)).body.permissions).toEqual([]);
+      expect((await request(b.base).post(`/api/admin/shop/${id}/takedown`).set('cookie', priya).set('origin', ORIGIN).send({ reason: 'Counterfeit labels' })).status).toBe(200);
+      expect((await request(b.base).get(`/api/shop/${id}`).set('cookie', sam)).body.listing).toMatchObject({ status: 'rejected', rejectionReason: 'Counterfeit labels' });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

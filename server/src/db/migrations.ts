@@ -399,4 +399,67 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX notifications_unread ON notifications(user_id, read_at);
     `,
   },
+  {
+    name: 'shop',
+    sql: `
+      -- Granular admin rights. Base role stays 'admin'; these unlock specific panels.
+      CREATE TABLE admin_permissions (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        permission TEXT NOT NULL,
+        granted_by TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, permission)
+      );
+
+      -- Anything people sell that isn't a recipe book: gear, jars, classes, services.
+      CREATE TABLE shop_listings (
+        id TEXT PRIMARY KEY,
+        seller_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        condition TEXT,
+        price_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        quantity INTEGER,
+        ships_from TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL CHECK (status IN ('draft','pending','approved','rejected','sold_out','archived')),
+        rejection_reason TEXT,
+        reviewed_by TEXT,
+        reviewed_at TEXT,
+        submitted_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX shop_listings_status ON shop_listings(status, reviewed_at DESC);
+      CREATE INDEX shop_listings_seller ON shop_listings(seller_id, created_at DESC);
+
+      ALTER TABLE media ADD COLUMN listing_id TEXT REFERENCES shop_listings(id) ON DELETE CASCADE;
+      CREATE INDEX media_listing ON media(listing_id, position);
+
+      CREATE TABLE shop_orders (
+        id TEXT PRIMARY KEY,
+        listing_id TEXT REFERENCES shop_listings(id) ON DELETE SET NULL,
+        listing_title TEXT NOT NULL,
+        listing_category TEXT NOT NULL,
+        buyer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        seller_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        quantity INTEGER NOT NULL,
+        amount_cents INTEGER NOT NULL,
+        platform_fee_cents INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        provider TEXT NOT NULL,
+        provider_ref TEXT,
+        status TEXT NOT NULL CHECK (status IN ('pending','paid','fulfilled','refunded','cancelled')),
+        created_at TEXT NOT NULL,
+        paid_at TEXT,
+        fulfilled_at TEXT,
+        refunded_at TEXT
+      );
+      CREATE INDEX shop_orders_buyer ON shop_orders(buyer_id, status);
+      CREATE INDEX shop_orders_seller ON shop_orders(seller_id, status);
+      CREATE INDEX shop_orders_listing ON shop_orders(listing_id, status);
+    `,
+  },
 ];

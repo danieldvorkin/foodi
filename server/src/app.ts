@@ -31,6 +31,8 @@ import { createSettings } from './services/settings.js';
 import { createNotifier } from './services/notify.js';
 import { createHouse } from './services/house.js';
 import { createCommerce } from './services/commerce.js';
+import { createPermissions } from './services/permissions.js';
+import { adminShopRoutes, shopRoutes } from './routes/shop.js';
 import { createStripeProvider } from './payments/stripe.js';
 import { createTestProvider } from './payments/test.js';
 import { adminCommerceRoutes, commerceRoutes, stripeWebhook } from './routes/commerce.js';
@@ -55,6 +57,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   });
   const settings = createSettings(db);
   const audit = createAudit(db);
+  const permissions = createPermissions(db);
   const notifier = createNotifier(db);
   const house = createHouse(db, settings, notifier, log);
   if (config.houseKitchen) house.ensure();
@@ -159,7 +162,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.get('/health', (_req, res) => res.json({ ok: true, env: config.env }));
   api.use(['/auth/key', '/auth/register', '/auth/login', '/auth/password'], authLimiter);
   api.use('/auth/:provider/start', authLimiter);
-  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit }));
+  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit, permissions }));
   api.use('/profile', writeLimiter, profileRoutes(db));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
@@ -168,10 +171,12 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/blog', writeLimiter, blogRoutes(db, notifier));
   api.use('/books', writeLimiter, bookRoutes(db, notifier));
   api.use('/commerce', writeLimiter, commerceRoutes(db, commerce, settings));
+  api.use('/shop', writeLimiter, shopRoutes(db, commerce, settings, notifier));
   api.use('/admin/commerce', adminCommerceRoutes(commerce, audit));
+  api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier }));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions }));
   api.use(notFoundHandler);
   app.use('/api', api);
 
@@ -207,6 +212,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
     providers,
     house,
     commerce,
+    permissions,
     close: () => {
       clearInterval(sweeper);
       clearInterval(houseTimer);

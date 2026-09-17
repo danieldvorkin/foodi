@@ -9,6 +9,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
 import type { Settings } from '../services/settings.js';
 import type { Audit } from '../services/audit.js';
+import type { Permissions } from '../services/permissions.js';
 import { clearOAuthCookie, clearSessionCookie, readOAuthCookie, setOAuthCookie, setSessionCookie } from './cookies.js';
 import type { AuthProvider, OAuthProvider } from './providers/types.js';
 import type { AuthStore } from './store.js';
@@ -20,12 +21,13 @@ interface Deps {
   providers: AuthProvider[];
   settings: Settings;
   audit: Audit;
+  permissions: Permissions;
 }
 
 /** A real scrypt hash of a random string, so failed logins for unknown emails take as long as known ones. */
 const DUMMY_HASH = 'scrypt$131072$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
-export function authRoutes({ config, log, store, providers, settings, audit }: Deps) {
+export function authRoutes({ config, log, store, providers, settings, audit, permissions }: Deps) {
   const r = Router();
   const cookieOpts = { secure: config.cookieSecure };
   const byId = new Map(providers.map((p) => [p.id, p]));
@@ -55,6 +57,7 @@ export function authRoutes({ config, log, store, providers, settings, audit }: D
       credentialHint: cred?.hint ?? null,
       credentialUpdatedAt: cred?.updatedAt ?? null,
       hasProfile: store.hasProfile(user.id),
+      permissions: user.role === 'admin' ? permissions.list(user.id) : [],
       createdAt: user.created_at,
     };
   }

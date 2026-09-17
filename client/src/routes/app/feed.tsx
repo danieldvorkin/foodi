@@ -45,6 +45,9 @@ function LeftRail({ mine }: { mine: RecipeSummary[] }) {
           <NavLink to="/app/books">
             <span className="ico">📚</span> Recipe books
           </NavLink>
+          <NavLink to="/app/shop">
+            <span className="ico">🛍️</span> Shop
+          </NavLink>
           <NavLink to="/app/notifications">
             <span className="ico">🔔</span> Notifications
           </NavLink>

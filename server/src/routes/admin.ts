@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 
 import {
   AdminNotifySchema,
@@ -23,6 +24,8 @@ import type { Settings } from '../services/settings.js';
 import type { MediaStore } from './media.js';
 import { unshareIfOrphan } from './social.js';
 import type { Notifier } from '../services/notify.js';
+import type { Permissions } from '../services/permissions.js';
+import { ADMIN_PERMISSION_IDS } from '@foodi/shared';
 
 interface Deps {
   db: Db;
@@ -33,9 +36,10 @@ interface Deps {
   providerIds: string[];
   mediaStore: MediaStore;
   notifier: Notifier;
+  permissions: Permissions;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -119,7 +123,18 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     const identities = store.listIdentities(u.id);
     const recipes = all<{ id: string; title: string; source: string; visibility: string; created_at: string }>(db, 'SELECT id, title, source, visibility, created_at FROM recipes WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', u.id);
     const generations = all<GenRow>(db, `${GEN_SELECT} WHERE g.user_id = ? ORDER BY g.created_at DESC LIMIT 50`, u.id).map(toGen);
-    res.json({ user: toAdminUser(u), identities, recipes, generations });
+    res.json({ user: toAdminUser(u), identities, recipes, generations, permissions: permissions.list(u.id) });
+  });
+
+  /** Grant or revoke granular admin rights. Only meaningful for admins; consumers get none. */
+  r.put('/users/:id/permissions', (req, res) => {
+    const target = store.getUser(req.params['id']!);
+    if (!target) throw notFound('No such user.');
+    const body = parse(z.object({ permissions: z.array(z.enum(ADMIN_PERMISSION_IDS)).max(20) }), req.body);
+    if (target.role !== 'admin' && body.permissions.length) throw badRequest('Make them an admin first; permissions extend the admin role.');
+    permissions.set(target.id, body.permissions, req.user!.id);
+    audit.record(req.user!.id, 'user.permissions', 'user', target.id, { permissions: body.permissions });
+    res.json({ permissions: permissions.list(target.id) });
   });
 
   r.patch('/users/:id', (req, res) => {
@@ -129,6 +144,7 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
     const body = parse(AdminUpdateUserSchema, req.body);
     if (target.id === actor.id && (body.role === 'consumer' || body.disabled)) throw badRequest("You can't demote or disable yourself.");
     if (body.role === 'admin' && one(db, 'SELECT 1 FROM users WHERE id = ? AND is_system = 1', target.id)) throw badRequest('The house kitchen account can’t be an admin. Disable it to hide its posts.');
+    if (body.role === 'consumer') permissions.set(target.id, [], req.user!.id);
     if (body.role && body.role !== target.role) {
       if (target.role === 'admin' && one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM users WHERE role = 'admin'`)!.n <= 1) {
         throw badRequest('There must be at least one admin.');
