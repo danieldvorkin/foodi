@@ -99,13 +99,20 @@ export function buildImagePrompt(recipe: { title: string; cuisine: string | null
     .join(' ');
 }
 
-export function visionRubric(recipe: { title: string; keyIngredients: string[] }): string {
+/**
+ * What the vision model is asked before a photo becomes a cover. Generated images are held to a
+ * studio standard (no hands, text or artefacts — we asked for none). Library photos are real
+ * snapshots, so a fork or a hand is fine; what matters is that the food is the subject.
+ */
+export function visionRubric(recipe: { title: string; keyIngredients: string[]; library?: boolean }): string {
   return [
     `You are checking a photo before it is shown as the cover for a recipe called "${recipe.title}".`,
     recipe.keyIngredients.length ? `Key ingredients: ${recipe.keyIngredients.join(', ')}.` : '',
     'Answer with JSON only, no prose, exactly: {"isFood": boolean, "matchesDish": boolean, "hasProblems": boolean, "note": string}.',
-    'isFood: is this a photograph of food? matchesDish: could this plausibly be that dish (right kind of dish and visible ingredients)?',
-    'hasProblems: any text, watermark, logo, hands, faces, people, or clearly inedible/distorted elements? note: one short sentence.',
+    'isFood: is this a photograph of prepared food or a dish (not livestock, crops, packaging, a menu, a drawing or a page of text)? matchesDish: could this plausibly be that dish (right kind of dish and visible ingredients)?',
+    recipe.library
+      ? 'hasProblems: is the food NOT the main subject, or is the image mostly people, text, a storefront, packaging, or does the food look raw, spoiled or unappetising? A hand, cutlery or a small caption is fine. note: one short sentence.'
+      : 'hasProblems: any text, watermark, logo, hands, faces, people, or clearly inedible/distorted elements? note: one short sentence.',
   ]
     .filter(Boolean)
     .join(' ');

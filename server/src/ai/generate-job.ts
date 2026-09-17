@@ -77,9 +77,9 @@ export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier, jobs: Job
     try {
       const { recipe } = await runGeneration(db, ai, job.user_id, payload);
       notifier.send(job.user_id, 'recipe', { recipeId: recipe.id, message: `Your recipe is ready: “${recipe.content.title}”` });
-      // The photo is a separate, slower step; only when the person wants it and the vendor can.
+      // The photo is a separate, slower step: generated when the vendor can, found in a library otherwise.
       const wants = one<{ auto_photos: number }>(db, 'SELECT auto_photos FROM users WHERE id = ?', job.user_id)?.auto_photos;
-      if (wants && ai.capabilities(job.user_id).images) jobs.enqueue('image', job.user_id, { recipeId: recipe.id }, 2, recipe.id);
+      if (wants) jobs.enqueue('image', job.user_id, { recipeId: recipe.id, mode: 'auto' }, 2, recipe.id);
       return { recipeId: recipe.id };
     } catch (err) {
       if (err instanceof HttpError) {

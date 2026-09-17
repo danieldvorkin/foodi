@@ -115,6 +115,10 @@ export type RecipeIngredient = z.infer<typeof RecipeIngredientSchema>;
 export type Step = z.infer<typeof StepSchema>;
 export type Nutrition = z.infer<typeof NutritionSchema>;
 
+/** Where a photo came from: a person's upload, the AI, or a photo library. */
+export const PHOTO_SOURCES = ['upload', 'ai', 'wikimedia', 'pexels', 'google'] as const;
+export type PhotoSource = (typeof PHOTO_SOURCES)[number];
+
 export const MediaItemSchema = z.object({
   id: z.string(),
   kind: z.enum(['image', 'video']),
@@ -123,8 +127,13 @@ export const MediaItemSchema = z.object({
   height: z.number().nullable(),
   bytes: z.number(),
   createdAt: z.string(),
-  /** Made by the AI rather than uploaded; shown with an "AI photo" caption. */
+  /** An auto photo (AI-made or found in a library) rather than an upload; shown with a caption. */
   generated: z.boolean().default(false),
+  source: z.enum(PHOTO_SOURCES).default('upload'),
+  /** Attribution for library photos: author, licence label, and the page to link to. */
+  credit: z.string().nullable().default(null),
+  license: z.string().nullable().default(null),
+  sourceUrl: z.string().nullable().default(null),
 });
 export type MediaItem = z.infer<typeof MediaItemSchema>;
 

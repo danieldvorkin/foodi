@@ -30,9 +30,24 @@ export function AdminGenerations() {
       <section className="stack" style={{ marginBottom: 'var(--s-6)' }}>
         <div className="row-between">
           <h2 style={{ fontSize: 'var(--t-20)' }}>Background jobs</h2>
-          <p className="muted small">
-            {counts.running} running · {counts.queued} queued · {counts.failed} failed
-          </p>
+          <div className="row" style={{ gap: 'var(--s-3)' }}>
+            <p className="muted small">
+              {counts.running} running · {counts.queued} queued · {counts.failed} failed
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm"
+              title="Queue a library photo for every house-kitchen recipe that has none"
+              onClick={() =>
+                act(async () => {
+                  const { queued } = await admin.backfillPhotos();
+                  if (queued === 0) throw new Error('Every house recipe already has a photo.');
+                }, 'Finding photos for the house kitchen')
+              }
+            >
+              📷 Find photos for the house kitchen
+            </button>
+          </div>
         </div>
         <div className="table-wrap">
           <table className="table">

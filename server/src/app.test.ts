@@ -5,20 +5,25 @@ import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './lib/logger.js';
 import { decrypt, encrypt, pkcePair } from './lib/crypto.js';
+import { encodePng } from './lib/png.js';
+import { createMockClient } from './ai/mock.js';
+import type { PhotoSource } from './photos/types.js';
 
 const ORIGIN = 'http://localhost:5100';
 
-async function boot(extraEnv: Record<string, string> = {}, aiClients?: Parameters<typeof createApp>[0]['aiClients']) {
+type Seams = Pick<Parameters<typeof createApp>[0], 'aiClients' | 'photoSources' | 'photoFetch'>;
+
+async function boot(extraEnv: Record<string, string> = {}, aiClients?: Seams['aiClients'], seams: Omit<Seams, 'aiClients'> = {}) {
   const config = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: 'http://127.0.0.1:0' });
   const log = createLogger('silent', false);
-  const built = await createApp({ config, log, ...(aiClients ? { aiClients } : {}) });
+  const built = await createApp({ config, log, ...(aiClients ? { aiClients } : {}), ...seams });
   // The mock IdP needs a reachable issuer; bind an ephemeral port and rewrite the origin.
   const server = built.app.listen(0);
   const port = (server.address() as { port: number }).port;
   server.close();
   built.close();
   const cfg2 = loadConfig({ ...process.env, ...extraEnv, FOODI_APP_ORIGIN: ORIGIN, FOODI_API_ORIGIN: `http://127.0.0.1:${port}` });
-  const built2 = await createApp({ config: cfg2, log, ...(aiClients ? { aiClients } : {}) });
+  const built2 = await createApp({ config: cfg2, log, ...(aiClients ? { aiClients } : {}), ...seams });
   const server2 = built2.app.listen(port);
   return { ...built2, server: server2, base: `http://127.0.0.1:${port}`, config: cfg2 };
 }
@@ -204,7 +209,8 @@ describe('rbac', () => {
     expect((await request(b.base).get('/api/auth/me').set('cookie', consumer)).status).toBe(401);
 
     const audit = await request(b.base).get('/api/admin/audit').set('cookie', admin);
-    expect(audit.body.entries.map((e: { action: string }) => e.action)).toEqual(['user.disable', 'user.role']);
+    // Both entries can land in the same millisecond, so the order is not stable.
+    expect(audit.body.entries.map((e: { action: string }) => e.action).sort()).toEqual(['user.disable', 'user.role']);
   });
 });
 
@@ -1399,6 +1405,141 @@ describe('recipe photos', () => {
       await b.jobs.idle();
       const after = await request(b.base).get('/api/recipes/jobs').set('cookie', ada);
       expect(after.body.jobs.filter((j: { kind: string; createdAt: string }) => j.kind === 'image' && j.createdAt > q2.body.job.createdAt)).toHaveLength(0);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('library photos', () => {
+  /** A fake Commons with three photos of everything, served from the allowed host. */
+  function fakeLibrary() {
+    const shots = [1, 2, 3].map((n) => ({ provider: 'wikimedia' as const, url: `https://upload.wikimedia.org/shot${n}.png`, width: 1000, height: 800, credit: `Cook ${n}`, license: 'CC BY-SA 4.0', sourceUrl: `https://commons.wikimedia.org/wiki/File:Shot${n}.png` }));
+    const source: PhotoSource = { id: 'wikimedia', search: async () => shots };
+    const fetchImpl: typeof fetch = async (input) => {
+      const n = Number(/shot(\d)/.exec(String(input))?.[1] ?? 1);
+      return new Response(new Uint8Array(encodePng(16, 16, () => [60 * n, 100, 80])), { status: 200 });
+    };
+    return { shots, source, fetchImpl };
+  }
+  /** A vendor like Anthropic: writes recipes and looks at pictures, cannot make them. */
+  function noImages() {
+    const { generateImage: _drop, ...rest } = createMockClient();
+    return { mock: rest };
+  }
+
+  it('finds a library photo for a recipe when the vendor cannot generate one, and shuffles through the rest', async () => {
+    const lib = fakeLibrary();
+    const b = await boot({}, noImages(), { photoSources: [lib.source], photoFetch: lib.fetchImpl });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).get('/api/auth/me').set('cookie', ada)).body.aiCapabilities).toEqual({ images: false, vision: true });
+
+      // Auto: generate → image job in source mode → cover with attribution; the vision check ran and was logged.
+      const q = await request(b.base).post('/api/recipes/generate').set('cookie', ada).set('origin', ORIGIN).send({ prompt: 'shakshuka for two' });
+      await b.jobs.idle();
+      await b.jobs.idle();
+      const gen = (await request(b.base).get('/api/recipes/jobs').set('cookie', ada)).body.jobs.find((j: { id: string }) => j.id === q.body.job.id);
+      expect(gen.status).toBe('done');
+      let recipe = (await request(b.base).get(`/api/recipes/${gen.recipeId}`).set('cookie', ada)).body.recipe;
+      expect(recipe.media).toHaveLength(1);
+      expect(recipe.media[0]).toMatchObject({ generated: true, source: 'wikimedia', credit: 'Cook 1', license: 'CC BY-SA 4.0', sourceUrl: lib.shots[0]!.sourceUrl, mime: 'image/png' });
+      // Three candidates were looked at in one go; the other two grades are kept so no shuffle pays for them again.
+      const gens = await request(b.base).get('/api/admin/generations').set('cookie', ada);
+      expect(gens.body.generations.map((g: { kind: string }) => g.kind).sort()).toEqual(['recipe', 'vision', 'vision', 'vision']);
+      // Generating with AI is refused for this vendor.
+      expect((await request(b.base).post(`/api/recipes/${gen.recipeId}/photo`).set('cookie', ada).set('origin', ORIGIN)).status).toBe(409);
+
+      // Shuffle: each call brings the next unseen photo to the front; earlier ones stay behind it.
+      const s1 = await request(b.base).post(`/api/recipes/${gen.recipeId}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      expect(s1.status).toBe(200);
+      expect(s1.body.cover).toMatchObject({ credit: 'Cook 2' });
+      expect(s1.body.media.map((m: { credit: string }) => m.credit)).toEqual(['Cook 2', 'Cook 1']);
+      const s2 = await request(b.base).post(`/api/recipes/${gen.recipeId}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      expect(s2.body.media.map((m: { credit: string }) => m.credit)).toEqual(['Cook 3', 'Cook 2', 'Cook 1']);
+      const dry = await request(b.base).post(`/api/recipes/${gen.recipeId}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      expect(dry.status).toBe(404);
+      expect(dry.body.error.code).toBe('no_photo_found');
+      expect((await request(b.base).get('/api/admin/generations').set('cookie', ada)).body.generations.filter((g: { kind: string }) => g.kind === 'vision')).toHaveLength(3);
+
+      // Pick an earlier one as the cover; the summary cover follows.
+      const first = s2.body.media[2];
+      const pick = await request(b.base).post(`/api/recipes/${gen.recipeId}/media/${first.id}/cover`).set('cookie', ada).set('origin', ORIGIN);
+      expect(pick.body.media[0].id).toBe(first.id);
+      recipe = (await request(b.base).get(`/api/recipes/${gen.recipeId}`).set('cookie', ada)).body.recipe;
+      expect(recipe.media[0].credit).toBe('Cook 1');
+      const list = await request(b.base).get('/api/recipes').set('cookie', ada);
+      expect(list.body.recipes.find((r: { id: string }) => r.id === gen.recipeId).cover.id).toBe(first.id);
+
+      // Someone else can neither shuffle nor re-cover it.
+      const sam = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', sam).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).post(`/api/recipes/${gen.recipeId}/photo/shuffle`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(404);
+      expect((await request(b.base).post(`/api/recipes/${gen.recipeId}/media/${first.id}/cover`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(404);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('keeps searching past photos the check turns down, and remembers them', async () => {
+    // Shots 1 and 2 are not food in the eyes of the mock vision model; shot 3 is fine.
+    const shots = [1, 2, 3].map((n) => ({ provider: 'wikimedia' as const, url: `https://upload.wikimedia.org/shot${n}.png`, width: 1000, height: 800, credit: `Cook ${n}`, license: 'CC0', sourceUrl: `https://commons.wikimedia.org/wiki/File:Shot${n}.png` }));
+    const source: PhotoSource = { id: 'wikimedia', search: async () => shots };
+    const fetchImpl: typeof fetch = async () => new Response(new Uint8Array(encodePng(8, 8, () => [1, 2, 3])), { status: 200 });
+    const base = createMockClient();
+    const picky = { ...base, generateImage: undefined, describeImage: async (image: Buffer, recipe: { title: string; keyIngredients: string[] }, cred: never) => {
+      // Reject the first two files by their bytes' identity: the fake serves the same PNG, so key off the call count.
+      calls++;
+      return base.describeImage!(image, { ...recipe, title: calls <= 2 ? 'not-food' : recipe.title }, cred);
+    } };
+    let calls = 0;
+    const b = await boot({}, { mock: picky as never }, { photoSources: [source], photoFetch: fetchImpl });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const made = await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send({ emoji: '🥣', title: 'Soup', summary: 'x', mealType: 'dinner', servings: 2, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, ingredients: [{ item: 'water', quantity: null, unit: null, preparation: null, note: null, group: null, optional: false, ingredientId: null }], steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] });
+      const s1 = await request(b.base).post(`/api/recipes/${made.body.recipe.id}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      expect(s1.status).toBe(200);
+      expect(s1.body.cover.credit).toBe('Cook 3');
+      expect(calls).toBe(3);
+      // The two rejects are remembered: nothing left, and no more vision calls spent on them.
+      const dry = await request(b.base).post(`/api/recipes/${made.body.recipe.id}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      expect(dry.status).toBe(404);
+      expect(calls).toBe(3);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('lets an admin backfill the house kitchen, once', async () => {
+    const lib = fakeLibrary();
+    const b = await boot({ FOODI_HOUSE_KITCHEN: 'true' }, undefined, { photoSources: [lib.source], photoFetch: lib.fetchImpl });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const sam = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', sam).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).post('/api/admin/photos/backfill').set('cookie', sam).set('origin', ORIGIN)).status).toBe(403);
+
+      const houseId = b.house.account().id;
+      const total = (b.db.prepare('SELECT COUNT(*) AS n FROM recipes WHERE user_id = ?').get(houseId) as { n: number }).n;
+      const first = await request(b.base).post('/api/admin/photos/backfill').set('cookie', ada).set('origin', ORIGIN);
+      expect(first.body.queued).toBe(total);
+      // Queued again while running → nothing new.
+      expect((await request(b.base).post('/api/admin/photos/backfill').set('cookie', ada).set('origin', ORIGIN)).body.queued).toBe(0);
+      await b.jobs.idle();
+      const withPhoto = (b.db.prepare(`SELECT COUNT(DISTINCT recipe_id) AS n FROM media WHERE owner_id = ? AND source = 'wikimedia'`).get(houseId) as { n: number }).n;
+      expect(withPhoto).toBe(total);
+      // The house had no credential, so no vision calls were billed to anyone.
+      expect((b.db.prepare(`SELECT COUNT(*) AS n FROM generations WHERE kind = 'vision'`).get() as { n: number }).n).toBe(0);
+      // A fresh person sees the house post's recipe with its cover.
+      const feed = await request(b.base).get('/api/social/feed').set('cookie', sam);
+      const house = feed.body.items.find((i: { type: string; post?: { isHouse: boolean } }) => i.type === 'post' && i.post?.isHouse);
+      expect(house.post.recipe.cover).toBeTruthy();
     } finally {
       b.server.close();
       b.close();

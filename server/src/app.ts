@@ -35,6 +35,12 @@ import { createPermissions } from './services/permissions.js';
 import { createJobs } from './services/jobs.js';
 import { generateJobHandler } from './ai/generate-job.js';
 import { imageJobHandler } from './ai/image-job.js';
+import { createPhotoFinder } from './photos/finder.js';
+import { createGoogleSource } from './photos/google.js';
+import { createPexelsSource } from './photos/pexels.js';
+import { createPhotoService } from './photos/service.js';
+import type { PhotoSource } from './photos/types.js';
+import { createWikimediaSource } from './photos/wikimedia.js';
 import { adminShopRoutes, shopRoutes } from './routes/shop.js';
 import { createStripeProvider } from './payments/stripe.js';
 import { createTestProvider } from './payments/test.js';
@@ -48,9 +54,11 @@ export interface AppDeps {
   log: Logger;
   /** Test seams. */
   aiClients?: Partial<Record<string, AiClient>>;
+  photoSources?: PhotoSource[];
+  photoFetch?: typeof fetch;
 }
 
-export async function createApp({ config, log, aiClients }: AppDeps) {
+export async function createApp({ config, log, aiClients, photoSources, photoFetch }: AppDeps) {
   const db = openDb(config.dbPath);
   const store = createAuthStore(db, {
     encryptionKey: config.encryptionKey,
@@ -69,9 +77,16 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const commerce = createCommerce({ db, settings, notifier, provider: paymentProvider, appOrigin: config.appOrigin, log });
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
+  // Library photos, best first: Pexels and Google when keys are set, Wikimedia Commons always.
+  const sources = photoSources ?? [
+    ...(config.photos.pexelsApiKey ? [createPexelsSource(config.photos.pexelsApiKey)] : []),
+    ...(config.photos.googleCseKey && config.photos.googleCseCx ? [createGoogleSource(config.photos.googleCseKey, config.photos.googleCseCx)] : []),
+    createWikimediaSource(),
+  ];
+  const photos = createPhotoService({ db, mediaStore, settings, finder: createPhotoFinder({ sources, log, ...(photoFetch ? { fetchImpl: photoFetch } : {}) }), log });
   const jobs = createJobs(db, notifier, log);
   jobs.register('generate', generateJobHandler(db, ai, notifier, jobs));
-  jobs.register('image', imageJobHandler(db, ai, mediaStore, settings, log));
+  jobs.register('image', imageJobHandler(db, ai, photos, log));
   jobs.start();
 
   // ---- providers --------------------------------------------------------------------------
@@ -173,7 +188,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.use('/profile', writeLimiter, profileRoutes(db));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
-  api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier, jobs));
+  api.use('/recipes', writeLimiter, recipeRoutes(db, ai, notifier, jobs, photos));
   api.use('/social', writeLimiter, socialRoutes(db, notifier, commerce));
   api.use('/blog', writeLimiter, blogRoutes(db, notifier));
   api.use('/books', writeLimiter, bookRoutes(db, notifier));

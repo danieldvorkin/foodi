@@ -1,5 +1,6 @@
 import { RecipeContentSchema } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
+import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseVerdict, RECIPE_TOOL_NAME, recipeJsonSchema, SYSTEM_PROMPT, visionRubric } from './prompt.js';
 import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type VisionOutput } from './types.js';
 
@@ -10,7 +11,7 @@ export function createAnthropicClient(opts: { apiBase: string; model: string; fe
     vendor: 'anthropic',
     model: opts.model,
     /** Anthropic models can look at photos but not make them. */
-    async describeImage(png: Buffer, recipe: { title: string; keyIngredients: string[] }, credential: CredentialPayload): Promise<VisionOutput> {
+    async describeImage(image: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, credential: CredentialPayload): Promise<VisionOutput> {
       if (credential.kind !== 'api_key') throw new AiError('credential_unusable', 'This account has no Anthropic API key connected.');
       let res: Response;
       try {
@@ -20,7 +21,7 @@ export function createAnthropicClient(opts: { apiBase: string; model: string; fe
           body: JSON.stringify({
             model: opts.model,
             max_tokens: 200,
-            messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } }, { type: 'text', text: visionRubric(recipe) }] }],
+            messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: imageMime(image), data: image.toString('base64') } }, { type: 'text', text: visionRubric(recipe) }] }],
           }),
           signal: AbortSignal.timeout(60_000),
         });

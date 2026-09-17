@@ -76,6 +76,9 @@ export const recipes = {
   retryJob: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   /** Queue a generated cover photo for one of your recipes. */
   photo: (id: string) => api<{ job: Job }>(`/recipes/${encodeURIComponent(id)}/photo`, { method: 'POST' }),
+  /** Try another library photo as the cover (a few seconds; 404 `no_photo_found` only when the libraries run dry). */
+  shufflePhoto: (id: string) => api<{ media: MediaItem[]; cover: MediaItem }>(`/recipes/${encodeURIComponent(id)}/photo/shuffle`, { method: 'POST' }),
+  setCover: (id: string, mediaId: string) => api<{ media: MediaItem[] }>(`/recipes/${encodeURIComponent(id)}/media/${encodeURIComponent(mediaId)}/cover`, { method: 'POST' }),
   create: (body: unknown) => api<{ recipe: Recipe }>('/recipes', { method: 'POST', body }),
   update: (id: string, body: unknown) => api<{ recipe: Recipe }>(`/recipes/${encodeURIComponent(id)}`, { method: 'PUT', body }),
   favorite: (id: string, favorite: boolean) => api<{ favorite: boolean }>(`/recipes/${encodeURIComponent(id)}/favorite`, { method: 'POST', body: { favorite } }),
@@ -297,6 +300,8 @@ export const admin = {
   deleteComment: (id: string) => api<{ ok: true }>(`/admin/comments/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generations: (status?: 'ok' | 'failed') => api<{ generations: GenerationLog[] }>(`/admin/generations${status ? `?status=${status}` : ''}`),
   jobs: () => api<{ jobs: Job[]; counts: { queued: number; running: number; failed: number } }>('/admin/jobs'),
+  /** Queue library-photo jobs for every house-kitchen recipe without one. */
+  backfillPhotos: () => api<{ queued: number }>('/admin/photos/backfill', { method: 'POST' }),
   retryJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
   cancelJob: (id: string) => api<{ job: Job }>(`/admin/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   settings: () =>
