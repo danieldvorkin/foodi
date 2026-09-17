@@ -8,12 +8,12 @@ domain.
 
 ## What's in the box
 
-| File | Purpose |
-|---|---|
-| `Dockerfile` | Two-stage build: `npm ci` + `npm run build` for all three workspaces, then a slim runtime image with only production deps, `server/dist`, `client/dist` and `shared`. Runs as the unprivileged `node` user. |
-| `deploy/entrypoint.sh` | Fly mounts the volume as root; the entrypoint creates `/data/uploads`, chowns `/data` to `node`, and drops privileges with `setpriv` before starting Node. |
-| `fly.toml` | App config: HTTPS forced, health check on `/api/health`, `/data` volume, 1 GB memory (scrypt uses ~128 MB per login), `strategy = "immediate"` so a single-machine deploy doesn't dead-lock on the volume. |
-| `.dockerignore` | Keeps `.env`, `node_modules`, local DBs and uploads out of the image. |
+| File                   | Purpose                                                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dockerfile`           | Two-stage build: `npm ci` + `npm run build` for all three workspaces, then a slim runtime image with only production deps, `server/dist`, `client/dist` and `shared`. Runs as the unprivileged `node` user. |
+| `deploy/entrypoint.sh` | Fly mounts the volume as root; the entrypoint creates `/data/uploads`, chowns `/data` to `node`, and drops privileges with `setpriv` before starting Node.                                                  |
+| `fly.toml`             | App config: HTTPS forced, health check on `/api/health`, `/data` volume, 1 GB memory (scrypt uses ~128 MB per login), `strategy = "immediate"` so a single-machine deploy doesn't dead-lock on the volume.  |
+| `.dockerignore`        | Keeps `.env`, `node_modules`, local DBs and uploads out of the image.                                                                                                                                       |
 
 In production the Express server serves the built client itself, so `FOODI_APP_ORIGIN` and
 `FOODI_API_ORIGIN` are the same origin. The dev-only mock identity provider and mock AI are
@@ -29,6 +29,24 @@ secret is `FLY_API_TOKEN`, a deploy-scoped token (`fly tokens create deploy --ap
 as a repository secret. Deploys are serialised (`concurrency: deploy-production`), and a single
 machine with a volume means each deploy has a ~15-second gap — the client's error page detects
 it and reloads itself when the server is back.
+
+### Merge emails (optional)
+
+`.github/workflows/merge-email.yml` emails you when a pull request lands on `main`, listing the
+issues it closed. It does nothing until three values exist under Settings → Secrets and
+variables → Actions:
+
+| Kind     | Name                | Value                                                                         |
+| -------- | ------------------- | ----------------------------------------------------------------------------- |
+| variable | `NOTIFY_EMAIL`      | where to send                                                                 |
+| secret   | `MAIL_USERNAME`     | the Gmail address to send from                                                |
+| secret   | `MAIL_APP_PASSWORD` | an [app password](https://myaccount.google.com/apppasswords) for that address |
+
+```bash
+gh variable set NOTIFY_EMAIL --body you@example.com
+gh secret set MAIL_USERNAME --body you@gmail.com
+gh secret set MAIL_APP_PASSWORD   # paste the 16-character app password when prompted
+```
 
 Everything below is the manual path: first-time setup, and a fallback if Actions is down.
 
@@ -99,7 +117,7 @@ orders and nothing is charged (the admin portal and every buyer-facing screen sa
    `https://foodi.fly.dev/api/payments/stripe/webhook`, subscribed to
    `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
 2. `fly secrets set STRIPE_SECRET_KEY=sk_live_… STRIPE_WEBHOOK_SECRET=whsec_…`
-3. Redeploy. Admin → Sales & payouts shows *Payment provider: Stripe*.
+3. Redeploy. Admin → Sales & payouts shows _Payment provider: Stripe_.
 
 Money model: buyers pay foodi's Stripe account; foodi keeps `platformFeePercent` (Admin →
 Sales & payouts, default 20%) of book sales and 100% of promotions. Sellers accumulate a
@@ -145,7 +163,7 @@ the CSP `form-action` list.
 ## Security checklist for the public deployment
 
 - `force_https = true` plus `FOODI_COOKIE_SECURE=true`: cookies are `Secure; HttpOnly;
-  SameSite=Lax`, HSTS is on.
+SameSite=Lax`, HSTS is on.
 - `FOODI_TRUST_PROXY=true` so rate limits and audit IPs use Fly's `X-Forwarded-For`, not the
   proxy's address.
 - Mock provider, mock AI and first-user-admin are hard-disabled in production.
