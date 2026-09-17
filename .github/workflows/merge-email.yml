@@ -1,0 +1,65 @@
+name: Merge email
+
+# Emails the owner when a pull request lands on main, listing the issues it closed.
+# Silent until the repo has:
+#   variable  NOTIFY_EMAIL        — where to send (Settings → Secrets and variables → Actions → Variables)
+#   secret    MAIL_USERNAME       — Gmail address to send from
+#   secret    MAIL_APP_PASSWORD   — a Gmail app password for that address (not the account password)
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  email:
+    if: github.event.pull_request.merged == true && vars.NOTIFY_EMAIL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Collect closed issues
+        id: issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          list=$(gh api graphql -f query='
+            query($owner: String!, $name: String!, $pr: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                  closingIssuesReferences(first: 20) { nodes { number title url } }
+                }
+              }
+            }' -f owner="${REPO%/*}" -f name="${REPO#*/}" -F pr="$PR" \
+            --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[] | "- #\(.number) \(.title)\n  \(.url)"')
+          {
+            echo "list<<EOF"
+            echo "${list:-- (no linked issues)}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_APP_PASSWORD }}
+          from: foodi bot <${{ secrets.MAIL_USERNAME }}>
+          to: ${{ vars.NOTIFY_EMAIL }}
+          subject: "foodi: PR #${{ github.event.pull_request.number }} merged — ${{ github.event.pull_request.title }}"
+          body: |
+            ${{ github.event.pull_request.title }}
+            ${{ github.event.pull_request.html_url }}
+
+            Closes:
+            ${{ steps.issues.outputs.list }}
+
+            Deploy: https://github.com/${{ github.repository }}/actions/workflows/deploy.yml
+            Live:   https://foodi.fly.dev

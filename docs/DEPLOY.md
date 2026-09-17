@@ -30,6 +30,24 @@ as a repository secret. Deploys are serialised (`concurrency: deploy-production`
 machine with a volume means each deploy has a ~15-second gap — the client's error page detects
 it and reloads itself when the server is back.
 
+### Merge emails (optional)
+
+`.github/workflows/merge-email.yml` emails you when a pull request lands on `main`, listing the
+issues it closed. It does nothing until three values exist under Settings → Secrets and
+variables → Actions:
+
+| Kind     | Name                | Value                                                     |
+| -------- | ------------------- | --------------------------------------------------------- |
+| variable | `NOTIFY_EMAIL`      | where to send                                             |
+| secret   | `MAIL_USERNAME`     | the Gmail address to send from                            |
+| secret   | `MAIL_APP_PASSWORD` | an [app password](https://myaccount.google.com/apppasswords) for that address |
+
+```bash
+gh variable set NOTIFY_EMAIL --body you@example.com
+gh secret set MAIL_USERNAME --body you@gmail.com
+gh secret set MAIL_APP_PASSWORD   # paste the 16-character app password when prompted
+```
+
 Everything below is the manual path: first-time setup, and a fallback if Actions is down.
 
 ## First deploy
