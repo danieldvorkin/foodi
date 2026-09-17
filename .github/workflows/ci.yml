@@ -26,7 +26,7 @@ jobs:
           # The test suite boots the app with these; values are throwaway.
           FOODI_SESSION_SECRET: ci-only-session-secret-that-is-long-enough-000000
           FOODI_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           name: client-dist
