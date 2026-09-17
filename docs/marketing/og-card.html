@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- The share card behind every pasted foodi link. Render at exactly 1200×630 and save as client/public/og.png. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: 'Bricolage';
+        src: url('../../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2') format('woff2');
+        font-weight: 200 800;
+      }
+      html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        font-family: 'Bricolage', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+        background: #fafaf8;
+        color: #2a2926;
+        position: relative;
+      }
+      .copy { position: absolute; left: 72px; top: 72px; width: 560px; }
+      .wordmark { display: flex; align-items: center; gap: 14px; font-weight: 600; font-size: 34px; letter-spacing: -0.01em; }
+      h1 { margin: 44px 0 0; font-size: 66px; line-height: 1.02; letter-spacing: -0.025em; font-weight: 640; }
+      p { margin: 26px 0 0; font-size: 25px; line-height: 1.4; color: #6f6c66; max-width: 21ch; }
+      .foot { position: absolute; left: 72px; bottom: 60px; font-size: 20px; color: #9a9791; }
+      /* The product: a cook-mode card, slightly rotated, with a live timer. */
+      .card {
+        position: absolute; right: 64px; top: 78px; width: 470px; height: 486px;
+        background: #fff; border: 1px solid #e3e1da; border-radius: 26px;
+        box-shadow: 0 30px 60px -30px rgba(42, 41, 38, 0.35), 0 1px 0 rgba(42,41,38,0.04);
+        transform: rotate(-2.5deg);
+        padding: 36px 38px; box-sizing: border-box;
+      }
+      .card .top { display: flex; justify-content: space-between; font-size: 18px; color: #6f6c66; }
+      .card .step { font-size: 15px; letter-spacing: 0.04em; color: #9a9791; margin-top: 30px; }
+      .card h2 { margin: 6px 0 0; font-size: 36px; letter-spacing: -0.02em; font-weight: 620; line-height: 1.08; }
+      .card .text { margin-top: 18px; font-size: 21px; line-height: 1.45; color: #2a2926; }
+      .card .timer { margin-top: 30px; display: inline-flex; align-items: center; gap: 12px; background: #eef1ea; color: #5a6b4b; border-radius: 999px; padding: 12px 20px; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .card .timer i { width: 12px; height: 12px; border-radius: 50%; background: #5a6b4b; display: inline-block; }
+      .card .dots { position: absolute; left: 38px; bottom: 32px; display: flex; gap: 8px; }
+      .card .dots b { width: 30px; height: 6px; border-radius: 3px; background: #e3e1da; }
+      .card .dots b.on { background: #5a6b4b; }
+      .plate { position: absolute; right: -40px; bottom: -70px; font-size: 150px; line-height: 1; transform: rotate(8deg); filter: drop-shadow(0 18px 24px rgba(42,41,38,0.25)); }
+      .plate2 { position: absolute; right: 560px; bottom: 50px; font-size: 76px; line-height: 1; transform: rotate(-10deg); opacity: 0.95; }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <div class="wordmark">
+        <svg width="44" height="44" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#5a6b4b"/><circle cx="16" cy="16" r="7" fill="none" stroke="#fafaf8" stroke-width="2.5"/><circle cx="16" cy="16" r="2.2" fill="#fafaf8"/></svg>
+        foodi
+      </div>
+      <h1>Cook something tonight. We’ll walk you through it.</h1>
+      <p>Recipes written around your allergies, skill and time — cooked one step at a time.</p>
+    </div>
+    <div class="foot">foodi.fly.dev · runs on the AI you already have</div>
+    <div class="card">
+      <div class="top"><span>🍋 Lemon garlic roast chicken</span><span>step 4 of 7</span></div>
+      <div class="step">ROAST</div>
+      <h2>Slide the tray onto the middle shelf</h2>
+      <div class="text">Skin side up, lemons cut-side down. It should sizzle as it goes in — if it doesn’t, the oven isn’t hot yet.</div>
+      <div class="timer"><i></i> 38:00 · tap to start</div>
+      <div class="dots"><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b><b></b><b></b><b></b></div>
+    </div>
+    <div class="plate2">🥗</div>
+  </body>
+</html>
