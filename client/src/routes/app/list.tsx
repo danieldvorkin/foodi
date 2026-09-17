@@ -79,6 +79,8 @@ export function ListPage() {
   }
 
   const groups = groupItems(items);
+  // Which recipes the list is shopping for, once, instead of a label on every line.
+  const sources = [...items.reduce((m, i) => (i.recipeId && i.recipeTitle ? m.set(i.recipeId, { title: i.recipeTitle, n: (m.get(i.recipeId)?.n ?? 0) + 1 }) : m), new Map<string, { title: string; n: number }>())];
 
   return (
     <main className="page list-page">
@@ -123,6 +125,17 @@ export function ListPage() {
         </button>
       </form>
 
+      {sources.length > 0 && (
+        <p className="list-sources">
+          <span className="muted small">For</span>
+          {sources.map(([id, s]) => (
+            <Link key={id} to={`/app/recipes/${id}`} className="chip">
+              {s.title} <span className="muted">· {s.n}</span>
+            </Link>
+          ))}
+        </p>
+      )}
+
       {items.length === 0 ? (
         <section className="list-empty">
           <p>
@@ -153,12 +166,6 @@ export function ListPage() {
                           </span>
                         )}
                         <span>{item.text}</span>
-                        {item.recipeTitle && (
-                          <small className="muted">
-                            {' '}
-                            for {item.recipeId ? <Link to={`/app/recipes/${item.recipeId}`}>{item.recipeTitle}</Link> : item.recipeTitle}
-                          </small>
-                        )}
                       </span>
                     </label>
                     <button type="button" className="list-row-del" onClick={() => remove(item)} aria-label={`Remove ${item.text}`}>

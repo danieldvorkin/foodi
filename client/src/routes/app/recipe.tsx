@@ -4,6 +4,7 @@ import { MEAL_EMOJI, type MediaItem } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social as socialApi } from '../../api/types';
 import { AddToBook } from '../../components/Books';
+import { AddToList } from '../../components/AddToList';
 import { isActive, upsertJob, useJobs } from '../../lib/jobs';
 import { useMe } from './layout';
 import { MediaGallery, MediaThumb, MediaUploader } from '../../components/Media';
@@ -30,6 +31,7 @@ export function RecipePage() {
   const [shareOpen, setShareOpen] = useState(Boolean((location.state as { share?: boolean } | null)?.share));
   const [photosOpen, setPhotosOpen] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const me = useMe();
   const jobs = useJobs();
   const photoJob = jobs.find((j) => j.kind === 'image' && j.recipeId === recipe.id);
@@ -372,6 +374,9 @@ export function RecipePage() {
               <button type="button" className="btn" onClick={() => setBookOpen(true)}>
                 📚 Add to a book
               </button>
+              <button type="button" className="btn" onClick={() => setListOpen(true)}>
+                🛒 Add to shopping list
+              </button>
               <button
                 type="button"
                 className="btn"
@@ -400,11 +405,15 @@ export function RecipePage() {
               <button type="button" className="btn" onClick={() => setBookOpen(true)}>
                 📚 Add to a book
               </button>
+              <button type="button" className="btn" onClick={() => setListOpen(true)}>
+                🛒 Add to shopping list
+              </button>
             </>
           )}
         </div>
       </header>
       <AddToBook recipeId={recipe.id} open={bookOpen} onClose={() => setBookOpen(false)} />
+      {listOpen && <AddToList recipeId={recipe.id} title={c.title} ingredients={c.ingredients} servings={c.servings} open onClose={() => setListOpen(false)} />}
 
       {photosOpen && isMine && (
         <section className="recipe-photos">
