@@ -213,6 +213,9 @@ export function SettingsPage() {
             }}
           >
             <h3>{me.vendor && me.credentialKind === 'api_key' ? 'Update your key' : 'Add a key'}</h3>
+            <p className="muted small">
+              Don’t have one yet? <Link to={`/connect/${keyVendor}`}>Follow the four-step guide</Link> — account, $5 of credit, a key, paste. About 2¢ a recipe.
+            </p>
             <div className="field">
               <span className="label">Vendor</span>
               <div className="chips" role="radiogroup">

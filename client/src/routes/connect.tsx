@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, redirect, useLoaderData, useNavigate, type LoaderFunctionArgs } from 'react-router';
 import { errorMessage } from '../api/client';
 import { auth } from '../api/types';
+import { KeyGuide } from '../components/KeyGuide';
 import { Wordmark } from '../components/Logo';
 import { requireMe } from '../lib/session';
 
@@ -18,8 +19,8 @@ export async function connectLoader({ params, request }: LoaderFunctionArgs) {
 }
 
 const COPY = {
-  anthropic: { title: 'Connect Claude', where: 'console.anthropic.com → API keys', href: 'https://console.anthropic.com/settings/keys', prefix: 'sk-ant-' },
-  openai: { title: 'Connect OpenAI', where: 'platform.openai.com → API keys', href: 'https://platform.openai.com/api-keys', prefix: 'sk-' },
+  anthropic: { title: 'Connect Claude', prefix: 'sk-ant-' },
+  openai: { title: 'Connect OpenAI', prefix: 'sk-' },
 } as const;
 
 export function Connect() {
@@ -42,14 +43,6 @@ export function Connect() {
     }
   }
 
-  async function pasteKey() {
-    try {
-      const text = (await navigator.clipboard.readText()).trim();
-      if (text) setKey(text);
-    } catch {
-      setError('Couldn’t read the clipboard — paste into the box instead.');
-    }
-  }
 
   if (!vendor || !provider) {
     const oauth = providers.filter((p) => p.kind === 'oauth');
@@ -59,7 +52,7 @@ export function Connect() {
         <div className="stack">
           <h1>🔌 Connect your AI</h1>
           <p className="muted measure">
-            foodi writes recipes with an AI account you control. Nothing here is billed by foodi; your account does the writing. You can swap or disconnect it any time in Settings.
+            foodi writes recipes with an AI account you control — an OpenAI or Anthropic developer account with a few dollars of credit (about 2¢ a recipe). Nothing is billed by foodi. Pick one and we’ll walk you through it in four steps; swap or disconnect any time in Settings.
           </p>
         </div>
         {me.vendor && (
@@ -86,15 +79,15 @@ export function Connect() {
           </div>
         )}
         <div className="connect-grid">
-          <Link to="/connect/anthropic" className="connect-card">
-            <span className="connect-emoji" aria-hidden="true">🅰️</span>
-            <h3>Claude</h3>
-            <p className="muted small">Anthropic API key from the Console. Encrypted at rest.</p>
-          </Link>
           <Link to="/connect/openai" className="connect-card">
             <span className="connect-emoji" aria-hidden="true">🤖</span>
             <h3>OpenAI</h3>
-            <p className="muted small">API key from the OpenAI platform. Encrypted at rest.</p>
+            <p className="muted small">Recipes and photos. Account, $5 of credit, a key — we’ll show you each screen.</p>
+          </Link>
+          <Link to="/connect/anthropic" className="connect-card">
+            <span className="connect-emoji" aria-hidden="true">🅰️</span>
+            <h3>Claude</h3>
+            <p className="muted small">Recipes and photo checks (library photos). Console account, $5 of credit, a key — same four steps.</p>
           </Link>
           {oauth.map((p) => (
             <a key={p.id} href={`/api/auth/${p.id}/start?returnTo=${encodeURIComponent(after)}`} className="connect-card">
@@ -112,8 +105,7 @@ export function Connect() {
   }
 
   const c = COPY[vendor];
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function connect() {
     setBusy(true);
     setError(null);
     try {
@@ -127,47 +119,18 @@ export function Connect() {
   }
 
   return (
-    <main className="page-narrow stack-lg" style={{ maxWidth: 560 }}>
+    <main className="page-narrow stack-lg" style={{ maxWidth: 720 }}>
       <Wordmark />
       <div className="stack">
         <h1>{c.title}</h1>
-        {provider.note && <p className="muted measure">{provider.note}</p>}
+        <p className="muted measure">
+          Four steps, about three minutes, and you only do it once. Your key stays encrypted on this server and pays only for what you cook — around 2¢ a recipe.
+        </p>
       </div>
-      <form onSubmit={submit} className="stack">
-        <ol className="connect-steps">
-          <li>
-            <a href={c.href} target="_blank" rel="noreferrer noopener" className="btn">
-              Open {vendor === 'openai' ? 'OpenAI' : 'Anthropic'}’s key page ↗
-            </a>
-            <span className="muted small">Create a key there ({c.where}) and copy it.</span>
-          </li>
-          <li>
-            <div className="field">
-              <label htmlFor="key">Paste the key here</label>
-              <div className="row" style={{ alignItems: 'stretch' }}>
-                <input id="key" className="input input-lg" type="password" autoComplete="off" spellCheck={false} placeholder={`${c.prefix}…`} value={key} onChange={(e) => setKey(e.target.value)} required minLength={20} style={{ flex: 1 }} />
-                <button type="button" className="btn" onClick={pasteKey} title="Paste from the clipboard">
-                  📋 Paste
-                </button>
-              </div>
-              <p className="hint">It’s checked with one request, then encrypted at rest. Only its last four characters are ever shown again.</p>
-            </div>
-          </li>
-        </ol>
-        {error && (
-          <p className="error-text" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="row">
-          <button className="btn btn-primary btn-lg" type="submit" disabled={busy || key.trim().length < 20}>
-            {busy ? 'Checking key…' : 'Connect'}
-          </button>
-          <Link to="/connect" className="btn btn-quiet btn-lg">
-            Back
-          </Link>
-        </div>
-      </form>
+      <KeyGuide vendor={vendor} keyValue={key} onKeyChange={setKey} onSubmit={connect} busy={busy} error={error} prefix={c.prefix} />
+      <p className="hint">
+        <Link to="/connect">← Other ways to connect</Link> · <Link to={after}>Skip for now</Link> — the house kitchen’s recipes work without an AI.
+      </p>
     </main>
   );
 }

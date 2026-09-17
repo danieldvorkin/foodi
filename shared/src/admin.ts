@@ -79,7 +79,7 @@ export const AppSettingsSchema = z.object({
   promotionsEnabled: z.boolean(),
   /** foodi's cut of each book sale, in percent. */
   platformFeePercent: z.number().int().min(0).max(50),
-  /** Hand every new person an OpenAI key from foodi's organisation (needs OPENAI_ADMIN_KEY). */
+  /** Hand every new person an OpenAI key from foodi's organisation (needs OPENAI_ADMIN_KEY). Off unless the operator opts in. */
   openaiManagedKeys: z.boolean(),
   /** Daily recipe allowance for people on a foodi-provided key. 0 = no limit beyond the global cap. */
   managedGenerationsPerUserPerDay: z.number().int().min(0).max(10000),

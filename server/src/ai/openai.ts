@@ -15,6 +15,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
     if (res.status === 401 || res.status === 403) {
       return new AiError(credential.kind === 'oauth' ? 'credential_unusable' : 'credential_rejected', credential.kind === 'oauth' ? 'Your ChatGPT sign-in can’t be used for the API on this account. Connect an OpenAI API key in Settings.' : 'OpenAI rejected the connected key.', res.status);
     }
+    if (res.status === 429 && /insufficient_quota/i.test(text)) return new AiError('credential_unusable', 'The connected OpenAI account has run out of credit. Add credit at platform.openai.com → Billing.', 429);
     if (res.status === 429) return new AiError('rate_limited', 'OpenAI is rate limiting this account. Try again shortly.', 429);
     return new AiError('vendor_error', `OpenAI returned ${res.status}: ${text.slice(0, 300)}`, res.status);
   };
@@ -91,11 +92,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
           res.status,
         );
       }
-      if (res.status === 429) throw new AiError('rate_limited', 'OpenAI is rate limiting this account. Try again shortly.', 429);
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new AiError('vendor_error', `OpenAI returned ${res.status}: ${text.slice(0, 300)}`, res.status);
-      }
+      if (!res.ok) throw failFor(res, credential, await res.text().catch(() => ''));
       const data = (await res.json()) as {
         output?: { type: string; content?: { type: string; text?: string }[] }[];
         usage?: { input_tokens?: number; output_tokens?: number };

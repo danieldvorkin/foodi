@@ -1730,6 +1730,10 @@ describe('managed OpenAI keys', () => {
     try {
       const boss = await signIn(b, 'mock-ada');
       await request(b.base).put('/api/profile').set('cookie', boss).set('origin', ORIGIN).send(PROFILE);
+      // Off by default even with the admin key: the operator opts in.
+      const nellBefore = await register(b, 'nell-early@example.com');
+      expect((await request(b.base).get('/api/auth/me').set('cookie', nellBefore)).body.managedAvailable).toBe(false);
+      await request(b.base).put('/api/admin/settings').set('cookie', boss).set('origin', ORIGIN).send({ openaiManagedKeys: true });
       const nell = await register(b, 'nell@example.com');
       // Before onboarding: available, but nothing issued yet.
       let me = await request(b.base).get('/api/auth/me').set('cookie', nell);
@@ -1758,7 +1762,7 @@ describe('managed OpenAI keys', () => {
 
       // Bringing your own key (verified against a stubbed OpenAI) deletes foodi's service account.
       const realFetch = globalThis.fetch;
-      const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => (String(input).includes('/v1/models') ? new Response('{"data":[]}', { status: 200 }) : realFetch(input, init)));
+      const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => (/\/v1\/(models|responses)/.test(String(input)) ? new Response('{"data":[]}', { status: 200 }) : realFetch(input, init)));
       let own;
       try {
         own = await request(b.base).post('/api/auth/key').set('cookie', nell).set('origin', ORIGIN).send({ vendor: 'openai', apiKey: 'sk-own-0123456789abcdef0123456789' });
