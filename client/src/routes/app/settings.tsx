@@ -131,6 +131,37 @@ export function SettingsPage() {
             </p>
           </div>
 
+          <div className="stack" style={{ maxWidth: 560 }}>
+            <h3>✨ Photos</h3>
+            <label className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+              <input
+                type="checkbox"
+                checked={me.autoPhotos}
+                disabled={!me.aiCapabilities.images}
+                style={{ marginTop: 4 }}
+                onChange={async (e) => {
+                  try {
+                    await auth.prefs({ autoPhotos: e.target.checked });
+                    toast(e.target.checked ? 'Photos on' : 'Photos off');
+                    revalidate();
+                  } catch (err) {
+                    toast(errorMessage(err), 'error');
+                  }
+                }}
+              />
+              <span>
+                Also make a photo of each recipe the AI writes
+                <span className="muted small" style={{ display: 'block' }}>
+                  {me.aiCapabilities.images
+                    ? 'Generated after the recipe, checked by a vision model against the dish before it’s shown, billed to your account (roughly a few cents each). You can always delete it.'
+                    : me.vendor === 'anthropic'
+                      ? 'Claude can check photos but can’t make them — connect an OpenAI key to turn this on.'
+                      : 'Connect an AI that can generate images (OpenAI) to turn this on.'}
+                </span>
+              </span>
+            </label>
+          </div>
+
           <form
             className="stack"
             style={{ maxWidth: 460 }}

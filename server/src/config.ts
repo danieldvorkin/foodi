@@ -45,6 +45,7 @@ const EnvSchema = z.object({
   OPENAI_OAUTH_EXCHANGE_API_KEY: boolDefault(true),
   OPENAI_API_BASE: z.string().url().default('https://api.openai.com'),
   OPENAI_MODEL: z.string().default('gpt-5'),
+  OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
 
   // Anthropic — API key only (third-party Claude.ai sign-in is not permitted by Anthropic)
   ANTHROPIC_API_BASE: z.string().url().default('https://api.anthropic.com'),
@@ -101,6 +102,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
       exchangeApiKey: e.OPENAI_OAUTH_EXCHANGE_API_KEY,
       apiBase: e.OPENAI_API_BASE.replace(/\/$/, ''),
       model: e.OPENAI_MODEL,
+      imageModel: e.OPENAI_IMAGE_MODEL,
     },
     anthropic: {
       apiBase: e.ANTHROPIC_API_BASE.replace(/\/$/, ''),

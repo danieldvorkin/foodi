@@ -46,6 +46,7 @@ export const auth = {
   logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
   logoutEverywhere: () => api<{ ok: true }>('/auth/logout-everywhere', { method: 'POST' }),
   deleteAccount: () => api<{ ok: true }>('/auth/account', { method: 'DELETE' }),
+  prefs: (body: { autoPhotos?: boolean }) => api<Me>('/auth/prefs', { method: 'PUT', body }),
 };
 
 export const profile = {
@@ -73,6 +74,8 @@ export const recipes = {
   job: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}`),
   cancelJob: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   retryJob: (id: string) => api<{ job: Job }>(`/recipes/jobs/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+  /** Queue a generated cover photo for one of your recipes. */
+  photo: (id: string) => api<{ job: Job }>(`/recipes/${encodeURIComponent(id)}/photo`, { method: 'POST' }),
   create: (body: unknown) => api<{ recipe: Recipe }>('/recipes', { method: 'POST', body }),
   update: (id: string, body: unknown) => api<{ recipe: Recipe }>(`/recipes/${encodeURIComponent(id)}`, { method: 'PUT', body }),
   favorite: (id: string, favorite: boolean) => api<{ favorite: boolean }>(`/recipes/${encodeURIComponent(id)}/favorite`, { method: 'POST', body: { favorite } }),

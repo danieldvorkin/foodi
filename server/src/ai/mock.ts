@@ -1,6 +1,7 @@
 import { getIngredient, INGREDIENTS, matchIngredient, type Ingredient, type Profile, type RecipeContent, type RecipeIngredient, type Step } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
-import type { AiClient, GenerateInput, GenerateOutput } from './types.js';
+import { encodePng } from '../lib/png.js';
+import type { AiClient, GenerateInput, GenerateOutput, ImageInput, ImageOutput, VisionOutput } from './types.js';
 
 /**
  * A deterministic, offline recipe writer. It is not clever, but it respects the same hard
@@ -14,6 +15,30 @@ export function createMockClient(): AiClient {
     async generate(input: GenerateInput, _credential: CredentialPayload): Promise<GenerateOutput> {
       await new Promise((r) => setTimeout(r, 400 + (hash(input.prompt + (input.seed ?? '')) % 600)));
       return { content: compose(input), model: 'mock-chef-1', usage: { inputTokens: 900, outputTokens: 1400 } };
+    },
+    /** A warm, plate-like gradient seeded by the prompt — recognisably "a photo", never the same twice. */
+    async generateImage(input: ImageInput, _credential: CredentialPayload): Promise<ImageOutput> {
+      const h = hash(input.prompt);
+      const base: [number, number, number] = [170 + (h % 60), 110 + ((h >> 3) % 70), 60 + ((h >> 6) % 60)];
+      const size = 256;
+      const png = encodePng(size, size, (x, y) => {
+        const dx = x - size / 2;
+        const dy = y - size / 2;
+        const d = Math.sqrt(dx * dx + dy * dy) / (size / 2);
+        const plate = d < 0.9 ? 1 : 0.35;
+        const food = d < 0.62 ? 1 : 0.55;
+        return [Math.min(255, base[0] * food * plate + (1 - plate) * 235), Math.min(255, base[1] * food * plate + (1 - plate) * 230), Math.min(255, base[2] * food * plate + (1 - plate) * 220)].map(Math.round) as [number, number, number];
+      });
+      return { png, model: 'mock-camera-1' };
+    },
+    /** Says yes unless the recipe title asks it not to ("reject-me" is the test hook). */
+    async describeImage(_png: Buffer, recipe: { title: string; keyIngredients: string[] }, _credential: CredentialPayload): Promise<VisionOutput> {
+      const reject = /reject-me/i.test(recipe.title);
+      return {
+        verdict: { isFood: true, matchesDish: !reject, hasProblems: false, note: reject ? 'Looks like a different dish.' : 'Plausible photo of the dish.' },
+        model: 'mock-eyes-1',
+        usage: { inputTokens: 600, outputTokens: 40 },
+      };
     },
   };
 }

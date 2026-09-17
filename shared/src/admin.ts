@@ -39,6 +39,7 @@ export type AdminStats = z.infer<typeof AdminStatsSchema>;
 
 export const GenerationLogSchema = z.object({
   id: z.string(),
+  kind: z.enum(['recipe', 'image', 'vision']),
   userId: z.string(),
   userDisplayName: z.string().nullable(),
   vendor: z.string(),

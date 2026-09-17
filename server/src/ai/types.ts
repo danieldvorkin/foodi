@@ -21,10 +21,36 @@ export interface GenerateOutput {
   usage: { inputTokens: number | null; outputTokens: number | null };
 }
 
+export interface ImageInput {
+  prompt: string;
+  /** Square is all we need for covers and tiles. */
+  size: '1024x1024';
+}
+export interface ImageOutput {
+  png: Buffer;
+  model: string;
+}
+export interface Verdict {
+  isFood: boolean;
+  matchesDish: boolean;
+  /** Text, watermarks, hands/faces, or obviously inedible artefacts. */
+  hasProblems: boolean;
+  note: string;
+}
+export interface VisionOutput {
+  verdict: Verdict;
+  model: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+}
+
 export interface AiClient {
   vendor: string;
   model: string;
   generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput>;
+  /** Optional: make a photo of the finished dish. Absent when the vendor can't (Anthropic). */
+  generateImage?(input: ImageInput, credential: CredentialPayload): Promise<ImageOutput>;
+  /** Optional: look at a photo and say whether it depicts the recipe. */
+  describeImage?(png: Buffer, recipe: { title: string; keyIngredients: string[] }, credential: CredentialPayload): Promise<VisionOutput>;
 }
 
 export class AiError extends Error {

@@ -22,6 +22,8 @@ const me: Me = {
   credentialUpdatedAt: null,
   hasProfile: true,
   permissions: [],
+  autoPhotos: true,
+  aiCapabilities: { images: false, vision: false },
   createdAt: new Date().toISOString(),
 };
 

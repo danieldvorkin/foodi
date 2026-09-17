@@ -177,6 +177,15 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
     res.json({ job: jobs.get(row.id) });
   });
 
+  /** Ask for a generated cover photo for one of your recipes (the vendor must be able to). */
+  r.post('/:id/photo', (req, res) => {
+    const userId = req.user!.id;
+    const row = loadOwned(req.params['id']!, userId);
+    if (!ai.capabilities(userId).images) throw new HttpError(409, 'no_image_support', 'The connected AI can’t generate images. Connect an OpenAI key to use this.');
+    if (one(db, `SELECT 1 FROM jobs WHERE user_id = ? AND kind = 'image' AND result_recipe_id = ? AND status IN ('queued','running')`, userId, row.id)) throw new HttpError(409, 'busy', 'A photo is already being made for this recipe.');
+    res.status(202).json({ job: jobs.enqueue('image', userId, { recipeId: row.id }, 2, row.id) });
+  });
+
   /** Author your own recipe. */
   r.post('/', (req, res) => {
     const userId = req.user!.id;

@@ -30,13 +30,14 @@ export interface MediaRow {
   listing_id: string | null;
   position: number;
   created_at: string;
+  generated: number;
 }
 
 export const IMAGE_LIMIT = 12 * 1024 * 1024;
 export const VIDEO_LIMIT = 120 * 1024 * 1024;
 
 export function toMediaItem(m: MediaRow): MediaItem {
-  return { id: m.id, kind: m.kind, mime: m.mime, width: m.width, height: m.height, bytes: m.bytes, createdAt: m.created_at };
+  return { id: m.id, kind: m.kind, mime: m.mime, width: m.width, height: m.height, bytes: m.bytes, createdAt: m.created_at, generated: Boolean(m.generated) };
 }
 
 export function mediaForRecipe(db: Db, recipeId: string): MediaItem[] {

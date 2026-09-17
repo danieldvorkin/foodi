@@ -34,6 +34,7 @@ import { createCommerce } from './services/commerce.js';
 import { createPermissions } from './services/permissions.js';
 import { createJobs } from './services/jobs.js';
 import { generateJobHandler } from './ai/generate-job.js';
+import { imageJobHandler } from './ai/image-job.js';
 import { adminShopRoutes, shopRoutes } from './routes/shop.js';
 import { createStripeProvider } from './payments/stripe.js';
 import { createTestProvider } from './payments/test.js';
@@ -69,7 +70,8 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
   const jobs = createJobs(db, notifier, log);
-  jobs.register('generate', generateJobHandler(db, ai, notifier));
+  jobs.register('generate', generateJobHandler(db, ai, notifier, jobs));
+  jobs.register('image', imageJobHandler(db, ai, mediaStore, settings, log));
   jobs.start();
 
   // ---- providers --------------------------------------------------------------------------
@@ -167,7 +169,7 @@ export async function createApp({ config, log, aiClients }: AppDeps) {
   api.get('/health', (_req, res) => res.json({ ok: true, env: config.env }));
   api.use(['/auth/key', '/auth/register', '/auth/login', '/auth/password'], authLimiter);
   api.use('/auth/:provider/start', authLimiter);
-  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit, permissions }));
+  api.use('/auth', authRoutes({ config, log, store, providers, settings, audit, permissions, ai }));
   api.use('/profile', writeLimiter, profileRoutes(db));
   api.use('/ingredients', ingredientRoutes());
   api.use('/recipes/generate', generateLimiter);
