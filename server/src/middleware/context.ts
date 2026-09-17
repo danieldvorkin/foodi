@@ -3,6 +3,7 @@ import type { Role } from '@foodi/shared';
 import type { UserRow } from '../auth/store.js';
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- Express augments its types through this namespace
   namespace Express {
     interface Request {
       user?: UserRow;

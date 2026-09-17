@@ -107,7 +107,7 @@ export function SettingsPage() {
       {linkError && <div className="notice notice-warn">{linkError}</div>}
       <div className="chips" role="tablist">
         {TABS.map(([t, label]) => (
-          <button key={t} type="button" role="tab" className="chip" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setTab(t)}>
+          <button key={t} type="button" role="tab" className="chip" aria-selected={tab === t} onClick={() => setTab(t)}>
             {label}
           </button>
         ))}
@@ -154,7 +154,7 @@ export function SettingsPage() {
               <span className="label">Vendor</span>
               <div className="chips" role="radiogroup">
                 {(['anthropic', 'openai'] as const).map((v) => (
-                  <button key={v} type="button" role="radio" className="chip" aria-checked={keyVendor === v} aria-pressed={keyVendor === v} onClick={() => setKeyVendor(v)}>
+                  <button key={v} type="button" role="radio" className="chip" aria-checked={keyVendor === v} onClick={() => setKeyVendor(v)}>
                     {KEY_COPY[v].emoji} {KEY_COPY[v].name}
                   </button>
                 ))}

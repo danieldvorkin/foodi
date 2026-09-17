@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { useLoaderData } from 'react-router';
 import type { Notification } from '@foodi/shared';
 import { notifications as api } from '../../api/types';
@@ -11,12 +11,8 @@ export async function notificationsLoader() {
 
 export function NotificationsPage() {
   const data = useLoaderData<typeof notificationsLoader>();
-  const [items, setItems] = useState<Notification[]>(data.notifications);
-  const { latest, setUnread } = useUnread();
-  useEffect(() => setItems(data.notifications), [data]);
-  useEffect(() => {
-    if (latest) setItems((xs) => (xs.some((x) => x.id === latest.id) ? xs : [latest, ...xs]));
-  }, [latest]);
+  const [items, setItems] = useDerivedState<typeof data, Notification[]>(data, (d) => d.notifications);
+  const { setUnread } = useUnread((n) => setItems((xs) => (xs.some((x) => x.id === n.id) ? xs : [n, ...xs])));
   const unread = items.filter((n) => !n.readAt).length;
 
   async function markAll() {

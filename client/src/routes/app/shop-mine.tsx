@@ -41,7 +41,7 @@ export function ShopMinePage() {
             ['purchases', `Purchases · ${buying.length}`],
           ] as const
         ).map(([t, label]) => (
-          <button key={t} type="button" role="tab" className="chip" aria-selected={tab === t} aria-pressed={tab === t} onClick={() => setParams(t === 'listings' ? {} : { tab: t }, { replace: true })}>
+          <button key={t} type="button" role="tab" className="chip" aria-selected={tab === t} onClick={() => setParams(t === 'listings' ? {} : { tab: t }, { replace: true })}>
             {label}
           </button>
         ))}

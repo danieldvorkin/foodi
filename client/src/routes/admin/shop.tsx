@@ -18,7 +18,7 @@ export function AdminShop() {
   const { listings, canApprove, pending, status } = useLoaderData<typeof adminShopLoader>();
   const { revalidate } = useRevalidator();
   const toast = useToast();
-  const [params, setParams] = useSearchParams();
+  const [, setParams] = useSearchParams();
   const [open, setOpen] = useState<Listing | null>(null);
   const [reason, setReason] = useState('');
 
@@ -50,7 +50,7 @@ export function AdminShop() {
         </div>
         <div className="chips" role="tablist">
           {['pending', 'approved', 'rejected', 'all'].map((s) => (
-            <button key={s} type="button" role="tab" className="chip" aria-selected={status === s} aria-pressed={status === s} onClick={() => setParams({ status: s }, { replace: true })}>
+            <button key={s} type="button" role="tab" className="chip" aria-selected={status === s} onClick={() => setParams({ status: s }, { replace: true })}>
               {s}
               {s === 'pending' && pending > 0 ? ` · ${pending}` : ''}
             </button>

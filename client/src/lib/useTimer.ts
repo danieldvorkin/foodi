@@ -7,14 +7,20 @@ export function useTimer(totalSeconds: number, key: string) {
   const endAt = useRef<number | null>(null);
   const raf = useRef<number | null>(null);
 
-  useEffect(() => {
+  // Reset when the step (key) or its duration changes — state is adjusted during render; the
+  // deadline ref is cleared by the running-effect's cleanup when `running` flips to false.
+  const [seen, setSeen] = useState({ totalSeconds, key });
+  if (seen.totalSeconds !== totalSeconds || seen.key !== key) {
+    setSeen({ totalSeconds, key });
     setRemaining(totalSeconds);
     setRunning(false);
-    endAt.current = null;
-  }, [totalSeconds, key]);
+  }
 
   useEffect(() => {
-    if (!running) return;
+    if (!running) {
+      endAt.current = null;
+      return;
+    }
     const tick = () => {
       if (endAt.current == null) return;
       const left = Math.max(0, Math.ceil((endAt.current - Date.now()) / 1000));

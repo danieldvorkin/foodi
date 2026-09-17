@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, useLoaderData, useSearchParams, type LoaderFunctionArgs } from 'react-router';
 import { formatMoney, type BlogPost, type Person, type Post, type RecipeBook } from '@foodi/shared';
 import { media as mediaApi, social } from '../../api/types';
@@ -79,9 +80,8 @@ export function ProfilePage() {
   const [params, setParams] = useSearchParams();
   const wanted = params.get('tab');
   const tab: Tab = wanted === 'blog' ? 'blog' : wanted === 'books' ? 'books' : wanted === 'liked' && profile.isMe ? 'liked' : 'posts';
-  const [followers, setFollowers] = useState(profile.followerCount);
+  const [followers, setFollowers] = useDerivedState(profile.followerCount, (n) => n);
   const [people, setPeople] = useState<{ kind: 'followers' | 'following'; list: Person[] | null } | null>(null);
-  useEffect(() => setFollowers(profile.followerCount), [profile.followerCount]);
 
   async function openPeople(kind: 'followers' | 'following') {
     setPeople({ kind, list: null });

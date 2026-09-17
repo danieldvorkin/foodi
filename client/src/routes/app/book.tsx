@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, useLoaderData, useNavigate, useRevalidator, type LoaderFunctionArgs } from 'react-router';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -18,7 +19,7 @@ export async function bookLoader({ params }: LoaderFunctionArgs) {
   return { ...data, config };
 }
 
-function Row({ item, bookId, mine, onRemove, onNote }: { item: BookItem; bookId: string; mine: boolean; onRemove: () => void; onNote: (note: string) => void }) {
+function Row({ item, mine, onRemove, onNote }: { item: BookItem; mine: boolean; onRemove: () => void; onNote: (note: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.recipeId, disabled: !mine });
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState(item.note);
@@ -113,12 +114,11 @@ export function BookPage() {
   const { revalidate } = useRevalidator();
   const nav = useNavigate();
   const toast = useToast();
-  const [items, setItems] = useState(data.items);
+  const [items, setItems] = useDerivedState(data.items, (initial) => initial);
   const [editing, setEditing] = useState(false);
   const [selling, setSelling] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setItems(data.items), [data.items]);
   const { book, config } = data;
   const paywalled = book.forSale && !book.isMine && !book.purchased && me.role !== 'admin';
   const lockedCount = items.filter((i) => i.locked).length;
@@ -237,7 +237,6 @@ export function BookPage() {
                 <Row
                   key={it.recipeId}
                   item={it}
-                  bookId={book.id}
                   mine={book.isMine}
                   onRemove={async () => {
                     setItems((xs) => xs.filter((x) => x.recipeId !== it.recipeId));
