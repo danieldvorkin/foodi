@@ -53,7 +53,7 @@ jobs:
           password: ${{ secrets.MAIL_APP_PASSWORD }}
           from: foodi bot <${{ secrets.MAIL_USERNAME }}>
           to: ${{ vars.NOTIFY_EMAIL }}
-          subject: "foodi: PR #${{ github.event.pull_request.number }} merged — ${{ github.event.pull_request.title }}"
+          subject: 'foodi: PR #${{ github.event.pull_request.number }} merged — ${{ github.event.pull_request.title }}'
           body: |
             ${{ github.event.pull_request.title }}
             ${{ github.event.pull_request.html_url }}
