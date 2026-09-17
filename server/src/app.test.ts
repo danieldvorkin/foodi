@@ -1546,3 +1546,60 @@ describe('library photos', () => {
     }
   });
 });
+
+describe('link previews', () => {
+  it('describes public recipes, people, books and posts for unfurlers; private things get the site card', async () => {
+    const lib = (() => {
+      const shot = { provider: 'wikimedia' as const, url: 'https://upload.wikimedia.org/s.png', width: 1000, height: 800, credit: 'Cook', license: 'CC0', sourceUrl: 'https://commons.wikimedia.org/wiki/File:S.png' };
+      return { source: { id: 'wikimedia', search: async () => [shot] } as PhotoSource, fetchImpl: (async () => new Response(new Uint8Array(encodePng(8, 8, () => [9, 9, 9])), { status: 200 })) as typeof fetch };
+    })();
+    const b = await boot({ FOODI_HOUSE_KITCHEN: 'true' }, undefined, { photoSources: [lib.source], photoFetch: lib.fetchImpl });
+    try {
+      const { tagsForPath, sitemapXml } = await import('./share.js');
+      const origin = 'https://foodi.example';
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const made = await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send({ emoji: '🥣', title: 'Ada & the soup', summary: 'A soup for sharing.', mealType: 'dinner', servings: 2, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, ingredients: [{ item: 'water', quantity: null, unit: null, preparation: null, note: null, group: null, optional: false, ingredientId: null }], steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] });
+      const id = made.body.recipe.id;
+
+      // Private: nothing to say, and the cover endpoint is closed.
+      expect(tagsForPath(b.db, origin, `/app/recipes/${id}`)).toBeNull();
+      expect(tagsForPath(b.db, origin, '/app/recipes/nope')).toBeNull();
+      expect(tagsForPath(b.db, origin, '/app/settings')).toBeNull();
+
+      // Shared with a library photo: title, summary, author and an anonymous cover URL.
+      await request(b.base).post(`/api/recipes/${id}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
+      await request(b.base).post(`/api/social/posts`).set('cookie', ada).set('origin', ORIGIN).send({ recipeId: id, caption: 'Soup night', mediaIds: [] });
+      const tags = tagsForPath(b.db, origin, `/app/recipes/${id}`)!;
+      expect(tags.title).toBe('🥣 Ada & the soup — foodi');
+      expect(tags.description).toContain('A soup for sharing. (20 min · serves 2)');
+      expect(tags.image).toBe(`${origin}/share/recipes/${id}/cover.png`);
+      expect(tags.url).toBe(`${origin}/app/recipes/${id}`);
+      const cover = await request(b.base).get(`/share/recipes/${id}/cover.png`);
+      expect(cover.status).toBe(200);
+      expect(cover.headers['content-type']).toBe('image/png');
+      expect(cover.headers['cross-origin-resource-policy']).toBe('cross-origin');
+      expect((await request(b.base).get('/share/recipes/nope/cover.png')).status).toBe(404);
+
+      // People and the house kitchen's books; the featured list is public and only lists house recipes with photos.
+      const me = await request(b.base).get('/api/auth/me').set('cookie', ada);
+      expect(tagsForPath(b.db, origin, `/app/u/${me.body.handle}`)!.title).toContain('on foodi');
+      const book = b.db.prepare(`SELECT id FROM recipe_books WHERE visibility = 'public' LIMIT 1`).get() as { id: string };
+      expect(tagsForPath(b.db, origin, `/app/books/${book.id}`)!.title).toContain('recipe book on foodi');
+      const featured = await request(b.base).get('/share/featured.json');
+      expect(featured.status).toBe(200);
+      expect(featured.body.total).toBeGreaterThan(50);
+      expect(featured.body.recipes.every((r: { cover: string }) => r.cover.startsWith('/share/recipes/'))).toBe(true);
+      expect(featured.body.recipes.some((r: { id: string }) => r.id === id)).toBe(false);
+
+      // Sitemap and robots need no session.
+      const xml = sitemapXml(b.db, origin);
+      expect(xml).toContain(`<loc>${origin}/app/recipes/${id}</loc>`);
+      expect((await request(b.base).get('/robots.txt')).text).toContain('Disallow: /api/');
+      expect((await request(b.base).get('/sitemap.xml')).headers['content-type']).toContain('application/xml');
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

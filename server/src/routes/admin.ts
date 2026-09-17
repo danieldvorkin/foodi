@@ -26,6 +26,7 @@ import { unshareIfOrphan } from './social.js';
 import type { Notifier } from '../services/notify.js';
 import type { Permissions } from '../services/permissions.js';
 import type { Jobs } from '../services/jobs.js';
+import type { PhotoService } from '../photos/service.js';
 import { ADMIN_PERMISSION_IDS } from '@foodi/shared';
 
 interface Deps {
@@ -39,9 +40,10 @@ interface Deps {
   notifier: Notifier;
   permissions: Permissions;
   jobs: Jobs;
+  photos: PhotoService;
 }
 
-export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions, jobs }: Deps) {
+export function adminRoutes({ db, config, store, settings, audit, providerIds, mediaStore, notifier, permissions, jobs, photos }: Deps) {
   const r = Router();
   r.use(requireRole('admin'));
 
@@ -255,18 +257,9 @@ export function adminRoutes({ db, config, store, settings, audit, providerIds, m
   r.post('/photos/backfill', (req, res) => {
     const house = one<{ id: string }>(db, 'SELECT id FROM users WHERE is_system = 1');
     if (!house) throw badRequest('The house kitchen is not set up.');
-    const missing = all<{ id: string }>(
-      db,
-      `SELECT r.id FROM recipes r
-       WHERE r.user_id = ? AND r.forked_from_id IS NULL
-         AND NOT EXISTS (SELECT 1 FROM media m WHERE m.recipe_id = r.id AND m.kind = 'image')
-         AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.result_recipe_id = r.id AND j.kind = 'image' AND j.status IN ('queued','running'))
-       ORDER BY r.created_at`,
-      house.id,
-    );
-    for (const { id } of missing) jobs.enqueue('image', house.id, { recipeId: id, mode: 'source' }, 1, id);
-    audit.record(req.user!.id, 'photos.backfill', 'user', house.id, { queued: missing.length });
-    res.json({ queued: missing.length });
+    const queued = photos.backfill(jobs, house.id);
+    audit.record(req.user!.id, 'photos.backfill', 'user', house.id, { queued });
+    res.json({ queued });
   });
 
   r.get('/blog', (_req, res) => {

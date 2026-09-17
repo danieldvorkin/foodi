@@ -121,6 +121,120 @@
   }
 }
 
+.landing-nav {
+  display: flex;
+  gap: var(--s-4);
+}
+@media (max-width: 600px) {
+  .landing-nav .navlink:not(:last-child) {
+    display: none;
+  }
+}
+
+/* Real screens in quiet frames: two phones flanking a laptop-width shot. */
+.showcase,
+.kitchen {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  padding-block: var(--s-7);
+  border-top: 1px solid var(--line);
+}
+.showcase-head {
+  display: grid;
+  gap: var(--s-2);
+  margin-bottom: var(--s-6);
+  max-width: 60ch;
+}
+.devices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, 1fr);
+  gap: var(--s-5);
+  align-items: start;
+}
+.device {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+}
+.device img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  background: var(--plate);
+  box-shadow: 0 24px 48px -32px rgba(42, 41, 38, 0.35);
+}
+.device-phone img {
+  border-radius: 28px;
+  border-width: 6px;
+  border-color: var(--ink);
+}
+.device-desktop img {
+  border-radius: 12px;
+}
+.device figcaption {
+  font-size: var(--t-14);
+  color: var(--stone);
+  line-height: 1.5;
+}
+.device figcaption strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .devices {
+    grid-template-columns: 1fr 1fr;
+  }
+  .device-desktop {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+}
+
+/* The house kitchen: photos first, a short label under each. */
+.kitchen-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+.kitchen-tile {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.kitchen-tile img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  background: var(--flour);
+  border: 1px solid var(--line);
+}
+.kitchen-tile-label {
+  font-size: var(--t-14);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kitchen-tile-label small {
+  color: var(--stone);
+  font-size: var(--t-13);
+}
+@media (max-width: 700px) {
+  .kitchen-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.landing-foot-links {
+  display: flex;
+  gap: var(--s-4);
+}
+
 .how {
   width: min(100% - 2 * var(--gutter), var(--page));
   margin-inline: auto;
@@ -171,6 +285,10 @@
   margin-inline: auto;
   padding-block: var(--s-5);
   border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
 }
 @media (max-width: 900px) {
   .hero {

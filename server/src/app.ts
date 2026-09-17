@@ -1,7 +1,7 @@
 import express, { type Request } from 'express';
 import helmet from 'helmet';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createAiService } from './ai/service.js';
 import type { AiClient } from './ai/types.js';
@@ -41,6 +41,7 @@ import { createPexelsSource } from './photos/pexels.js';
 import { createPhotoService } from './photos/service.js';
 import type { PhotoSource } from './photos/types.js';
 import { createWikimediaSource } from './photos/wikimedia.js';
+import { defaultTags, renderShareHtml, robotsTxt, shareRoutes, sitemapXml, tagsForPath } from './share.js';
 import { adminShopRoutes, shopRoutes } from './routes/shop.js';
 import { createStripeProvider } from './payments/stripe.js';
 import { createTestProvider } from './payments/test.js';
@@ -88,6 +89,12 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   jobs.register('generate', generateJobHandler(db, ai, notifier, jobs));
   jobs.register('image', imageJobHandler(db, ai, photos, log));
   jobs.start();
+  // The house kitchen's recipes should never sit without a photo: queue library photos for any
+  // that lack one (nothing to do after the first boot that finishes them).
+  if (config.houseKitchen && config.env !== 'test') {
+    const queued = photos.backfill(jobs, house.account().id);
+    if (queued) log.info({ queued }, 'house kitchen: finding photos');
+  }
 
   // ---- providers --------------------------------------------------------------------------
   const providers: AuthProvider[] = [];
@@ -198,15 +205,43 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
-  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs }));
+  api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs, photos }));
   api.use(notFoundHandler);
   app.use('/api', api);
+
+  // ---- link previews, robots, sitemap: public, no session --------------------------------
+  app.use('/share', shareRoutes(db, mediaStore));
+  app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robotsTxt(config.appOrigin)));
+  app.get('/sitemap.xml', (_req, res) => {
+    res.setHeader('cache-control', 'public, max-age=3600');
+    res.type('application/xml').send(sitemapXml(db, config.appOrigin));
+  });
 
   // ---- production: serve the built client -------------------------------------------------
   const clientDist = resolve(process.cwd(), '../client/dist');
   if (config.isProd && existsSync(clientDist)) {
-    app.use(express.static(clientDist, { index: false, maxAge: '1y', immutable: true, setHeaders: (res, path) => { if (path.endsWith('.html')) res.setHeader('cache-control', 'no-cache'); } }));
-    app.get('/{*splat}', (_req, res) => res.sendFile(resolve(clientDist, 'index.html'), { headers: { 'cache-control': 'no-cache' } }));
+    app.use(
+      express.static(clientDist, {
+        index: false,
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, path) => {
+          if (path.endsWith('.html')) res.setHeader('cache-control', 'no-cache');
+          // Share card, icons and manifest are fetched by other sites' previewers and by iOS.
+          if (/\/(og\.png|icon-\d+\.png|apple-touch-icon\.png|manifest\.webmanifest)$/.test(path)) {
+            res.setHeader('cache-control', 'public, max-age=86400');
+            res.setHeader('cross-origin-resource-policy', 'cross-origin');
+          }
+        },
+      }),
+    );
+    // index.html is read once; its share block is swapped per request so pasted links unfurl.
+    const indexHtml = readFileSync(resolve(clientDist, 'index.html'), 'utf8');
+    app.get('/{*splat}', (req, res) => {
+      const tags = tagsForPath(db, config.appOrigin, req.path) ?? { ...defaultTags(config.appOrigin), url: `${config.appOrigin}${req.path === '/' ? '/' : req.path}` };
+      res.setHeader('cache-control', 'no-cache');
+      res.type('html').send(renderShareHtml(indexHtml, tags));
+    });
   }
 
   app.use(errorHandler(log));

@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: API, changeOrigin: false },
       '/mock-oauth': { target: API, changeOrigin: false },
+      '/share': { target: API, changeOrigin: false },
     },
   },
   build: { outDir: 'dist', sourcemap: false, target: 'es2022' },

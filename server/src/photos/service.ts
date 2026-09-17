@@ -261,6 +261,25 @@ export function createPhotoService(deps: {
     return mediaForRecipe(db, recipeId);
   }
 
+  /**
+   * Queue a library photo for every recipe of `ownerId` that has no image and no photo job in
+   * flight. Used for the house kitchen: at boot, and from the admin panel.
+   */
+  function backfill(jobs: { enqueue: (kind: 'image', userId: string, payload: unknown, maxAttempts: number, recipeId: string) => unknown }, ownerId: string, limit = 500): number {
+    const missing = all<{ id: string }>(
+      db,
+      `SELECT r.id FROM recipes r
+       WHERE r.user_id = ? AND r.forked_from_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM media m WHERE m.recipe_id = r.id AND m.kind = 'image')
+         AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.result_recipe_id = r.id AND j.kind = 'image' AND j.status IN ('queued','running'))
+       ORDER BY r.created_at LIMIT ?`,
+      ownerId,
+      limit,
+    );
+    for (const { id } of missing) jobs.enqueue('image', ownerId, { recipeId: id, mode: 'source' }, 1, id);
+    return missing.length;
+  }
+
   function hasUpload(recipeId: string): boolean {
     return Boolean(
       one(
@@ -271,7 +290,7 @@ export function createPhotoService(deps: {
     );
   }
 
-  return { save, source, setCover, seen, hasUpload, finder };
+  return { save, source, setCover, seen, hasUpload, backfill, finder };
 }
 
 export type PhotoService = ReturnType<typeof createPhotoService>;
