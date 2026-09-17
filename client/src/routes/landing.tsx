@@ -163,7 +163,7 @@ export function Landing() {
               <span className="how-n num">2</span>
               <div>
                 <h3>🔌 Connect the AI you already pay for</h3>
-                <p className="muted">Paste a Claude or OpenAI API key, or link your ChatGPT account. foodi never bills you for generation — your account does the writing. Swap it any time.</p>
+                <p className="muted">An OpenAI or Anthropic developer account with $5 of credit — about 2¢ a recipe, and we walk you through it screen by screen. foodi never bills you; your account does the writing. Or skip it and cook from the house kitchen.</p>
               </div>
             </li>
             <li>

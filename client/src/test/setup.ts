@@ -13,6 +13,33 @@ if (typeof HTMLDialogElement !== 'undefined') {
   };
 }
 
+// Node 26 defines a (disabled) global localStorage that shadows jsdom's; give tests a real one.
+class MemoryStorage implements Storage {
+  private map = new Map<string, string>();
+  get length() {
+    return this.map.size;
+  }
+  clear() {
+    this.map.clear();
+  }
+  getItem(key: string) {
+    return this.map.get(key) ?? null;
+  }
+  key(index: number) {
+    return [...this.map.keys()][index] ?? null;
+  }
+  removeItem(key: string) {
+    this.map.delete(key);
+  }
+  setItem(key: string, value: string) {
+    this.map.set(key, String(value));
+  }
+}
+if (typeof window !== 'undefined' && !window.localStorage) {
+  Object.defineProperty(window, 'localStorage', { value: new MemoryStorage(), configurable: true });
+  Object.defineProperty(globalThis, 'localStorage', { value: window.localStorage, configurable: true });
+}
+
 // No EventSource in jsdom either; hooks that open the notification stream get a silent stub.
 class FakeEventSource {
   static readonly CONNECTING = 0;

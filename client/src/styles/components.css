@@ -1012,15 +1012,110 @@ dialog.lightbox::backdrop {
 .connect-managed h2 {
   font-size: var(--t-20);
 }
-.connect-steps {
+/* The key walkthrough: a picture of the page on the left, the instruction and button on the right. */
+.keyguide {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   display: grid;
   gap: var(--s-4);
-  padding-left: 1.4em;
 }
-.connect-steps li {
+.keyguide-step {
   display: grid;
-  gap: var(--s-2);
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--s-5);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--plate);
+  transition: border-color var(--fast) var(--ease);
+}
+.keyguide-step.is-active {
+  border-color: var(--sage);
+  box-shadow: 0 0 0 3px var(--sage-soft);
+}
+.keyguide-step.is-done {
+  opacity: 0.72;
+}
+.keyguide-step.is-done.is-active {
+  opacity: 1;
+}
+.keyguide-art {
+  align-self: start;
+}
+.keyguide-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.keyguide-body {
+  display: grid;
+  gap: var(--s-3);
+  align-content: start;
+}
+.keyguide-body h2 {
+  font-size: var(--t-20);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.keyguide-n {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  display: inline-grid;
+  place-items: center;
+  font-size: var(--t-14);
+  color: var(--stone);
+  flex: none;
+}
+.is-done .keyguide-n {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--sage-ink);
+}
+.keyguide-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+.keyguide-tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--stone);
+  font-size: var(--t-14);
+  cursor: pointer;
+}
+.keyguide-tick input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sage);
+}
+.keyguide-form {
+  display: grid;
+  gap: var(--s-3);
   justify-items: start;
+}
+.keyguide-paste {
+  display: flex;
+  gap: var(--s-2);
+  width: 100%;
+}
+.keyguide-paste .input {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .keyguide-step {
+    grid-template-columns: 1fr;
+    padding: var(--s-4);
+  }
+  .keyguide-art {
+    max-width: 260px;
+  }
 }
 .connect-grid {
   display: grid;

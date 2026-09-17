@@ -66,6 +66,7 @@ export function createAnthropicClient(opts: { apiBase: string; model: string; fe
       if (res.status === 429) throw new AiError('rate_limited', 'Anthropic is rate limiting this key. Try again shortly.', 429);
       if (!res.ok) {
         const text = await res.text().catch(() => '');
+        if (/credit balance|purchase credits/i.test(text)) throw new AiError('credential_unusable', 'The connected Anthropic account has run out of credit. Add credit at console.anthropic.com → Billing.', res.status);
         throw new AiError('vendor_error', `Anthropic returned ${res.status}: ${text.slice(0, 300)}`, res.status);
       }
       const data = (await res.json()) as {
