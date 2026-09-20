@@ -18,6 +18,7 @@ import { BlogPostPage, blogPostLoader } from './routes/app/blog-post';
 import { BlogEditor, blogEditorLoader } from './routes/app/blog-editor';
 import { BooksPage, booksLoader } from './routes/app/books';
 import { ListPage, listLoader } from './routes/app/list';
+import { PlanPage, planLoader } from './routes/app/plan';
 import { BookPage, bookLoader } from './routes/app/book';
 import { SalesPage, salesLoader } from './routes/app/sales';
 import { PayDone, TestCheckout, testCheckoutLoader } from './routes/pay';
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: 'blog/:id/edit', element: <BlogEditor />, loader: blogEditorLoader },
           { path: 'books', element: <BooksPage />, loader: booksLoader },
           { path: 'list', element: <ListPage />, loader: listLoader },
+          { path: 'plan', element: <PlanPage />, loader: planLoader },
           { path: 'books/:id', element: <BookPage />, loader: bookLoader },
           { path: 'notifications', element: <NotificationsPage />, loader: notificationsLoader },
           { path: 'sales', element: <SalesPage />, loader: salesLoader },

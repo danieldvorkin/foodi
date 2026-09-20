@@ -552,4 +552,25 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       ALTER TABLE credentials_v2 RENAME TO credentials;
     `,
   },
+  {
+    name: 'meal-plan',
+    sql: `
+      CREATE TABLE plan_entries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        slot TEXT NOT NULL CHECK (slot IN ('breakfast','lunch','dinner','snack','prep')),
+        recipe_id TEXT REFERENCES recipes(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        emoji TEXT NOT NULL DEFAULT '🍽️',
+        servings INTEGER NOT NULL DEFAULT 2,
+        note TEXT NOT NULL DEFAULT '',
+        done INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX plan_user_date ON plan_entries(user_id, date, slot, position);
+    `,
+  },
 ];

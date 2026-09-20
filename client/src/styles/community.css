@@ -123,9 +123,22 @@
   color: var(--ink);
   min-width: 0;
 }
-.rail-recipe .name {
+.rail-recipe .name,
+.rail-recipe-text {
   flex: 1 1 auto;
   min-width: 0;
+}
+.rail-recipe-text {
+  display: grid;
+  line-height: 1.25;
+}
+.rail-recipe-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-recipe-text small {
+  font-size: var(--t-13);
 }
 .rail-recipe:hover {
   background: var(--flour);

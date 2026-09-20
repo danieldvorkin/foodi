@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useDerivedState } from '../../lib/useDerivedState';
 import { Link, NavLink, useLoaderData, useRevalidator, useSearchParams } from 'react-router';
-import type { FeedItem, FeedScope, MediaItem } from '@foodi/shared';
+import { dayLabel, PLAN_SLOT_LABEL, type FeedItem, type FeedScope, type MediaItem, type PlanEntry } from '@foodi/shared';
 import { MediaThumb, MediaUploader } from '../../components/Media';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social, type Person, type RecipeSummary } from '../../api/types';
 import { BlogCard } from '../../components/BlogCard';
 import { BookFeedCard, PromoCard } from '../../components/Commerce';
 import { formatMoney, type Promotion } from '@foodi/shared';
-import { commerce as commerceApi } from '../../api/types';
+import { commerce as commerceApi, plan as planApi } from '../../api/types';
 import { PostCard } from '../../components/PostCard';
 import { FollowButton } from '../../components/People';
 import { useToast } from '../../components/Toast';
@@ -17,11 +17,17 @@ import { useMe } from './layout';
 
 export async function feedLoader({ request }: { request: Request }) {
   const scope: FeedScope = new URL(request.url).searchParams.get('scope') === 'following' ? 'following' : 'everyone';
-  const [feed, mine, sugg, featured] = await Promise.all([social.feed(scope), recipesApi.list(), social.suggestions(), commerceApi.featured().catch(() => ({ promotions: [] as Promotion[] }))]);
-  return { ...feed, scope, mine: mine.recipes, people: sugg.people, featured: featured.promotions };
+  const [feed, mine, sugg, featured, upcoming] = await Promise.all([
+    social.feed(scope),
+    recipesApi.list(),
+    social.suggestions(),
+    commerceApi.featured().catch(() => ({ promotions: [] as Promotion[] })),
+    planApi.upcoming().catch(() => ({ entries: [] as PlanEntry[] })),
+  ]);
+  return { ...feed, scope, mine: mine.recipes, people: sugg.people, featured: featured.promotions, upcoming: upcoming.entries };
 }
 
-function LeftRail({ mine }: { mine: RecipeSummary[] }) {
+function LeftRail({ mine, upcoming }: { mine: RecipeSummary[]; upcoming: PlanEntry[] }) {
   const me = useMe();
   return (
     <aside className="rail rail-left" aria-label="Shortcuts">
@@ -46,6 +52,9 @@ function LeftRail({ mine }: { mine: RecipeSummary[] }) {
           <NavLink to="/app/books">
             <span className="ico">📚</span> Recipe books
           </NavLink>
+          <NavLink to="/app/plan">
+            <span className="ico">📅</span> Meal plan
+          </NavLink>
           <NavLink to="/app/list">
             <span className="ico">🛒</span> Shopping list
           </NavLink>
@@ -65,6 +74,26 @@ function LeftRail({ mine }: { mine: RecipeSummary[] }) {
           )}
         </nav>
       </div>
+      {upcoming.length > 0 && (
+        <div className="rail-section">
+          <h3>Coming up</h3>
+          <div className="rail-list">
+            {upcoming.map((e) => (
+              <Link key={e.id} to={`/app/plan?week=${e.date}`} className="rail-recipe">
+                <span className="emoji-tile" aria-hidden="true">
+                  {e.emoji}
+                </span>
+                <span className="rail-recipe-text">
+                  <span>{e.title}</span>
+                  <small className="muted">
+                    {dayLabel(e.date, true)} · {PLAN_SLOT_LABEL[e.slot].toLowerCase()}
+                  </small>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="rail-section">
         <h3>Your latest recipes</h3>
         {mine.length === 0 ? (
@@ -226,7 +255,7 @@ export function FeedPage() {
 
   return (
     <div className="feed-shell feed">
-      <LeftRail mine={data.mine} />
+      <LeftRail mine={data.mine} upcoming={data.upcoming} />
 
       <main className="feed-center">
         <section className="composer" aria-label="Share something">

@@ -1,0 +1,262 @@
+/* ---------- meal plan ----------
+   A week as a grid: days across, slots down. Prep is its own quieter lane at the bottom. On a
+   phone the grid becomes one column per day, stacked. */
+.plan-page {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  padding-block: var(--s-5) var(--s-8);
+  display: grid;
+  gap: var(--s-4);
+}
+.plan-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.plan-head h1 {
+  font-size: var(--t-31);
+}
+.plan-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.plan-week {
+  min-width: 11ch;
+  text-align: center;
+  font-weight: 600;
+}
+.plan-empty {
+  max-width: var(--measure);
+}
+.plan-grid {
+  display: grid;
+  grid-template-columns: 96px repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.plan-grid > * {
+  grid-column: var(--c);
+  grid-row: var(--r);
+  background: var(--plate);
+  min-width: 0;
+}
+.plan-corner,
+.plan-day {
+  background: var(--flour) !important;
+}
+.plan-slot.is-prep,
+.plan-cell.is-prep {
+  background: var(--ground);
+}
+.plan-corner,
+.plan-slot {
+  padding: var(--s-3);
+  font-size: var(--t-13);
+  color: var(--stone);
+  font-weight: 500;
+}
+.plan-day {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--t-13);
+  font-weight: 500;
+  color: var(--stone);
+}
+.plan-day-full {
+  display: none;
+}
+.plan-day-num {
+  font-size: var(--t-16);
+  font-weight: 600;
+  color: var(--ink);
+}
+.plan-day.is-today .plan-day-num {
+  background: var(--sage);
+  color: var(--sage-ink);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.plan-cell {
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-height: 72px;
+}
+.plan-cell.is-today {
+  background: color-mix(in srgb, var(--sage-soft) 50%, var(--plate));
+}
+.plan-cell-slot {
+  display: none;
+}
+.plan-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--flour);
+  font: inherit;
+  font-size: var(--t-13);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.plan-entry:hover {
+  border-color: var(--line-strong);
+}
+.plan-entry.is-done {
+  opacity: 0.55;
+}
+.plan-entry.is-done .plan-entry-title {
+  text-decoration: line-through;
+}
+.plan-entry-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-entry-serv {
+  color: var(--stone);
+  font-size: var(--t-13);
+}
+.plan-add {
+  border: 1px dashed transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--mute);
+  font-size: var(--t-16);
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.plan-cell:hover .plan-add,
+.plan-cell:focus-within .plan-add,
+.plan-cell:not(:has(.plan-entry)) .plan-add {
+  opacity: 1;
+}
+.plan-add:hover,
+.plan-add:focus-visible {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--flour);
+}
+
+/* Picking */
+.plan-picks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.plan-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--plate);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.plan-pick:hover {
+  background: var(--flour);
+}
+.plan-pick-free {
+  border-style: dashed;
+}
+
+/* Phones: one day at a time — the day heading, then its five slots — in DOM order. */
+@media (max-width: 767px) {
+  .plan-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--s-2);
+    background: none;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .plan-grid > * {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .plan-corner,
+  .plan-slot,
+  .plan-day-name,
+  .plan-day-num {
+    display: none;
+  }
+  .plan-day {
+    margin-top: var(--s-3);
+    padding: 0;
+    background: none !important;
+    font-size: var(--t-16);
+    color: var(--ink);
+  }
+  .plan-day-full {
+    display: inline;
+  }
+  .plan-day.is-today .plan-day-full {
+    color: var(--sage);
+  }
+  /* An empty slot is one compact row ("🌅 Breakfast … +"); entries stack full-width between. */
+  .plan-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 8px var(--s-3);
+    min-height: 0;
+  }
+  .plan-cell-slot {
+    display: block;
+    flex: 1 1 auto;
+    font-size: var(--t-13);
+    color: var(--stone);
+    font-weight: 500;
+  }
+  .plan-entry {
+    flex: 1 1 100%;
+    order: 1;
+    font-size: var(--t-14);
+    padding: 8px 10px;
+  }
+  .plan-add {
+    opacity: 1;
+    order: 0;
+    padding: 4px 10px;
+    border-color: var(--line);
+  }
+  .plan-fill {
+    width: 100%;
+  }
+  .plan-page {
+    padding-bottom: calc(var(--s-8) + 56px);
+  }
+}
