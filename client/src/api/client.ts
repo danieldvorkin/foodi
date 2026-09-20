@@ -14,11 +14,13 @@ interface Options {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
+  /** '/api' (default) or '/share' for the public, session-less endpoints. */
+  base?: '/api' | '/share';
 }
 
 /** Same-origin JSON fetch. Cookies carry the session; the server checks Origin on writes. */
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${opts.base ?? '/api'}${path}`, {
     method: opts.method ?? 'GET',
     headers: { accept: 'application/json', ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}) },
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),

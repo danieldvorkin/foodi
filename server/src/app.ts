@@ -53,6 +53,7 @@ import { blogRoutes } from './routes/blog.js';
 import { bookRoutes } from './routes/books.js';
 import { listRoutes } from './routes/list.js';
 import { planRoutes } from './routes/plan.js';
+import { browseRoutes } from './routes/browse.js';
 
 export interface AppDeps {
   config: Config;
@@ -224,6 +225,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
 
   // ---- link previews, robots, sitemap: public, no session --------------------------------
   app.use('/share', shareRoutes(db, mediaStore));
+  app.use('/share/browse', generalLimiter, browseRoutes(db));
   app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robotsTxt(config.appOrigin)));
   app.get('/sitemap.xml', (_req, res) => {
     res.setHeader('cache-control', 'public, max-age=3600');

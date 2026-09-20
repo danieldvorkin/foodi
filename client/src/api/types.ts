@@ -34,6 +34,9 @@ import type {
   CreatePlanEntry,
   PlanEntry,
   PlanSlot,
+  BrowseQuery,
+  BrowseRecipe,
+  BrowseRecipeDetail,
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
@@ -202,6 +205,16 @@ export const plan = {
   update: (id: string, body: { date?: string; slot?: PlanSlot; servings?: number; note?: string; done?: boolean; title?: string }) => api<{ entry: PlanEntry }>(`/plan/entries/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   remove: (id: string) => api<{ ok: true }>(`/plan/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   toList: (week: string) => api<{ added: number; merged: number; skipped: string[]; week: string }>('/plan/to-list', { method: 'POST', body: { week } }),
+};
+
+/** Public, no session: the shop window for visitors. */
+export const browse = {
+  list: (q: BrowseQuery) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '' && v !== null) params.set(k, String(v));
+    return api<{ recipes: BrowseRecipe[]; nextCursor: string | null }>(`/browse?${params}`, { base: '/share' });
+  },
+  get: (id: string) => api<{ recipe: BrowseRecipeDetail }>(`/browse/${encodeURIComponent(id)}`, { base: '/share' }),
 };
 
 export const books = {

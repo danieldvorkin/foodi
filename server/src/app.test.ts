@@ -1587,7 +1587,7 @@ describe('link previews', () => {
       expect(tags.title).toBe('🥣 Ada & the soup — foodi');
       expect(tags.description).toContain('A soup for sharing. (20 min · serves 2)');
       expect(tags.image).toBe(`${origin}/share/recipes/${id}/cover.png`);
-      expect(tags.url).toBe(`${origin}/app/recipes/${id}`);
+      expect(tags.url).toBe(`${origin}/browse/${id}`); // the public page, so crawlers and previews land somewhere they can read
       const cover = await request(b.base).get(`/share/recipes/${id}/cover.png`);
       expect(cover.status).toBe(200);
       expect(cover.headers['content-type']).toBe('image/png');
@@ -1607,7 +1607,7 @@ describe('link previews', () => {
 
       // Sitemap and robots need no session.
       const xml = sitemapXml(b.db, origin);
-      expect(xml).toContain(`<loc>${origin}/app/recipes/${id}</loc>`);
+      expect(xml).toContain(`<loc>${origin}/browse/${id}</loc>`);
       expect((await request(b.base).get('/robots.txt')).text).toContain('Disallow: /api/');
       expect((await request(b.base).get('/sitemap.xml')).headers['content-type']).toContain('application/xml');
     } finally {
@@ -1872,6 +1872,49 @@ describe('meal plan', () => {
       expect((await request(b.base).get('/api/plan?week=2026-09-14').set('cookie', sam)).body.entries).toEqual([]);
       expect((await request(b.base).patch(`/api/plan/entries/${prep.body.entry.id}`).set('cookie', sam).set('origin', ORIGIN).send({ done: true })).status).toBe(404);
       expect((await request(b.base).delete(`/api/plan/entries/${prep.body.entry.id}`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(404);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('public browse', () => {
+  it('lists and searches public recipes without a session, filters, pages, and teases one recipe without its method', async () => {
+    const b = await boot({ FOODI_HOUSE_KITCHEN: 'true' });
+    try {
+      // No cookie anywhere in this test.
+      const page = await request(b.base).get('/share/browse?limit=10');
+      expect(page.status).toBe(200);
+      expect(page.body.recipes).toHaveLength(10);
+      expect(page.body.nextCursor).toBeTruthy();
+      const first = page.body.recipes[0];
+      expect(first).toMatchObject({ author: { isHouse: true }, cover: null }); // no photo jobs in tests; covers become /share/recipes/:id/cover.<ext> once found
+      expect(first.title).toBeTruthy();
+      // The next page continues past the cursor with no overlap.
+      const page2 = await request(b.base).get(`/share/browse?limit=10&cursor=${encodeURIComponent(page.body.nextCursor)}`);
+      expect(page2.body.recipes.some((r: { id: string }) => page.body.recipes.some((p: { id: string }) => p.id === r.id))).toBe(false);
+
+      // Search and filters.
+      const veg = await request(b.base).get('/share/browse?diet=vegan&maxMinutes=30');
+      expect(veg.body.recipes.length).toBeGreaterThan(0);
+      expect(veg.body.recipes.every((r: { dietLabels: string[]; totalMinutes: number }) => r.dietLabels.includes('vegan') && r.totalMinutes <= 30)).toBe(true);
+      const q = await request(b.base).get(`/share/browse?q=${encodeURIComponent(first.title.split(' ')[0])}`);
+      expect(q.body.recipes.some((r: { id: string }) => r.id === first.id)).toBe(true);
+      expect((await request(b.base).get('/share/browse?q=zzzzqqqq')).body.recipes).toEqual([]);
+      expect((await request(b.base).get('/share/browse?meal=nope')).status).toBe(400);
+
+      // The teaser has ingredients and step titles, but no step text; private recipes are invisible.
+      const one = await request(b.base).get(`/share/browse/${first.id}`);
+      expect(one.status).toBe(200);
+      expect(one.body.recipe.ingredients.length).toBeGreaterThan(0);
+      expect(one.body.recipe.stepTitles.length).toBe(one.body.recipe.stepCount);
+      expect(JSON.stringify(one.body)).not.toMatch(/"text":/);
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const priv = (await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send({ emoji: '🥣', title: 'Secret soup', summary: 'x', mealType: 'dinner', servings: 2, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, ingredients: [{ item: 'water', quantity: null, unit: null, preparation: null, note: null, group: null, optional: false, ingredientId: null }], steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] })).body.recipe;
+      expect((await request(b.base).get(`/share/browse/${priv.id}`)).status).toBe(404);
+      expect((await request(b.base).get('/share/browse?q=Secret')).body.recipes.some((r: { id: string }) => r.id === priv.id)).toBe(false);
     } finally {
       b.server.close();
       b.close();

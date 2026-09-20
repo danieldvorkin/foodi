@@ -126,7 +126,7 @@
   gap: var(--s-4);
 }
 @media (max-width: 600px) {
-  .landing-nav .navlink:not(:last-child) {
+  .landing-nav .navlink:not(:first-child):not(:last-child) {
     display: none;
   }
 }
@@ -201,9 +201,18 @@
   gap: var(--s-4);
 }
 .kitchen-tile {
+  min-width: 0;
+}
+.kitchen-tile a {
   display: grid;
   gap: var(--s-2);
-  min-width: 0;
+  color: var(--ink);
+}
+.kitchen-tile a:hover {
+  text-decoration: none;
+}
+.kitchen-tile a:hover img {
+  border-color: var(--line-strong);
 }
 .kitchen-tile img {
   display: block;

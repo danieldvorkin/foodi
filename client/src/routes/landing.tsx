@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { redirect, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from 'react-router';
+import { Link, redirect, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from 'react-router';
 import { errorMessage } from '../api/client';
 import { auth } from '../api/types';
 import { HeroDemo } from '../components/HeroDemo';
@@ -39,6 +39,9 @@ export function Landing() {
       <header className="landing-top">
         <Wordmark />
         <nav className="landing-nav" aria-label="Page">
+          <Link to="/browse" className="navlink">
+            Browse recipes
+          </Link>
           <a href="#see" className="navlink">
             See it
           </a>
@@ -70,6 +73,9 @@ export function Landing() {
             <div id="signin">
               <AuthForm allowSignups={data.allowSignups} returnTo={data.returnTo} />
             </div>
+            <p className="hint">
+              Just looking? <Link to="/browse">Browse {data.featured?.total ? `${data.featured.total} ` : ''}recipes</Link> without an account.
+            </p>
 
             {(real.length > 0 || mock) && (
               <div className="sso">
@@ -138,11 +144,13 @@ export function Landing() {
             <ul className="kitchen-grid">
               {data.featured.recipes.map((r) => (
                 <li key={r.id} className="kitchen-tile">
-                  <img src={r.cover} alt="" loading="lazy" />
-                  <span className="kitchen-tile-label">
-                    <span aria-hidden="true">{r.emoji}</span> {r.title}
-                    {r.totalMinutes ? <small> · {r.totalMinutes} min</small> : null}
-                  </span>
+                  <Link to={`/browse/${r.id}`}>
+                    <img src={r.cover} alt="" loading="lazy" />
+                    <span className="kitchen-tile-label">
+                      <span aria-hidden="true">{r.emoji}</span> {r.title}
+                      {r.totalMinutes ? <small> · {r.totalMinutes} min</small> : null}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

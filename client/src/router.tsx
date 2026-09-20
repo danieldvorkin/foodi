@@ -19,6 +19,7 @@ import { BlogEditor, blogEditorLoader } from './routes/app/blog-editor';
 import { BooksPage, booksLoader } from './routes/app/books';
 import { ListPage, listLoader } from './routes/app/list';
 import { PlanPage, planLoader } from './routes/app/plan';
+import { BrowsePage, browseLoader, BrowseRecipePage, browseRecipeLoader } from './routes/browse';
 import { BookPage, bookLoader } from './routes/app/book';
 import { SalesPage, salesLoader } from './routes/app/sales';
 import { PayDone, TestCheckout, testCheckoutLoader } from './routes/pay';
@@ -46,6 +47,8 @@ export const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Landing />, loader: landingLoader },
+      { path: 'browse', element: <BrowsePage />, loader: browseLoader },
+      { path: 'browse/:id', element: <BrowseRecipePage />, loader: browseRecipeLoader },
       { path: 'connect', element: <Connect />, loader: connectLoader },
       { path: 'connect/:vendor', element: <Connect />, loader: connectLoader },
       { path: 'onboarding', element: <Onboarding />, loader: onboardingLoader },

@@ -1,0 +1,182 @@
+/* ---------- browse (visitors) ----------
+   The shop window: a search, a few chips, a grid of photos. Light chrome, one primary door in. */
+.browse {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.browse-top {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.browse-top-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.browse-main {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  padding-block: var(--s-4) var(--s-8);
+  display: grid;
+  gap: var(--s-5);
+  align-content: start;
+}
+.browse-hero {
+  display: grid;
+  gap: var(--s-3);
+  max-width: 60ch;
+  padding-block: var(--s-4) var(--s-2);
+}
+.browse-hero h1 {
+  font-size: clamp(1.8rem, 4vw, var(--t-39));
+  letter-spacing: -0.02em;
+}
+.browse-search {
+  display: flex;
+  gap: var(--s-2);
+}
+.browse-search .input {
+  flex: 1;
+  min-width: 0;
+}
+.browse-filters {
+  display: grid;
+  gap: var(--s-2);
+}
+.chip-quiet {
+  color: var(--stone);
+}
+.browse-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+.browse-tile {
+  display: grid;
+  gap: var(--s-2);
+  color: var(--ink);
+  min-width: 0;
+}
+.browse-tile:hover {
+  text-decoration: none;
+}
+.browse-tile img,
+.browse-tile-emoji {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  background: var(--flour);
+  border: 1px solid var(--line);
+}
+.browse-tile-emoji {
+  display: grid;
+  place-items: center;
+  font-size: 56px;
+}
+.browse-tile:hover img,
+.browse-tile:hover .browse-tile-emoji {
+  border-color: var(--line-strong);
+}
+.browse-tile-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.browse-tile-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browse-empty {
+  padding-block: var(--s-6);
+}
+.browse-foot {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+  padding-block: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+/* One recipe for a visitor */
+.browse-recipe {
+  max-width: 900px;
+}
+.browse-cover {
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.browse-cover img {
+  display: block;
+  width: 100%;
+  max-height: 440px;
+  object-fit: cover;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+}
+.browse-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.browse-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--s-6);
+}
+.browse-columns h2 {
+  font-size: var(--t-20);
+}
+.browse-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.browse-steps li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: baseline;
+  color: var(--stone);
+}
+.browse-steps .num {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  font-size: var(--t-13);
+}
+/* The invitation sits where the method would be. */
+.browse-wall {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  background: var(--sage-soft);
+  border: 1px solid color-mix(in srgb, var(--sage) 30%, transparent);
+  max-width: 52ch;
+}
+@media (max-width: 767px) {
+  .browse-columns {
+    grid-template-columns: 1fr;
+  }
+  .browse-search {
+    flex-direction: column;
+  }
+}
