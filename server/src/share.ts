@@ -91,7 +91,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
   const base = defaultTags(origin);
   let m: RegExpExecArray | null;
 
-  if ((m = /^\/app\/recipes\/([\w-]+)\/?$/.exec(path))) {
+  if ((m = /^\/(?:app\/recipes|browse)\/([\w-]+)\/?$/.exec(path))) {
     const r = one<{ id: string; title: string; content: string; handle: string; display_name: string | null }>(
       db,
       `SELECT r.id, r.title, r.content, u.handle, u.display_name FROM recipes r JOIN users u ON u.id = r.user_id WHERE r.id = ? AND r.visibility = 'public'`,
@@ -107,7 +107,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
       description: clip(`${c.summary ?? ''}${facts ? ` (${facts})` : ''} By ${r.display_name ?? `@${r.handle}`} on foodi.`, 200),
       image: cover ? `${origin}/share/recipes/${r.id}/cover.${cover.ext}` : base.image,
       imageAlt: cover ? `Photo of ${r.title}` : base.imageAlt,
-      url: `${origin}/app/recipes/${r.id}`,
+      url: `${origin}/browse/${r.id}`,
       type: 'article',
     };
   }
@@ -260,8 +260,8 @@ export function robotsTxt(origin: string): string {
 
 /** Every public page, newest first, capped so the file stays small. */
 export function sitemapXml(db: Db, origin: string): string {
-  const urls: { loc: string; lastmod?: string }[] = [{ loc: `${origin}/` }];
-  for (const x of all<{ id: string; updated_at: string }>(db, `SELECT id, updated_at FROM recipes WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT 2000`)) urls.push({ loc: `${origin}/app/recipes/${x.id}`, lastmod: x.updated_at });
+  const urls: { loc: string; lastmod?: string }[] = [{ loc: `${origin}/` }, { loc: `${origin}/browse` }];
+  for (const x of all<{ id: string; updated_at: string }>(db, `SELECT id, updated_at FROM recipes WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT 2000`)) urls.push({ loc: `${origin}/browse/${x.id}`, lastmod: x.updated_at });
   for (const x of all<{ handle: string }>(db, `SELECT handle FROM users WHERE disabled_at IS NULL AND EXISTS (SELECT 1 FROM recipes r WHERE r.user_id = users.id AND r.visibility = 'public') LIMIT 1000`)) urls.push({ loc: `${origin}/app/u/${x.handle}` });
   for (const x of all<{ id: string; updated_at: string }>(db, `SELECT id, updated_at FROM recipe_books WHERE visibility = 'public' ORDER BY updated_at DESC LIMIT 1000`)) urls.push({ loc: `${origin}/app/books/${x.id}`, lastmod: x.updated_at });
   for (const x of all<{ id: string; updated_at: string }>(db, `SELECT id, updated_at FROM blog_posts WHERE status = 'published' ORDER BY published_at DESC LIMIT 1000`)) urls.push({ loc: `${origin}/app/blog/${x.id}`, lastmod: x.updated_at });
