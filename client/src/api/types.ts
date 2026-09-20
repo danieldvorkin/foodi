@@ -31,6 +31,9 @@ import type {
   RecipeBook,
   RecipeSummary,
   ShoppingItem,
+  CreatePlanEntry,
+  PlanEntry,
+  PlanSlot,
 } from '@foodi/shared';
 import { api, ApiError } from './client';
 
@@ -181,6 +184,24 @@ export const list = {
   update: (id: string, body: { text?: string; quantity?: number | null; unit?: string | null; checked?: boolean }) => api<{ item: ShoppingItem }>(`/list/items/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   remove: (id: string) => api<{ ok: true }>(`/list/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   clear: (checkedOnly: boolean) => api<{ removed: number; items: ShoppingItem[] }>('/list/clear', { method: 'POST', body: { checkedOnly } }),
+};
+
+export interface PlanCandidate {
+  id: string;
+  title: string;
+  emoji: string;
+  servings: number;
+  totalMinutes: number | null;
+  mine: boolean;
+}
+export const plan = {
+  week: (week?: string) => api<{ week: string; entries: PlanEntry[] }>(`/plan${week ? `?week=${encodeURIComponent(week)}` : ''}`),
+  upcoming: () => api<{ entries: PlanEntry[] }>('/plan/upcoming'),
+  candidates: (q: string) => api<{ recipes: PlanCandidate[] }>(`/plan/candidates?q=${encodeURIComponent(q)}`),
+  add: (body: CreatePlanEntry) => api<{ entry: PlanEntry }>('/plan/entries', { method: 'POST', body }),
+  update: (id: string, body: { date?: string; slot?: PlanSlot; servings?: number; note?: string; done?: boolean; title?: string }) => api<{ entry: PlanEntry }>(`/plan/entries/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  remove: (id: string) => api<{ ok: true }>(`/plan/entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  toList: (week: string) => api<{ added: number; merged: number; skipped: string[]; week: string }>('/plan/to-list', { method: 'POST', body: { week } }),
 };
 
 export const books = {

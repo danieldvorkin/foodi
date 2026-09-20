@@ -36,6 +36,7 @@ describe('Feed scope', () => {
       'GET /api/recipes': { recipes: [] },
       'GET /api/social/suggestions': { people: [] },
       'GET /api/commerce/featured': { promotions: [] },
+      'GET /api/plan/upcoming': { entries: [] },
     });
     // Same shape as the real router: an 'app' parent whose loader supplies `me`, and the feed as its index child.
     const r2 = createMemoryRouter(

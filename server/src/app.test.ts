@@ -1810,3 +1810,71 @@ describe('managed OpenAI keys', () => {
     }
   });
 });
+
+describe('meal plan', () => {
+  const soup = (title: string, servings = 2) => ({ emoji: '🥣', title, summary: 'x', mealType: 'dinner', servings, totalMinutes: 20, activeMinutes: 10, difficulty: 'easy', cuisine: null, ingredients: [{ item: 'celeriac', quantity: '1', unit: null, preparation: null, note: null, group: null, optional: false, ingredientId: null }, { item: 'olive oil', quantity: '1', unit: 'tbsp', preparation: null, note: null, group: null, optional: false, ingredientId: null }], steps: [{ title: 'Boil', text: 'Boil it.', timerSeconds: null, ingredientRefs: [], temperature: null, tip: null }] });
+
+  it('plans a week, moves and finishes meals, keeps a snapshot when a recipe goes away, and fills the shopping list', async () => {
+    const b = await boot({ FOODI_HOUSE_KITCHEN: 'true' });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const mine = (await request(b.base).post('/api/recipes').set('cookie', ada).set('origin', ORIGIN).send(soup('Lemon soup'))).body.recipe;
+      const house = b.db.prepare(`SELECT id, title FROM recipes WHERE user_id = (SELECT id FROM users WHERE is_system = 1) LIMIT 1`).get() as { id: string; title: string };
+
+      // Candidates: mine first, then the house kitchen's, by title.
+      const cands = await request(b.base).get('/api/plan/candidates?q=lemon').set('cookie', ada);
+      expect(cands.body.recipes[0]).toMatchObject({ id: mine.id, mine: true, emoji: '🥣', servings: 2 });
+      expect((await request(b.base).get('/api/plan/candidates').set('cookie', ada)).body.recipes.some((r: { id: string }) => r.id === house.id)).toBe(true);
+
+      // Tuesday dinner at 4 servings, Sunday prep as free text, a house recipe on Thursday.
+      const tue = await request(b.base).post('/api/plan/entries').set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-09-15', slot: 'dinner', recipeId: mine.id, servings: 4 });
+      expect(tue.status).toBe(201);
+      expect(tue.body.entry).toMatchObject({ date: '2026-09-15', slot: 'dinner', title: 'Lemon soup', emoji: '🥣', servings: 4, done: false, recipeAvailable: true, position: 0 });
+      const prep = await request(b.base).post('/api/plan/entries').set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-09-20', slot: 'prep', title: 'Roast a tray of veg', emoji: '🥕', note: 'for Tue + Thu' });
+      expect(prep.body.entry).toMatchObject({ recipeId: null, title: 'Roast a tray of veg', note: 'for Tue + Thu', recipeAvailable: false });
+      const thu = await request(b.base).post('/api/plan/entries').set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-09-17', slot: 'dinner', recipeId: house.id });
+      expect(thu.body.entry.title).toBe(house.title);
+      expect((await request(b.base).post('/api/plan/entries').set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-09-17', slot: 'lunch' })).status).toBe(400);
+      expect((await request(b.base).post('/api/plan/entries').set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-9-17', slot: 'lunch', title: 'x' })).status).toBe(400);
+
+      // The week query is Monday-based and inclusive of Sunday; the next week is empty.
+      const week = await request(b.base).get('/api/plan?week=2026-09-17').set('cookie', ada);
+      expect(week.body.week).toBe('2026-09-14');
+      expect(week.body.entries.map((e: { date: string }) => e.date)).toEqual(['2026-09-15', '2026-09-17', '2026-09-20']);
+      expect((await request(b.base).get('/api/plan?week=2026-09-21').set('cookie', ada)).body.entries).toEqual([]);
+
+      // Move Tuesday to Thursday, mark it done.
+      const moved = await request(b.base).patch(`/api/plan/entries/${tue.body.entry.id}`).set('cookie', ada).set('origin', ORIGIN).send({ date: '2026-09-17', done: true });
+      expect(moved.body.entry).toMatchObject({ date: '2026-09-17', slot: 'dinner', done: true, position: 1 });
+
+      // The week onto the shopping list: undone recipe entries only, scaled, tagged with the entry.
+      await request(b.base).patch(`/api/plan/entries/${tue.body.entry.id}`).set('cookie', ada).set('origin', ORIGIN).send({ done: false });
+      const filled = await request(b.base).post('/api/plan/to-list').set('cookie', ada).set('origin', ORIGIN).send({ week: '2026-09-16' });
+      expect(filled.status).toBe(200);
+      expect(filled.body.added).toBeGreaterThan(2);
+      const list = await request(b.base).get('/api/list').set('cookie', ada);
+      const celeriac = list.body.items.find((i: { text: string }) => i.text === 'celeriac');
+      expect(celeriac).toMatchObject({ quantity: 2, planEntryId: tue.body.entry.id, recipeTitle: 'Lemon soup' });
+      // Shared ingredients merged across the two recipes into one line.
+      expect(list.body.items.filter((i: { text: string }) => i.text === 'olive oil')).toHaveLength(1);
+
+      // Deleting the recipe keeps the entry's title; the entry can't be opened; deleting the entry unlinks its lines.
+      await request(b.base).delete(`/api/recipes/${mine.id}`).set('cookie', ada).set('origin', ORIGIN);
+      const after = await request(b.base).get('/api/plan?week=2026-09-14').set('cookie', ada);
+      expect(after.body.entries.find((e: { id: string }) => e.id === tue.body.entry.id)).toMatchObject({ title: 'Lemon soup', recipeId: null, recipeAvailable: false });
+      await request(b.base).delete(`/api/plan/entries/${tue.body.entry.id}`).set('cookie', ada).set('origin', ORIGIN);
+      expect((await request(b.base).get('/api/list').set('cookie', ada)).body.items.find((i: { text: string }) => i.text === 'celeriac').planEntryId).toBeNull();
+
+      // Private to its owner.
+      const sam = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', sam).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).get('/api/plan?week=2026-09-14').set('cookie', sam)).body.entries).toEqual([]);
+      expect((await request(b.base).patch(`/api/plan/entries/${prep.body.entry.id}`).set('cookie', sam).set('origin', ORIGIN).send({ done: true })).status).toBe(404);
+      expect((await request(b.base).delete(`/api/plan/entries/${prep.body.entry.id}`).set('cookie', sam).set('origin', ORIGIN)).status).toBe(404);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});

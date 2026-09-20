@@ -52,6 +52,7 @@ import { notificationRoutes } from './routes/notifications.js';
 import { blogRoutes } from './routes/blog.js';
 import { bookRoutes } from './routes/books.js';
 import { listRoutes } from './routes/list.js';
+import { planRoutes } from './routes/plan.js';
 
 export interface AppDeps {
   config: Config;
@@ -213,7 +214,9 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.use('/admin/commerce', adminCommerceRoutes(commerce, audit));
   api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
-  api.use('/list', writeLimiter, listRoutes(db).router);
+  const list = listRoutes(db);
+  api.use('/list', writeLimiter, list.router);
+  api.use('/plan', writeLimiter, planRoutes(db, list));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));
   api.use('/admin', adminRoutes({ db, config, store, settings, audit, providerIds: providers.map((p) => p.id), mediaStore, notifier, permissions, jobs, photos, managed }));
   api.use(notFoundHandler);
