@@ -28,7 +28,7 @@ describe('Browse (visitors)', () => {
   it('shows public recipes without a session, filters through the URL, and links tiles to the public page', async () => {
     const calls = stubApi({
       'GET /api/auth/me': () => apiError(401, 'Not signed in.'),
-      'GET /share/browse': (_init, url) => ({ recipes: url.includes('diet=vegan') ? [tile('r2', 'Vegan chilli', { dietLabels: ['vegan'] })] : [tile('r1', 'Beef tacos'), tile('r2', 'Vegan chilli', { dietLabels: ['vegan'] })], nextCursor: null }),
+      'GET /share/browse': (_init: RequestInit | undefined, url: string) => ({ recipes: url.includes('diet=vegan') ? [tile('r2', 'Vegan chilli', { dietLabels: ['vegan'] })] : [tile('r1', 'Beef tacos'), tile('r2', 'Vegan chilli', { dietLabels: ['vegan'] })], nextCursor: null }),
     });
     const router = mount('/browse');
     expect(await screen.findByRole('link', { name: /Beef tacos/ })).toHaveAttribute('href', '/browse/r1');
