@@ -18,7 +18,7 @@
     "@foodi/shared": "*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router": "^8.3.1",
+    "react-router": "^8.4.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
@@ -31,6 +31,6 @@
     "jsdom": "^30.1.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }
