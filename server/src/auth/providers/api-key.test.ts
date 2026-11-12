@@ -43,6 +43,15 @@ describe('api-key providers', () => {
     if (!r.ok) expect(r.reason).toContain(config.openai.model);
   });
 
+  it('OpenAI: an Anthropic key is turned away before calling OpenAI', async () => {
+    const v = vendor({ models: 200, probe: { status: 200, body: '{}' } });
+    const [, openai] = createApiKeyProviders(config, v.fetchImpl);
+    const r = await openai!.verify('sk-ant-api03-0123456789abcdef0123456789');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/Anthropic/);
+    expect(v.calls).toEqual([]);
+  });
+
   it('Anthropic: an empty balance is caught by the probe', async () => {
     const [anthropic] = createApiKeyProviders(config, vendor({ models: 200, probe: { status: 400, body: '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}' } }).fetchImpl);
     expect(await anthropic!.verify('sk-ant-broke-0123456789abcdef')).toEqual({ ok: false, reason: NO_CREDITS.anthropic });

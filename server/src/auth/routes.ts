@@ -200,7 +200,7 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
       const problem = passwordProblem(body.next, body.email ?? user.email ?? '');
       if (problem) throw badRequest(problem, [{ path: 'next', message: problem }]);
       if (current) {
-        if (!body.current || !(await verifyPassword(body.current, current))) throw unauthorized('Current password is incorrect.');
+        if (!body.current || !(await verifyPassword(body.current, current))) throw badRequest('Current password is incorrect.', [{ path: 'current', message: 'Current password is incorrect.' }]); // not 401: the session is fine
         store.setPasswordHash(user.id, await hashPassword(body.next));
       } else {
         // SSO-only account adding a password: it needs an email to sign in with.
