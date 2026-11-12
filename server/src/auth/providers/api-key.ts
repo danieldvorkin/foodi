@@ -54,6 +54,7 @@ export function createApiKeyProviders(config: Config, fetchOverride?: typeof fet
     note: 'Use a key from platform.openai.com. It stays encrypted on this server.',
     async verify(apiKey) {
       if (!apiKey.startsWith('sk-')) return { ok: false, reason: 'OpenAI keys start with sk-.' };
+      if (apiKey.startsWith('sk-ant-')) return { ok: false, reason: 'That’s an Anthropic (Claude) key. Connect it under Claude instead, or paste a key from platform.openai.com.' };
       const headers = { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' };
       const res = await fetchImpl(`${config.openai.apiBase}/v1/models?limit=1`, { headers });
       if (res.status === 401 || res.status === 403) return { ok: false, reason: 'OpenAI rejected that key. Check it and try again.' };

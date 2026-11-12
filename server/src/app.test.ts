@@ -436,6 +436,34 @@ describe('password auth', () => {
     const cleared = await request(b.base).delete('/api/auth/key').set('cookie', cookie).set('origin', ORIGIN);
     expect(cleared.body.vendor).toBeNull();
   });
+
+  it('a wrong current password is a 400 (the session stays valid); no session is still 401', async () => {
+    const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send(creds);
+    const cookie = (reg.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('foodi_session='))!.split(';')[0]!;
+    const wrong = await request(b.base).post('/api/auth/password').set('cookie', cookie).set('origin', ORIGIN).send({ current: 'not my password', next: 'a brand new passphrase' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error).toMatchObject({ code: 'bad_request', message: 'Current password is incorrect.' });
+    expect((await request(b.base).get('/api/auth/me').set('cookie', cookie)).status).toBe(200);
+    const anon = await request(b.base).post('/api/auth/password').set('origin', ORIGIN).send({ current: creds.password, next: 'a brand new passphrase' });
+    expect(anon.status).toBe(401);
+    const ok = await request(b.base).post('/api/auth/password').set('cookie', cookie).set('origin', ORIGIN).send({ current: creds.password, next: 'a brand new passphrase' });
+    expect(ok.status).toBe(200);
+  });
+});
+
+describe('apple-app-site-association', () => {
+  it('is public JSON naming the iOS app for web credentials', async () => {
+    const b = await boot();
+    try {
+      const res = await request(b.base).get('/.well-known/apple-app-site-association');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/^application\/json/);
+      expect(res.body).toEqual({ webcredentials: { apps: ['NNHNTS7HD9.com.foodi.app'] } });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
 });
 
 describe('mock admin button', () => {

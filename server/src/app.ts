@@ -226,6 +226,11 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   // ---- link previews, robots, sitemap: public, no session --------------------------------
   app.use('/share', shareRoutes(db, mediaStore));
   app.use('/share/browse', generalLimiter, browseRoutes(db));
+  // iOS password AutoFill: the foodi app shares web credentials with this domain.
+  app.get('/.well-known/apple-app-site-association', (_req, res) => {
+    res.setHeader('cache-control', 'public, max-age=3600');
+    res.json({ webcredentials: { apps: ['NNHNTS7HD9.com.foodi.app'] } });
+  });
   app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robotsTxt(config.appOrigin)));
   app.get('/sitemap.xml', (_req, res) => {
     res.setHeader('cache-control', 'public, max-age=3600');
