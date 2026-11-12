@@ -232,7 +232,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   // iOS password AutoFill: the foodi app shares web credentials with this domain.
   app.get('/.well-known/apple-app-site-association', (_req, res) => {
     res.setHeader('cache-control', 'public, max-age=3600');
-    res.json({ webcredentials: { apps: ['NNHNTS7HD9.com.foodi.app'] } });
+    res.json({ webcredentials: { apps: ['NNHNTS7HD9.com.danieldvorkin.foodi'] } });
   });
   app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robotsTxt(config.appOrigin)));
   app.get('/sitemap.xml', (_req, res) => {

@@ -460,7 +460,7 @@ describe('apple-app-site-association', () => {
       const res = await request(b.base).get('/.well-known/apple-app-site-association');
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toMatch(/^application\/json/);
-      expect(res.body).toEqual({ webcredentials: { apps: ['NNHNTS7HD9.com.foodi.app'] } });
+      expect(res.body).toEqual({ webcredentials: { apps: ['NNHNTS7HD9.com.danieldvorkin.foodi'] } });
     } finally {
       b.server.close();
       b.close();
