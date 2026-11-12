@@ -7,6 +7,8 @@ import { createLogger } from './lib/logger.js';
 import { decrypt, encrypt, pkcePair } from './lib/crypto.js';
 import { encodePng } from './lib/png.js';
 import { createMockClient } from './ai/mock.js';
+import { createOpenAiClient } from './ai/openai.js';
+import { ListScanSchema } from '@foodi/shared';
 import type { PhotoSource } from './photos/types.js';
 
 const ORIGIN = 'http://localhost:5100';
@@ -1718,6 +1720,172 @@ describe('shopping list', () => {
   });
 });
 
+describe('fridge check (list scan)', () => {
+  const photo = encodePng(8, 8, () => [220, 220, 210]);
+  const scan = (b: Booted, cookie: string | null, body: Buffer | string = photo, type = 'image/png') => {
+    const r = request(b.base).post('/api/list/scan').set('origin', ORIGIN).set('content-type', type);
+    return (cookie ? r.set('cookie', cookie) : r).send(body);
+  };
+  const add = (b: Booted, cookie: string, text: string) => request(b.base).post('/api/list/items').set('cookie', cookie).set('origin', ORIGIN).send({ text });
+
+  it('mock AI finds the first two open items with boxes, checks nothing off, and logs a vision call', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const empty = await scan(b, ada);
+      expect(empty.status).toBe(200);
+      expect(empty.body).toEqual({ found: [], seen: [] });
+
+      await add(b, ada, 'lemons');
+      await add(b, ada, 'oat milk');
+      const items = (await add(b, ada, 'flour')).body.items as { id: string; text: string }[];
+      const lemons = items.find((i) => i.text === 'lemons')!;
+      await request(b.base).patch(`/api/list/items/${lemons.id}`).set('cookie', ada).set('origin', ORIGIN).send({ checked: true });
+
+      const res = await scan(b, ada);
+      expect(res.status).toBe(200);
+      const body = ListScanSchema.parse(res.body);
+      expect(body.found.map((f) => f.text)).toEqual(['oat milk', 'flour']); // the ticked line isn't looked for
+      expect(body.found.every((f) => f.box !== null)).toBe(true);
+      expect(body).toMatchObject({ seen: ['eggs'], model: 'mock-eyes-1' });
+      expect((await request(b.base).get('/api/list').set('cookie', ada)).body.counts).toEqual({ open: 2, checked: 1 });
+      const logged = b.db.prepare("SELECT kind, status FROM generations WHERE kind = 'vision'").all();
+      expect(logged).toEqual([{ kind: 'vision', status: 'ok' }]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('keeps only the caller’s open ids, crops boxes, caps seen and the prompt, scrubs EXIF, and hides vendor failures', async () => {
+    let answer: unknown = null;
+    let reply: (() => Response) | null = null;
+    const sent: { input: { content: { type: string; image_url?: string; text?: string }[] }[]; text: { format: { strict: boolean } } }[] = [];
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      sent.push(JSON.parse(init!.body as string) as (typeof sent)[number]);
+      return reply?.() ?? json(200, { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }], usage: { input_tokens: 1000, output_tokens: 90 } });
+    };
+    const part = (type: string) => sent[sent.length - 1]!.input[0]!.content.find((c) => c.type === type)!;
+    // The mock personas' vendor, served by the real OpenAI client against a fake API.
+    const b = await boot({}, { mock: createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-test', fetchImpl }) });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      expect((await scan(b, ada)).body).toEqual({ found: [], seen: [] });
+      expect(sent).toEqual([]); // an empty list never reaches the vendor
+      const samsItem = (await add(b, sam, 'cheese')).body.items[0] as { id: string };
+      await add(b, ada, 'lemons');
+      const items = (await add(b, ada, 'eggs')).body.items as { id: string; text: string }[];
+      const [lemons, eggs] = [items.find((i) => i.text === 'lemons')!, items.find((i) => i.text === 'eggs')!];
+      answer = {
+        found: [
+          { itemId: lemons.id, confidence: 1.7, box: { x: -0.2, y: 0.5, w: 0.5, h: 0.9 } }, // hangs off two edges
+          { itemId: lemons.id, confidence: 0.2, box: null }, // duplicate
+          { itemId: samsItem.id, confidence: 0.9, box: null }, // someone else's
+          { itemId: 'shp_made_up', confidence: 0.9, box: null },
+          { itemId: eggs.id, confidence: null, box: { x: 0.1, y: 'top', w: 0.2, h: 0.2 } },
+        ],
+        seen: Array.from({ length: 15 }, (_, n) => `thing ${n}`),
+      };
+      const res = await scan(b, ada);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        found: [
+          { itemId: lemons.id, text: 'lemons', confidence: 1, box: { x: 0, y: 0.5, w: 0.3, h: 0.5 } },
+          { itemId: eggs.id, text: 'eggs', confidence: 0.5, box: null },
+        ],
+        seen: Array.from({ length: 12 }, (_, n) => `thing ${n}`),
+        model: 'gpt-test',
+      });
+      expect(sent[0]!.text.format.strict).toBe(true);
+      expect(part('input_image').image_url).toMatch(/^data:image\/png;base64,/);
+      expect(part('input_text').text).not.toContain(samsItem.id);
+
+      // Vendor trouble: busy is a 429; anything else is a 502 that doesn't echo the vendor.
+      reply = () => json(429, { error: { code: 'rate_limit_exceeded' } });
+      const busy = await scan(b, ada);
+      expect(busy.status).toBe(429);
+      expect(busy.body.error.code).toBe('ai_rate_limited');
+      reply = () => json(500, { error: { message: 'internal vendor detail' } });
+      const down = await scan(b, ada);
+      expect(down.status).toBe(502);
+      expect(down.body.error.message).not.toContain('vendor detail');
+      // A cut-off answer fails, and the tokens it billed are still logged.
+      reply = () => json(200, { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [{ type: 'message', content: [{ type: 'output_text', text: '{"found":[{"itemId"' }] }], usage: { input_tokens: 1000, output_tokens: 6000 } });
+      expect((await scan(b, ada)).status).toBe(502);
+      expect(b.db.prepare("SELECT status, error_code AS code, output_tokens AS out FROM generations WHERE kind = 'vision' ORDER BY rowid").all()).toEqual([
+        { status: 'ok', code: null, out: 90 },
+        { status: 'failed', code: 'rate_limited', out: null },
+        { status: 'failed', code: 'vendor_error', out: null },
+        { status: 'failed', code: 'bad_output', out: 6000 },
+      ]);
+      reply = null;
+
+      // Only the first 150 open lines go in the prompt, and the photo's EXIF never leaves the server.
+      const samId = (await request(b.base).get('/api/auth/me').set('cookie', sam)).body.id as string;
+      const insert = b.db.prepare(`INSERT INTO shopping_items (id, user_id, text, position, created_at, updated_at) VALUES (?, ?, ?, ?, '2026-01-01', '2026-01-01')`);
+      for (let n = 0; n < 160; n++) insert.run(`shp_bulk${n}`, samId, `thing ${n}`, n + 1);
+      const exif = Buffer.from('Exif\0\0GPS 51.5007N 0.1246W');
+      const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0, exif.length + 2]), exif, Buffer.from([0xff, 0xda, 0, 4, 1, 2, 7, 7, 7, 7, 0xff, 0xd9])]);
+      expect((await scan(b, sam, jpeg, 'image/jpeg')).status).toBe(200);
+      expect(part('input_text').text!.split('\n').filter((l) => l.startsWith('shp_'))).toHaveLength(150);
+      expect(part('input_image').image_url).toMatch(/^data:image\/jpeg;base64,/);
+      const seenByVendor = Buffer.from(part('input_image').image_url!.split(',')[1]!, 'base64');
+      expect(seenByVendor).toEqual(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0, 4, 1, 2, 7, 7, 7, 7, 0xff, 0xd9]));
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('allows a few fridge checks a minute', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      for (let n = 0; n < 6; n++) expect((await scan(b, ada)).status).toBe(200);
+      const seventh = await scan(b, ada);
+      expect(seventh.status).toBe(429);
+      expect(seventh.body.error).toEqual({ code: 'rate_limited', message: 'A few fridge checks a minute is plenty.' });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('needs a session, our Origin, a vision-capable AI, and a photo under 5 MB', async () => {
+    const b = await boot();
+    try {
+      expect((await scan(b, null)).status).toBe(401);
+      const ada = await signIn(b, 'mock-ada');
+      await add(b, ada, 'lemons');
+      const noOrigin = await request(b.base).post('/api/list/scan').set('cookie', ada).set('content-type', 'image/png').send(photo);
+      expect(noOrigin.status).toBe(403);
+      const elsewhere = await request(b.base).post('/api/list/scan').set('cookie', ada).set('origin', 'https://evil.example').set('content-type', 'image/png').send(photo);
+      expect(elsewhere.status).toBe(403);
+
+      expect((await scan(b, ada, 'definitely not a photo', 'image/jpeg')).status).toBe(400);
+      expect((await scan(b, ada, JSON.stringify({ hello: 'world' }), 'application/json')).status).toBe(400);
+      const huge = Buffer.alloc(5 * 1024 * 1024 + 1, 0);
+      huge[0] = 0xff;
+      huge[1] = 0xd8;
+      huge[2] = 0xff;
+      expect((await scan(b, ada, huge, 'image/jpeg')).status).toBe(413);
+
+      // Signed up with a password and no AI connected.
+      const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'nell@example.com', password: 'correct horse battery', displayName: 'Nell' });
+      const nell = reg.headers['set-cookie']![0]!.split(';')[0]!;
+      await add(b, nell, 'lemons');
+      const noVision = await scan(b, nell);
+      expect(noVision.status).toBe(409);
+      expect(noVision.body.error.code).toBe('no_vision');
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
 describe('managed OpenAI keys', () => {
   /** A fake OpenAI Administration API that remembers what it created. */
   function fakeAdmin() {
@@ -1787,6 +1955,21 @@ describe('managed OpenAI keys', () => {
       expect(g2.status).toBe(429);
       expect(g2.body.error.message).toContain("foodi's AI");
       expect((await request(b.base).get('/api/auth/me').set('cookie', nell)).body.managed.usedToday).toBe(1);
+
+      // Fridge checks on foodi's key: the same allowance, counted apart from recipes.
+      await request(b.base).post('/api/list/items').set('cookie', nell).set('origin', ORIGIN).send({ text: 'lemons' });
+      const fridge = () => request(b.base).post('/api/list/scan').set('cookie', nell).set('origin', ORIGIN).set('content-type', 'image/png').send(encodePng(8, 8, () => [200, 200, 200]));
+      // A failed check the vendor still billed for (a cut-off answer) uses up the allowance too.
+      const nellId = (await request(b.base).get('/api/auth/me').set('cookie', nell)).body.id as string;
+      b.db
+        .prepare(`INSERT INTO generations (id, user_id, vendor, model, status, latency_ms, input_tokens, output_tokens, error_code, recipe_id, created_at, kind) VALUES ('gen_billed', ?, 'openai', 'gpt-test', 'failed', 900, 1000, 6000, 'bad_output', NULL, ?, 'vision')`)
+        .run(nellId, new Date().toISOString());
+      expect((await fridge()).body.error.code).toBe('quota');
+      b.db.prepare(`DELETE FROM generations WHERE id = 'gen_billed'`).run();
+      expect((await fridge()).status).toBe(200);
+      const fridgeAgain = await fridge();
+      expect(fridgeAgain.status).toBe(429);
+      expect(fridgeAgain.body.error).toMatchObject({ code: 'quota', message: expect.stringContaining('fridge checks') });
 
       // Bringing your own key (verified against a stubbed OpenAI) deletes foodi's service account.
       const realFetch = globalThis.fetch;

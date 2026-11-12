@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DIET_LABELS, RecipeContentSchema } from '@foodi/shared';
+import { DIET_LABELS, RecipeContentSchema, type ListScan, type ScanBox } from '@foodi/shared';
 import type { GenerateInput } from './types.js';
 
 export const RECIPE_TOOL_NAME = 'save_recipe';
@@ -134,6 +134,70 @@ export function parseVerdict(text: string): { isFood: boolean; matchesDish: bool
     return { isFood: j['isFood'], matchesDish: j['matchesDish'], hasProblems: j['hasProblems'], note: typeof j['note'] === 'string' ? j['note'].slice(0, 200) : '' };
   } catch {
     return null;
+  }
+}
+
+/** Fridge check: which of the person's open shopping-list items does this photo show? */
+export function scanPrompt(items: { id: string; text: string }[]): string {
+  return [
+    'This is a photo of someone’s fridge, pantry or groceries. Here is their shopping list, one item per line as id: text:',
+    ...items.map((i) => `${i.id}: ${i.text.replace(/\s+/g, ' ')}`),
+    'Which of these items can you clearly see in the photo? For each one give itemId (an id from the list above, never anything else), confidence (0 to 1) and box: where it is, as fractions of the image width and height from the top-left corner, or null if you can’t place it.',
+    'In seen, list up to 12 other foods or ingredients you can see that are not on the list, a few words each. Empty lists are fine.',
+  ].join('\n');
+}
+
+export const SCAN_TOOL_NAME = 'report_scan';
+
+export const SCAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['found', 'seen'],
+  properties: {
+    found: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['itemId', 'confidence', 'box'],
+        properties: {
+          itemId: { type: 'string' },
+          confidence: { type: 'number' },
+          box: { anyOf: [{ type: 'object', additionalProperties: false, required: ['x', 'y', 'w', 'h'], properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } } }, { type: 'null' }] },
+        },
+      },
+    },
+    seen: { type: 'array', items: { type: 'string' } },
+  },
+} as const;
+
+/**
+ * Read the model's answer defensively: only ids from the person's own open items survive (once
+ * each, with the list's text), confidence is clamped to 0–1 (0.5 when absent), and a box is
+ * cropped to the image or null when malformed or empty.
+ */
+export function parseScan(raw: unknown, items: { id: string; text: string }[]): { found: ListScan['found']; seen: string[] } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const j = raw as { found?: unknown; seen?: unknown };
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const found = new Map<string, ListScan['found'][number]>();
+  for (const f of Array.isArray(j.found) ? (j.found as Record<string, unknown>[]) : []) {
+    const item = typeof f?.['itemId'] === 'string' ? byId.get(f['itemId']) : undefined;
+    if (!item || found.has(item.id)) continue;
+    const c = f['confidence'];
+    found.set(item.id, { itemId: item.id, text: item.text, confidence: typeof c === 'number' && Number.isFinite(c) ? clamp(c) : 0.5, box: toBox(f['box']) });
+  }
+  const seen = (Array.isArray(j.seen) ? j.seen : []).filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim().slice(0, 60));
+  return { found: [...found.values()], seen: seen.slice(0, 12) };
+
+  function toBox(b: unknown): ScanBox | null {
+    if (!b || typeof b !== 'object') return null;
+    const { x, y, w, h } = b as Record<string, unknown>;
+    if (typeof x !== 'number' || typeof y !== 'number' || typeof w !== 'number' || typeof h !== 'number' || ![x, y, w, h].every(Number.isFinite)) return null;
+    // Crop what hangs off the edge rather than shifting the box.
+    const box = { x: clamp(x), y: clamp(y), w: clamp(x + w) - clamp(x), h: clamp(y + h) - clamp(y) };
+    return box.w > 0 && box.h > 0 ? box : null;
   }
 }
 

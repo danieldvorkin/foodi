@@ -1,4 +1,4 @@
-import type { Ingredient, Profile, RecipeContent } from '@foodi/shared';
+import type { Ingredient, ListScan, Profile, RecipeContent } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 
 export interface GenerateInput {
@@ -43,6 +43,13 @@ export interface VisionOutput {
   usage: { inputTokens: number | null; outputTokens: number | null };
 }
 
+export interface ScanOutput {
+  found: ListScan['found'];
+  seen: string[];
+  model: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+}
+
 export interface AiClient {
   vendor: string;
   model: string;
@@ -51,6 +58,8 @@ export interface AiClient {
   generateImage?(input: ImageInput, credential: CredentialPayload): Promise<ImageOutput>;
   /** Optional: look at a photo (JPEG or PNG; the type is sniffed) and say whether it depicts the recipe. */
   describeImage?(image: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, credential: CredentialPayload): Promise<VisionOutput>;
+  /** Optional: which of these shopping-list items a photo (JPEG or PNG) shows, plus other ingredients spotted. */
+  scanIngredients?(image: Buffer, items: { id: string; text: string }[], credential: CredentialPayload): Promise<ScanOutput>;
 }
 
 export class AiError extends Error {
@@ -58,6 +67,8 @@ export class AiError extends Error {
     public code: 'credential_rejected' | 'credential_unusable' | 'rate_limited' | 'bad_output' | 'vendor_error' | 'network',
     message: string,
     public status?: number,
+    /** Tokens billed for an answer we couldn't use (cut off, malformed), when the vendor said. */
+    public usage?: { inputTokens: number | null; outputTokens: number | null },
   ) {
     super(message);
     this.name = 'AiError';

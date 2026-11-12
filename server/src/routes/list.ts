@@ -1,9 +1,11 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { AddListItemsSchema, canonicalUnit, categorize, ClearListSchema, parseQuantity, parseQuickAdd, tidy, UpdateListItemSchema, type ShoppingItem } from '@foodi/shared';
+import type { createAiService } from '../ai/service.js';
 import type { Db } from '../db/index.js';
 import { all, one, run, tx } from '../db/index.js';
 import { newId } from '../lib/crypto.js';
 import { badRequest, notFound } from '../lib/errors.js';
+import { scrubImage, sniffMedia } from '../lib/media-scrub.js';
 import { now } from '../lib/time.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parse } from '../middleware/validate.js';
@@ -61,7 +63,12 @@ export function linesFromRecipe(row: RecipeRow, servings: number | undefined, in
   return out;
 }
 
-export function listRoutes(db: Db) {
+/** Fridge-check photos: Anthropic's per-image cap. The app sends ≤ 1600 px JPEGs, well under it. */
+const SCAN_LIMIT = 5 * 1024 * 1024;
+/** shortcut: only the first 150 open lines are looked for; batch the vendor calls if lists grow past that. */
+const SCAN_MAX_ITEMS = 150;
+
+export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
   const r = Router();
   r.use(requireAuth);
 
@@ -172,6 +179,18 @@ export function listRoutes(db: Db) {
     const { changes } = run(db, 'DELETE FROM shopping_items WHERE id = ? AND user_id = ?', req.params['id'], req.user!.id);
     if (!Number(changes)) throw notFound('That line is gone.');
     res.json({ ok: true });
+  });
+
+  /** Photo as the raw body → which open items it shows. Checks nothing off; the app does that. */
+  r.post('/scan', express.raw({ type: () => true, limit: SCAN_LIMIT }), async (req, res) => {
+    const buf = req.body as Buffer;
+    const mime = Buffer.isBuffer(buf) ? sniffMedia(buf)?.mime : undefined;
+    if (mime !== 'image/jpeg' && mime !== 'image/png') throw badRequest('Send a JPEG or PNG photo as the request body.');
+    const items = mine(req.user!.id)
+      .filter((i) => !i.checked)
+      .slice(0, SCAN_MAX_ITEMS)
+      .map((i) => ({ id: i.id, text: i.text }));
+    res.json(await ai.scanIngredients(req.user!.id, scrubImage(mime, buf), items));
   });
 
   r.post('/clear', (req, res) => {

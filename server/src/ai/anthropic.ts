@@ -1,8 +1,8 @@
 import { RecipeContentSchema } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { imageMime } from '../lib/media-scrub.js';
-import { buildUserMessage, coerceRecipeShape, parseVerdict, RECIPE_TOOL_NAME, recipeJsonSchema, SYSTEM_PROMPT, visionRubric } from './prompt.js';
-import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type VisionOutput } from './types.js';
+import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, RECIPE_TOOL_NAME, recipeJsonSchema, SCAN_SCHEMA, SCAN_TOOL_NAME, scanPrompt, SYSTEM_PROMPT, visionRubric } from './prompt.js';
+import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type ScanOutput, type VisionOutput } from './types.js';
 
 /** Calls the Messages API directly with forced tool use for a schema-shaped result. */
 export function createAnthropicClient(opts: { apiBase: string; model: string; fetchImpl?: typeof fetch }): AiClient {
@@ -35,6 +35,35 @@ export function createAnthropicClient(opts: { apiBase: string; model: string; fe
       const verdict = parseVerdict(data.content.find((c) => c.type === 'text')?.text ?? '');
       if (!verdict) throw new AiError('bad_output', 'The vision model did not return a verdict.');
       return { verdict, model: opts.model, usage: { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null } };
+    },
+    /** Forced tool use, like generate, so the answer arrives as an object in the scan schema. */
+    async scanIngredients(image: Buffer, items: { id: string; text: string }[], credential: CredentialPayload): Promise<ScanOutput> {
+      if (credential.kind !== 'api_key') throw new AiError('credential_unusable', 'This account has no Anthropic API key connected.');
+      let res: Response;
+      try {
+        res = await f(`${opts.apiBase}/v1/messages`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': credential.apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: opts.model,
+            max_tokens: 6000,
+            messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: imageMime(image), data: image.toString('base64') } }, { type: 'text', text: scanPrompt(items) }] }],
+            tools: [{ name: SCAN_TOOL_NAME, description: 'Report which list items the photo shows.', input_schema: SCAN_SCHEMA }],
+            tool_choice: { type: 'tool', name: SCAN_TOOL_NAME },
+          }),
+          signal: AbortSignal.timeout(60_000),
+        });
+      } catch (e) {
+        throw new AiError('network', `Could not reach Anthropic: ${(e as Error).message}`);
+      }
+      if (res.status === 401 || res.status === 403) throw new AiError('credential_rejected', 'Anthropic rejected the connected key.', res.status);
+      if (res.status === 429) throw new AiError('rate_limited', 'Anthropic is rate limiting this key. Try again shortly.', 429);
+      if (!res.ok) throw new AiError('vendor_error', `Anthropic returned ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`, res.status);
+      const data = (await res.json()) as { content: { type: string; name?: string; input?: unknown }[]; stop_reason?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+      const usage = { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null };
+      const scan = parseScan(data.content.find((c) => c.type === 'tool_use' && c.name === SCAN_TOOL_NAME)?.input, items);
+      if (!scan) throw new AiError('bad_output', `The vision model did not return a list of what it saw (stop: ${data.stop_reason ?? 'unknown'}).`, undefined, usage);
+      return { ...scan, model: opts.model, usage };
     },
     async generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput> {
       if (credential.kind !== 'api_key') {
