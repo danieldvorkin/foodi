@@ -92,8 +92,9 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     const max = settings.get().managedGenerationsPerUserPerDay;
     if (cred.payload.kind === 'managed' && max > 0) {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      // Fridge checks are the vision calls without a recipe; photo checks always carry one.
-      const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND kind = 'vision' AND recipe_id IS NULL AND status = 'ok' AND created_at > ?`, userId, since);
+      // Fridge checks are the vision calls without a recipe (photo checks always carry one); a
+      // failure the vendor still billed for counts too.
+      const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND kind = 'vision' AND recipe_id IS NULL AND (status = 'ok' OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL) AND created_at > ?`, userId, since);
       if ((row?.n ?? 0) >= max) throw new HttpError(429, 'quota', `You've used today's ${max} fridge checks on foodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.`);
     }
     const started = Date.now();

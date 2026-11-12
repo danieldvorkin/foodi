@@ -1931,6 +1931,13 @@ describe('managed OpenAI keys', () => {
       // Fridge checks on foodi's key: the same allowance, counted apart from recipes.
       await request(b.base).post('/api/list/items').set('cookie', nell).set('origin', ORIGIN).send({ text: 'lemons' });
       const fridge = () => request(b.base).post('/api/list/scan').set('cookie', nell).set('origin', ORIGIN).set('content-type', 'image/png').send(encodePng(8, 8, () => [200, 200, 200]));
+      // A failed check the vendor still billed for (a cut-off answer) uses up the allowance too.
+      const nellId = (await request(b.base).get('/api/auth/me').set('cookie', nell)).body.id as string;
+      b.db
+        .prepare(`INSERT INTO generations (id, user_id, vendor, model, status, latency_ms, input_tokens, output_tokens, error_code, recipe_id, created_at, kind) VALUES ('gen_billed', ?, 'openai', 'gpt-test', 'failed', 900, 1000, 6000, 'bad_output', NULL, ?, 'vision')`)
+        .run(nellId, new Date().toISOString());
+      expect((await fridge()).body.error.code).toBe('quota');
+      b.db.prepare(`DELETE FROM generations WHERE id = 'gen_billed'`).run();
       expect((await fridge()).status).toBe(200);
       const fridgeAgain = await fridge();
       expect(fridgeAgain.status).toBe(429);
