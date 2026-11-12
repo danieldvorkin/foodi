@@ -67,6 +67,8 @@ export class AiError extends Error {
     public code: 'credential_rejected' | 'credential_unusable' | 'rate_limited' | 'bad_output' | 'vendor_error' | 'network',
     message: string,
     public status?: number,
+    /** Tokens billed for an answer we couldn't use (cut off, malformed), when the vendor said. */
+    public usage?: { inputTokens: number | null; outputTokens: number | null },
   ) {
     super(message);
     this.name = 'AiError';

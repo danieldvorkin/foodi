@@ -142,11 +142,12 @@ export function scanPrompt(items: { id: string; text: string }[]): string {
   return [
     'This is a photo of someone’s fridge, pantry or groceries. Here is their shopping list, one item per line as id: text:',
     ...items.map((i) => `${i.id}: ${i.text.replace(/\s+/g, ' ')}`),
-    'Which of these items can you clearly see in the photo? Answer with JSON only, no prose, exactly: {"found": [{"itemId": string, "confidence": number, "box": {"x": number, "y": number, "w": number, "h": number} | null}], "seen": [string]}.',
-    'itemId: an id from the list above, never anything else. confidence: 0 to 1. box: where the item is, as fractions of the image width and height from the top-left corner, or null if you can’t place it.',
-    'seen: up to 12 other foods or ingredients you can see that are not on the list, a few words each. Empty arrays are fine.',
+    'Which of these items can you clearly see in the photo? For each one give itemId (an id from the list above, never anything else), confidence (0 to 1) and box: where it is, as fractions of the image width and height from the top-left corner, or null if you can’t place it.',
+    'In seen, list up to 12 other foods or ingredients you can see that are not on the list, a few words each. Empty lists are fine.',
   ].join('\n');
 }
+
+export const SCAN_TOOL_NAME = 'report_scan';
 
 export const SCAN_SCHEMA = {
   type: 'object',
@@ -172,26 +173,20 @@ export const SCAN_SCHEMA = {
 
 /**
  * Read the model's answer defensively: only ids from the person's own open items survive (once
- * each, with the list's text), confidence and boxes are clamped to 0–1, a malformed box is null.
+ * each, with the list's text), confidence is clamped to 0–1 (0.5 when absent), and a box is
+ * cropped to the image or null when malformed or empty.
  */
-export function parseScan(text: string, items: { id: string; text: string }[]): { found: ListScan['found']; seen: string[] } | null {
-  const m = /\{[\s\S]*\}/.exec(text);
-  if (!m) return null;
-  let j: { found?: unknown; seen?: unknown };
-  try {
-    j = JSON.parse(m[0]) as typeof j;
-  } catch {
-    return null;
-  }
-  if (!j || typeof j !== 'object') return null;
+export function parseScan(raw: unknown, items: { id: string; text: string }[]): { found: ListScan['found']; seen: string[] } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const j = raw as { found?: unknown; seen?: unknown };
   const clamp = (n: number) => Math.min(1, Math.max(0, n));
   const byId = new Map(items.map((i) => [i.id, i]));
   const found = new Map<string, ListScan['found'][number]>();
   for (const f of Array.isArray(j.found) ? (j.found as Record<string, unknown>[]) : []) {
     const item = typeof f?.['itemId'] === 'string' ? byId.get(f['itemId']) : undefined;
     if (!item || found.has(item.id)) continue;
-    const c = Number(f['confidence']);
-    found.set(item.id, { itemId: item.id, text: item.text, confidence: Number.isFinite(c) ? clamp(c) : 0.5, box: toBox(f['box']) });
+    const c = f['confidence'];
+    found.set(item.id, { itemId: item.id, text: item.text, confidence: typeof c === 'number' && Number.isFinite(c) ? clamp(c) : 0.5, box: toBox(f['box']) });
   }
   const seen = (Array.isArray(j.seen) ? j.seen : []).filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim().slice(0, 60));
   return { found: [...found.values()], seen: seen.slice(0, 12) };
@@ -199,10 +194,9 @@ export function parseScan(text: string, items: { id: string; text: string }[]): 
   function toBox(b: unknown): ScanBox | null {
     if (!b || typeof b !== 'object') return null;
     const { x, y, w, h } = b as Record<string, unknown>;
-    if (![x, y, w, h].every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
-    const bx = clamp(x as number);
-    const by = clamp(y as number);
-    const box = { x: bx, y: by, w: Math.min(clamp(w as number), 1 - bx), h: Math.min(clamp(h as number), 1 - by) };
+    if (typeof x !== 'number' || typeof y !== 'number' || typeof w !== 'number' || typeof h !== 'number' || ![x, y, w, h].every(Number.isFinite)) return null;
+    // Crop what hangs off the edge rather than shifting the box.
+    const box = { x: clamp(x), y: clamp(y), w: clamp(x + w) - clamp(x), h: clamp(y + h) - clamp(y) };
     return box.w > 0 && box.h > 0 ? box : null;
   }
 }

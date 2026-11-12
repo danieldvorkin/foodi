@@ -75,7 +75,8 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
             // High detail: small items on a crowded fridge shelf vanish at 512 px.
             input: [{ role: 'user', content: [{ type: 'input_text', text: scanPrompt(items) }, { type: 'input_image', image_url: `data:${imageMime(image)};base64,${image.toString('base64')}`, detail: 'high' }] }],
             text: { format: { type: 'json_schema', name: 'scan', strict: true, schema: SCAN_SCHEMA } },
-            max_output_tokens: 1500,
+            // Room for a reasoning model's thinking as well as the answer, like generate.
+            max_output_tokens: 6000,
           }),
           signal: AbortSignal.timeout(60_000),
         });
@@ -83,11 +84,18 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
         throw new AiError('network', `Could not reach OpenAI: ${(e as Error).message}`);
       }
       if (!res.ok) throw failFor(res, credential, await res.text().catch(() => ''));
-      const data = (await res.json()) as { output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+      const data = (await res.json()) as { status?: string; incomplete_details?: { reason?: string }; output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+      const usage = { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null };
       const text = data.output?.filter((o) => o.type === 'message').flatMap((o) => o.content ?? []).find((c) => c.type === 'output_text')?.text ?? '';
-      const scan = parseScan(text, items);
-      if (!scan) throw new AiError('bad_output', 'The vision model did not return a list of what it saw.');
-      return { ...scan, model: opts.model, usage: { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null } };
+      let raw: unknown = null;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        // A cut-off or empty answer; reported below.
+      }
+      const scan = parseScan(raw, items);
+      if (!scan) throw new AiError('bad_output', `The vision model did not return a list of what it saw (${data.status ?? 'unknown'}${data.incomplete_details?.reason ? `: ${data.incomplete_details.reason}` : ''}).`, undefined, usage);
+      return { ...scan, model: opts.model, usage };
     },
     async generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput> {
       const bearer = credential.kind === 'oauth' ? credential.accessToken : credential.apiKey;

@@ -63,8 +63,10 @@ export function linesFromRecipe(row: RecipeRow, servings: number | undefined, in
   return out;
 }
 
-/** Fridge-check photos; the app sends ≤ 1600 px JPEGs, well under this. */
-const SCAN_LIMIT = 6 * 1024 * 1024;
+/** Fridge-check photos: Anthropic's per-image cap. The app sends ≤ 1600 px JPEGs, well under it. */
+const SCAN_LIMIT = 5 * 1024 * 1024;
+/** shortcut: only the first 150 open lines are looked for; batch the vendor calls if lists grow past that. */
+const SCAN_MAX_ITEMS = 150;
 
 export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
   const r = Router();
@@ -186,6 +188,7 @@ export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
     if (mime !== 'image/jpeg' && mime !== 'image/png') throw badRequest('Send a JPEG or PNG photo as the request body.');
     const items = mine(req.user!.id)
       .filter((i) => !i.checked)
+      .slice(0, SCAN_MAX_ITEMS)
       .map((i) => ({ id: i.id, text: i.text }));
     res.json(await ai.scanIngredients(req.user!.id, scrubImage(mime, buf), items));
   });

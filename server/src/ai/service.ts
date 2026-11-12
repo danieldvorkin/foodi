@@ -86,8 +86,16 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
   async function scanIngredients(userId: string, image: Buffer, items: { id: string; text: string }[]): Promise<ListScan> {
     const cred = store.getCredential(userId);
     const client = cred ? clients[cred.vendor] : undefined;
-    if (!cred || !client?.scanIngredients) throw new HttpError(409, 'no_vision', 'The connected AI can’t look at photos. Connect a Claude or OpenAI key in Settings.');
+    if (!cred || !canSee(client)) throw new HttpError(409, 'no_vision', 'The connected AI can’t look at photos. Connect a Claude or OpenAI key in Settings.');
     if (!items.length) return { found: [], seen: [] };
+    // On foodi's key, fridge checks get the same daily allowance as recipes, counted separately.
+    const max = settings.get().managedGenerationsPerUserPerDay;
+    if (cred.payload.kind === 'managed' && max > 0) {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      // Fridge checks are the vision calls without a recipe; photo checks always carry one.
+      const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND kind = 'vision' AND recipe_id IS NULL AND status = 'ok' AND created_at > ?`, userId, since);
+      if ((row?.n ?? 0) >= max) throw new HttpError(429, 'quota', `You've used today's ${max} fridge checks on foodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.`);
+    }
     const started = Date.now();
     try {
       const out = await client.scanIngredients(image, items, cred.payload);
@@ -95,9 +103,11 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
       return { found: out.found, seen: out.seen, model: out.model };
     } catch (err) {
       const code = err instanceof AiError ? err.code : 'unknown';
-      recordAux(userId, 'vision', client.vendor, client.model, 'failed', Date.now() - started, { errorCode: code });
+      recordAux(userId, 'vision', client.vendor, client.model, 'failed', Date.now() - started, { errorCode: code, ...(err instanceof AiError ? err.usage : {}) });
       log.warn({ userId, vendor: client.vendor, code, err: (err as Error).message }, 'list scan failed');
-      throw toHttpError(err);
+      const http = toHttpError(err);
+      // Vendor bodies stay in the log, not in the app.
+      throw http instanceof HttpError && http.status === 502 ? new HttpError(502, http.code, 'The AI couldn’t check that photo. Try again in a moment.') : http;
     }
   }
 
@@ -111,7 +121,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     const client = cred ? clients[cred.vendor] : undefined;
     // Photos on foodi's dime are an admin decision (gpt-image-1 costs a few cents each).
     const images = Boolean(client?.generateImage) && (cred?.kind !== 'managed' || settings.get().managedImages);
-    return { images, vision: Boolean(client?.describeImage) };
+    return { images, vision: canSee(client) };
   }
 
   /** Log an image or vision call the same way recipe calls are logged, so admin sees cost and failure rate. */
@@ -135,6 +145,11 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
   }
 
   return { generate, scanIngredients, linkRecipeId, preflight, capabilities, recordAux, clients, store };
+}
+
+/** Clients that look at photos do both kinds of looking, so /auth/me and the fridge check agree. */
+function canSee(client: AiClient | undefined): client is AiClient & Required<Pick<AiClient, 'describeImage' | 'scanIngredients'>> {
+  return Boolean(client?.describeImage && client.scanIngredients);
 }
 
 /** Vendor failures as API errors: busy → 429, a key that doesn't work → 409, anything else → 502. */

@@ -196,6 +196,8 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: keyFor, message: { error: { code: 'rate_limited', message: 'Too many sign-in attempts. Wait a few minutes.' } } });
   const generateLimiter = rateLimit({ windowMs: 60_000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: keyFor, message: { error: { code: 'rate_limited', message: 'Slow down — a few recipes a minute is plenty.' } } });
   const writeLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: keyFor, message: { error: { code: 'rate_limited', message: 'Too many changes at once. Try again in a minute.' } } });
+  // Each fridge check is a vision call, possibly on foodi's key.
+  const scanLimiter = rateLimit({ windowMs: 60_000, limit: 6, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: keyFor, message: { error: { code: 'rate_limited', message: 'A few fridge checks a minute is plenty.' } } });
   const generalLimiter = rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: keyFor });
 
   api.use(generalLimiter);
@@ -216,6 +218,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
   const list = listRoutes(db, ai);
+  api.use('/list/scan', scanLimiter);
   api.use('/list', writeLimiter, list.router);
   api.use('/plan', writeLimiter, planRoutes(db, list));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));

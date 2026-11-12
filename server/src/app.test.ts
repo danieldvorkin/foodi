@@ -1729,15 +1729,16 @@ describe('fridge check (list scan)', () => {
     }
   });
 
-  it('keeps only the caller’s open ids, clamps boxes, caps seen, and maps vendor failures', async () => {
+  it('keeps only the caller’s open ids, crops boxes, caps seen and the prompt, scrubs EXIF, and hides vendor failures', async () => {
     let answer: unknown = null;
-    let status = 200;
-    const sent: string[] = [];
+    let reply: (() => Response) | null = null;
+    const sent: { input: { content: { type: string; image_url?: string; text?: string }[] }[]; text: { format: { strict: boolean } } }[] = [];
+    const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     const fetchImpl: typeof fetch = async (_url, init) => {
-      sent.push(init!.body as string);
-      const text = JSON.stringify(answer);
-      return new Response(JSON.stringify(status === 200 ? { output: [{ type: 'message', content: [{ type: 'output_text', text }] }], usage: { input_tokens: 1000, output_tokens: 90 } } : { error: { code: 'rate_limit_exceeded' } }), { status, headers: { 'content-type': 'application/json' } });
+      sent.push(JSON.parse(init!.body as string) as (typeof sent)[number]);
+      return reply?.() ?? json(200, { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }], usage: { input_tokens: 1000, output_tokens: 90 } });
     };
+    const part = (type: string) => sent[sent.length - 1]!.input[0]!.content.find((c) => c.type === type)!;
     // The mock personas' vendor, served by the real OpenAI client against a fake API.
     const b = await boot({}, { mock: createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-test', fetchImpl }) });
     try {
@@ -1751,11 +1752,11 @@ describe('fridge check (list scan)', () => {
       const [lemons, eggs] = [items.find((i) => i.text === 'lemons')!, items.find((i) => i.text === 'eggs')!];
       answer = {
         found: [
-          { itemId: lemons.id, confidence: 1.7, box: { x: -0.2, y: 0.5, w: 0.5, h: 0.9 } },
+          { itemId: lemons.id, confidence: 1.7, box: { x: -0.2, y: 0.5, w: 0.5, h: 0.9 } }, // hangs off two edges
           { itemId: lemons.id, confidence: 0.2, box: null }, // duplicate
           { itemId: samsItem.id, confidence: 0.9, box: null }, // someone else's
           { itemId: 'shp_made_up', confidence: 0.9, box: null },
-          { itemId: eggs.id, confidence: 0.6, box: { x: 0.1, y: 'top', w: 0.2, h: 0.2 } },
+          { itemId: eggs.id, confidence: null, box: { x: 0.1, y: 'top', w: 0.2, h: 0.2 } },
         ],
         seen: Array.from({ length: 15 }, (_, n) => `thing ${n}`),
       };
@@ -1763,32 +1764,68 @@ describe('fridge check (list scan)', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
         found: [
-          { itemId: lemons.id, text: 'lemons', confidence: 1, box: { x: 0, y: 0.5, w: 0.5, h: 0.5 } },
-          { itemId: eggs.id, text: 'eggs', confidence: 0.6, box: null },
+          { itemId: lemons.id, text: 'lemons', confidence: 1, box: { x: 0, y: 0.5, w: 0.3, h: 0.5 } },
+          { itemId: eggs.id, text: 'eggs', confidence: 0.5, box: null },
         ],
         seen: Array.from({ length: 12 }, (_, n) => `thing ${n}`),
         model: 'gpt-test',
       });
-      const req = JSON.parse(sent[0]!) as { input: { content: { type: string; image_url?: string; text?: string }[] }[]; text: { format: { strict: boolean } } };
-      expect(req.text.format.strict).toBe(true);
-      expect(req.input[0]!.content.find((c) => c.type === 'input_image')!.image_url).toMatch(/^data:image\/png;base64,/);
-      expect(req.input[0]!.content.find((c) => c.type === 'input_text')!.text).not.toContain(samsItem.id);
+      expect(sent[0]!.text.format.strict).toBe(true);
+      expect(part('input_image').image_url).toMatch(/^data:image\/png;base64,/);
+      expect(part('input_text').text).not.toContain(samsItem.id);
 
-      status = 429;
+      // Vendor trouble: busy is a 429; anything else is a 502 that doesn't echo the vendor.
+      reply = () => json(429, { error: { code: 'rate_limit_exceeded' } });
       const busy = await scan(b, ada);
       expect(busy.status).toBe(429);
       expect(busy.body.error.code).toBe('ai_rate_limited');
-      expect(b.db.prepare("SELECT status, error_code AS code FROM generations WHERE kind = 'vision' ORDER BY rowid").all()).toEqual([
-        { status: 'ok', code: null },
-        { status: 'failed', code: 'rate_limited' },
+      reply = () => json(500, { error: { message: 'internal vendor detail' } });
+      const down = await scan(b, ada);
+      expect(down.status).toBe(502);
+      expect(down.body.error.message).not.toContain('vendor detail');
+      // A cut-off answer fails, and the tokens it billed are still logged.
+      reply = () => json(200, { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output: [{ type: 'message', content: [{ type: 'output_text', text: '{"found":[{"itemId"' }] }], usage: { input_tokens: 1000, output_tokens: 6000 } });
+      expect((await scan(b, ada)).status).toBe(502);
+      expect(b.db.prepare("SELECT status, error_code AS code, output_tokens AS out FROM generations WHERE kind = 'vision' ORDER BY rowid").all()).toEqual([
+        { status: 'ok', code: null, out: 90 },
+        { status: 'failed', code: 'rate_limited', out: null },
+        { status: 'failed', code: 'vendor_error', out: null },
+        { status: 'failed', code: 'bad_output', out: 6000 },
       ]);
+      reply = null;
+
+      // Only the first 150 open lines go in the prompt, and the photo's EXIF never leaves the server.
+      const samId = (await request(b.base).get('/api/auth/me').set('cookie', sam)).body.id as string;
+      const insert = b.db.prepare(`INSERT INTO shopping_items (id, user_id, text, position, created_at, updated_at) VALUES (?, ?, ?, ?, '2026-01-01', '2026-01-01')`);
+      for (let n = 0; n < 160; n++) insert.run(`shp_bulk${n}`, samId, `thing ${n}`, n + 1);
+      const exif = Buffer.from('Exif\0\0GPS 51.5007N 0.1246W');
+      const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0, exif.length + 2]), exif, Buffer.from([0xff, 0xda, 0, 4, 1, 2, 7, 7, 7, 7, 0xff, 0xd9])]);
+      expect((await scan(b, sam, jpeg, 'image/jpeg')).status).toBe(200);
+      expect(part('input_text').text!.split('\n').filter((l) => l.startsWith('shp_'))).toHaveLength(150);
+      expect(part('input_image').image_url).toMatch(/^data:image\/jpeg;base64,/);
+      const seenByVendor = Buffer.from(part('input_image').image_url!.split(',')[1]!, 'base64');
+      expect(seenByVendor).toEqual(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0, 4, 1, 2, 7, 7, 7, 7, 0xff, 0xd9]));
     } finally {
       b.server.close();
       b.close();
     }
   });
 
-  it('needs a session, our Origin, a vision-capable AI, and a photo under 6 MB', async () => {
+  it('allows a few fridge checks a minute', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      for (let n = 0; n < 6; n++) expect((await scan(b, ada)).status).toBe(200);
+      const seventh = await scan(b, ada);
+      expect(seventh.status).toBe(429);
+      expect(seventh.body.error).toEqual({ code: 'rate_limited', message: 'A few fridge checks a minute is plenty.' });
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('needs a session, our Origin, a vision-capable AI, and a photo under 5 MB', async () => {
     const b = await boot();
     try {
       expect((await scan(b, null)).status).toBe(401);
@@ -1801,7 +1838,7 @@ describe('fridge check (list scan)', () => {
 
       expect((await scan(b, ada, 'definitely not a photo', 'image/jpeg')).status).toBe(400);
       expect((await scan(b, ada, JSON.stringify({ hello: 'world' }), 'application/json')).status).toBe(400);
-      const huge = Buffer.alloc(6 * 1024 * 1024 + 1, 0);
+      const huge = Buffer.alloc(5 * 1024 * 1024 + 1, 0);
       huge[0] = 0xff;
       huge[1] = 0xd8;
       huge[2] = 0xff;
@@ -1890,6 +1927,14 @@ describe('managed OpenAI keys', () => {
       expect(g2.status).toBe(429);
       expect(g2.body.error.message).toContain("foodi's AI");
       expect((await request(b.base).get('/api/auth/me').set('cookie', nell)).body.managed.usedToday).toBe(1);
+
+      // Fridge checks on foodi's key: the same allowance, counted apart from recipes.
+      await request(b.base).post('/api/list/items').set('cookie', nell).set('origin', ORIGIN).send({ text: 'lemons' });
+      const fridge = () => request(b.base).post('/api/list/scan').set('cookie', nell).set('origin', ORIGIN).set('content-type', 'image/png').send(encodePng(8, 8, () => [200, 200, 200]));
+      expect((await fridge()).status).toBe(200);
+      const fridgeAgain = await fridge();
+      expect(fridgeAgain.status).toBe(429);
+      expect(fridgeAgain.body.error).toMatchObject({ code: 'quota', message: expect.stringContaining('fridge checks') });
 
       // Bringing your own key (verified against a stubbed OpenAI) deletes foodi's service account.
       const realFetch = globalThis.fetch;
