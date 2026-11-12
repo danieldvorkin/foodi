@@ -62,6 +62,20 @@ export const UpdateListItemSchema = z
 
 export const ClearListSchema = z.object({ checkedOnly: z.boolean().default(true) });
 
+/** Box around an item in the photo: fractions of the image, top-left origin. */
+export const ScanBoxSchema = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0).max(1), h: z.number().min(0).max(1) });
+export type ScanBox = z.infer<typeof ScanBoxSchema>;
+
+/** POST /list/scan: which open list items a photo shows. Nothing is checked off by the server. */
+export const ListScanSchema = z.object({
+  found: z.array(z.object({ itemId: z.string(), text: z.string(), confidence: z.number().min(0).max(1), box: ScanBoxSchema.nullable() })),
+  /** Other ingredients spotted that aren't on the list (display only). */
+  seen: z.array(z.string()).max(12),
+  /** Absent when there was nothing to look for (no vendor call). */
+  model: z.string().optional(),
+});
+export type ListScan = z.infer<typeof ListScanSchema>;
+
 const UNITS = ['g', 'kg', 'mg', 'ml', 'l', 'cl', 'oz', 'lb', 'lbs', 'cup', 'cups', 'tbsp', 'tsp', 'tablespoon', 'tablespoons', 'teaspoon', 'teaspoons', 'clove', 'cloves', 'can', 'cans', 'tin', 'tins', 'jar', 'jars', 'bunch', 'bunches', 'head', 'heads', 'stick', 'sticks', 'slice', 'slices', 'sprig', 'sprigs', 'pinch', 'handful', 'bag', 'bags', 'box', 'boxes', 'pack', 'packs', 'packet', 'packets', 'bottle', 'bottles', 'piece', 'pieces', 'stalk', 'stalks', 'fillet', 'fillets', 'ear', 'ears'];
 const UNIT_SET = new Set(UNITS);
 const CANON: Record<string, string> = { cups: 'cup', tablespoon: 'tbsp', tablespoons: 'tbsp', teaspoon: 'tsp', teaspoons: 'tsp', lbs: 'lb', cloves: 'clove', cans: 'can', tins: 'tin', jars: 'jar', bunches: 'bunch', heads: 'head', sticks: 'stick', slices: 'slice', sprigs: 'sprig', bags: 'bag', boxes: 'box', packs: 'pack', packets: 'packet', bottles: 'bottle', pieces: 'piece', stalks: 'stalk', fillets: 'fillet', ears: 'ear' };

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DIET_LABELS, RecipeContentSchema } from '@foodi/shared';
+import { DIET_LABELS, RecipeContentSchema, type ListScan, type ScanBox } from '@foodi/shared';
 import type { GenerateInput } from './types.js';
 
 export const RECIPE_TOOL_NAME = 'save_recipe';
@@ -134,6 +134,76 @@ export function parseVerdict(text: string): { isFood: boolean; matchesDish: bool
     return { isFood: j['isFood'], matchesDish: j['matchesDish'], hasProblems: j['hasProblems'], note: typeof j['note'] === 'string' ? j['note'].slice(0, 200) : '' };
   } catch {
     return null;
+  }
+}
+
+/** Fridge check: which of the person's open shopping-list items does this photo show? */
+export function scanPrompt(items: { id: string; text: string }[]): string {
+  return [
+    'This is a photo of someone’s fridge, pantry or groceries. Here is their shopping list, one item per line as id: text:',
+    ...items.map((i) => `${i.id}: ${i.text.replace(/\s+/g, ' ')}`),
+    'Which of these items can you clearly see in the photo? Answer with JSON only, no prose, exactly: {"found": [{"itemId": string, "confidence": number, "box": {"x": number, "y": number, "w": number, "h": number} | null}], "seen": [string]}.',
+    'itemId: an id from the list above, never anything else. confidence: 0 to 1. box: where the item is, as fractions of the image width and height from the top-left corner, or null if you can’t place it.',
+    'seen: up to 12 other foods or ingredients you can see that are not on the list, a few words each. Empty arrays are fine.',
+  ].join('\n');
+}
+
+export const SCAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['found', 'seen'],
+  properties: {
+    found: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['itemId', 'confidence', 'box'],
+        properties: {
+          itemId: { type: 'string' },
+          confidence: { type: 'number' },
+          box: { anyOf: [{ type: 'object', additionalProperties: false, required: ['x', 'y', 'w', 'h'], properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } } }, { type: 'null' }] },
+        },
+      },
+    },
+    seen: { type: 'array', items: { type: 'string' } },
+  },
+} as const;
+
+/**
+ * Read the model's answer defensively: only ids from the person's own open items survive (once
+ * each, with the list's text), confidence and boxes are clamped to 0–1, a malformed box is null.
+ */
+export function parseScan(text: string, items: { id: string; text: string }[]): { found: ListScan['found']; seen: string[] } | null {
+  const m = /\{[\s\S]*\}/.exec(text);
+  if (!m) return null;
+  let j: { found?: unknown; seen?: unknown };
+  try {
+    j = JSON.parse(m[0]) as typeof j;
+  } catch {
+    return null;
+  }
+  if (!j || typeof j !== 'object') return null;
+  const clamp = (n: number) => Math.min(1, Math.max(0, n));
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const found = new Map<string, ListScan['found'][number]>();
+  for (const f of Array.isArray(j.found) ? (j.found as Record<string, unknown>[]) : []) {
+    const item = typeof f?.['itemId'] === 'string' ? byId.get(f['itemId']) : undefined;
+    if (!item || found.has(item.id)) continue;
+    const c = Number(f['confidence']);
+    found.set(item.id, { itemId: item.id, text: item.text, confidence: Number.isFinite(c) ? clamp(c) : 0.5, box: toBox(f['box']) });
+  }
+  const seen = (Array.isArray(j.seen) ? j.seen : []).filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim().slice(0, 60));
+  return { found: [...found.values()], seen: seen.slice(0, 12) };
+
+  function toBox(b: unknown): ScanBox | null {
+    if (!b || typeof b !== 'object') return null;
+    const { x, y, w, h } = b as Record<string, unknown>;
+    if (![x, y, w, h].every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+    const bx = clamp(x as number);
+    const by = clamp(y as number);
+    const box = { x: bx, y: by, w: Math.min(clamp(w as number), 1 - bx), h: Math.min(clamp(h as number), 1 - by) };
+    return box.w > 0 && box.h > 0 ? box : null;
   }
 }
 

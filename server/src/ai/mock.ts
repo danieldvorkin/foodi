@@ -1,7 +1,7 @@
 import { getIngredient, INGREDIENTS, matchIngredient, type Ingredient, type Profile, type RecipeContent, type RecipeIngredient, type Step } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { encodePng } from '../lib/png.js';
-import type { AiClient, GenerateInput, GenerateOutput, ImageInput, ImageOutput, VisionOutput } from './types.js';
+import type { AiClient, GenerateInput, GenerateOutput, ImageInput, ImageOutput, ScanOutput, VisionOutput } from './types.js';
 
 /**
  * A deterministic, offline recipe writer. It is not clever, but it respects the same hard
@@ -41,6 +41,12 @@ export function createMockClient(): AiClient {
         model: 'mock-eyes-1',
         usage: { inputTokens: 600, outputTokens: 40 },
       };
+    },
+    /** "Finds" the first two items, side by side, and always spots eggs. */
+    async scanIngredients(_image: Buffer, items: { id: string; text: string }[], _credential: CredentialPayload): Promise<ScanOutput> {
+      const boxes = [{ x: 0.1, y: 0.3, w: 0.35, h: 0.3 }, { x: 0.55, y: 0.3, w: 0.35, h: 0.3 }];
+      const found = items.slice(0, 2).map((i, n) => ({ itemId: i.id, text: i.text, confidence: n ? 0.8 : 0.9, box: boxes[n]! }));
+      return { found, seen: ['eggs'], model: 'mock-eyes-1', usage: { inputTokens: 900, outputTokens: 80 } };
     },
   };
 }

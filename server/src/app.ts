@@ -215,7 +215,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   api.use('/admin/commerce', adminCommerceRoutes(commerce, audit));
   api.use('/admin/shop', adminShopRoutes(db, permissions, notifier, audit));
   api.use('/notifications', notificationRoutes(notifier));
-  const list = listRoutes(db);
+  const list = listRoutes(db, ai);
   api.use('/list', writeLimiter, list.router);
   api.use('/plan', writeLimiter, planRoutes(db, list));
   api.use('/media', writeLimiter, mediaRoutes(db, mediaStore, settings));

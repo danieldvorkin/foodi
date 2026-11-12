@@ -7,6 +7,8 @@ import { createLogger } from './lib/logger.js';
 import { decrypt, encrypt, pkcePair } from './lib/crypto.js';
 import { encodePng } from './lib/png.js';
 import { createMockClient } from './ai/mock.js';
+import { createOpenAiClient } from './ai/openai.js';
+import { ListScanSchema } from '@foodi/shared';
 import type { PhotoSource } from './photos/types.js';
 
 const ORIGIN = 'http://localhost:5100';
@@ -1683,6 +1685,135 @@ describe('shopping list', () => {
       expect(cleared.body.items.every((i: { checked: boolean }) => !i.checked)).toBe(true);
       const all = await request(b.base).post('/api/list/clear').set('cookie', ada).set('origin', ORIGIN).send({ checkedOnly: false });
       expect(all.body.items).toEqual([]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
+describe('fridge check (list scan)', () => {
+  const photo = encodePng(8, 8, () => [220, 220, 210]);
+  const scan = (b: Booted, cookie: string | null, body: Buffer | string = photo, type = 'image/png') => {
+    const r = request(b.base).post('/api/list/scan').set('origin', ORIGIN).set('content-type', type);
+    return (cookie ? r.set('cookie', cookie) : r).send(body);
+  };
+  const add = (b: Booted, cookie: string, text: string) => request(b.base).post('/api/list/items').set('cookie', cookie).set('origin', ORIGIN).send({ text });
+
+  it('mock AI finds the first two open items with boxes, checks nothing off, and logs a vision call', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const empty = await scan(b, ada);
+      expect(empty.status).toBe(200);
+      expect(empty.body).toEqual({ found: [], seen: [] });
+
+      await add(b, ada, 'lemons');
+      await add(b, ada, 'oat milk');
+      const items = (await add(b, ada, 'flour')).body.items as { id: string; text: string }[];
+      const lemons = items.find((i) => i.text === 'lemons')!;
+      await request(b.base).patch(`/api/list/items/${lemons.id}`).set('cookie', ada).set('origin', ORIGIN).send({ checked: true });
+
+      const res = await scan(b, ada);
+      expect(res.status).toBe(200);
+      const body = ListScanSchema.parse(res.body);
+      expect(body.found.map((f) => f.text)).toEqual(['oat milk', 'flour']); // the ticked line isn't looked for
+      expect(body.found.every((f) => f.box !== null)).toBe(true);
+      expect(body).toMatchObject({ seen: ['eggs'], model: 'mock-eyes-1' });
+      expect((await request(b.base).get('/api/list').set('cookie', ada)).body.counts).toEqual({ open: 2, checked: 1 });
+      const logged = b.db.prepare("SELECT kind, status FROM generations WHERE kind = 'vision'").all();
+      expect(logged).toEqual([{ kind: 'vision', status: 'ok' }]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('keeps only the caller’s open ids, clamps boxes, caps seen, and maps vendor failures', async () => {
+    let answer: unknown = null;
+    let status = 200;
+    const sent: string[] = [];
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      sent.push(init!.body as string);
+      const text = JSON.stringify(answer);
+      return new Response(JSON.stringify(status === 200 ? { output: [{ type: 'message', content: [{ type: 'output_text', text }] }], usage: { input_tokens: 1000, output_tokens: 90 } } : { error: { code: 'rate_limit_exceeded' } }), { status, headers: { 'content-type': 'application/json' } });
+    };
+    // The mock personas' vendor, served by the real OpenAI client against a fake API.
+    const b = await boot({}, { mock: createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-test', fetchImpl }) });
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      const sam = await signIn(b, 'mock-sam');
+      expect((await scan(b, ada)).body).toEqual({ found: [], seen: [] });
+      expect(sent).toEqual([]); // an empty list never reaches the vendor
+      const samsItem = (await add(b, sam, 'cheese')).body.items[0] as { id: string };
+      await add(b, ada, 'lemons');
+      const items = (await add(b, ada, 'eggs')).body.items as { id: string; text: string }[];
+      const [lemons, eggs] = [items.find((i) => i.text === 'lemons')!, items.find((i) => i.text === 'eggs')!];
+      answer = {
+        found: [
+          { itemId: lemons.id, confidence: 1.7, box: { x: -0.2, y: 0.5, w: 0.5, h: 0.9 } },
+          { itemId: lemons.id, confidence: 0.2, box: null }, // duplicate
+          { itemId: samsItem.id, confidence: 0.9, box: null }, // someone else's
+          { itemId: 'shp_made_up', confidence: 0.9, box: null },
+          { itemId: eggs.id, confidence: 0.6, box: { x: 0.1, y: 'top', w: 0.2, h: 0.2 } },
+        ],
+        seen: Array.from({ length: 15 }, (_, n) => `thing ${n}`),
+      };
+      const res = await scan(b, ada);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        found: [
+          { itemId: lemons.id, text: 'lemons', confidence: 1, box: { x: 0, y: 0.5, w: 0.5, h: 0.5 } },
+          { itemId: eggs.id, text: 'eggs', confidence: 0.6, box: null },
+        ],
+        seen: Array.from({ length: 12 }, (_, n) => `thing ${n}`),
+        model: 'gpt-test',
+      });
+      const req = JSON.parse(sent[0]!) as { input: { content: { type: string; image_url?: string; text?: string }[] }[]; text: { format: { strict: boolean } } };
+      expect(req.text.format.strict).toBe(true);
+      expect(req.input[0]!.content.find((c) => c.type === 'input_image')!.image_url).toMatch(/^data:image\/png;base64,/);
+      expect(req.input[0]!.content.find((c) => c.type === 'input_text')!.text).not.toContain(samsItem.id);
+
+      status = 429;
+      const busy = await scan(b, ada);
+      expect(busy.status).toBe(429);
+      expect(busy.body.error.code).toBe('ai_rate_limited');
+      expect(b.db.prepare("SELECT status, error_code AS code FROM generations WHERE kind = 'vision' ORDER BY rowid").all()).toEqual([
+        { status: 'ok', code: null },
+        { status: 'failed', code: 'rate_limited' },
+      ]);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+
+  it('needs a session, our Origin, a vision-capable AI, and a photo under 6 MB', async () => {
+    const b = await boot();
+    try {
+      expect((await scan(b, null)).status).toBe(401);
+      const ada = await signIn(b, 'mock-ada');
+      await add(b, ada, 'lemons');
+      const noOrigin = await request(b.base).post('/api/list/scan').set('cookie', ada).set('content-type', 'image/png').send(photo);
+      expect(noOrigin.status).toBe(403);
+      const elsewhere = await request(b.base).post('/api/list/scan').set('cookie', ada).set('origin', 'https://evil.example').set('content-type', 'image/png').send(photo);
+      expect(elsewhere.status).toBe(403);
+
+      expect((await scan(b, ada, 'definitely not a photo', 'image/jpeg')).status).toBe(400);
+      expect((await scan(b, ada, JSON.stringify({ hello: 'world' }), 'application/json')).status).toBe(400);
+      const huge = Buffer.alloc(6 * 1024 * 1024 + 1, 0);
+      huge[0] = 0xff;
+      huge[1] = 0xd8;
+      huge[2] = 0xff;
+      expect((await scan(b, ada, huge, 'image/jpeg')).status).toBe(413);
+
+      // Signed up with a password and no AI connected.
+      const reg = await request(b.base).post('/api/auth/register').set('origin', ORIGIN).send({ email: 'nell@example.com', password: 'correct horse battery', displayName: 'Nell' });
+      const nell = reg.headers['set-cookie']![0]!.split(';')[0]!;
+      await add(b, nell, 'lemons');
+      const noVision = await scan(b, nell);
+      expect(noVision.status).toBe(409);
+      expect(noVision.body.error.code).toBe('no_vision');
     } finally {
       b.server.close();
       b.close();

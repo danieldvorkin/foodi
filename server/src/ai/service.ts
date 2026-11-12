@@ -1,4 +1,4 @@
-import { getIngredient, matchIngredient, type Profile, type RecipeContent } from '@foodi/shared';
+import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent } from '@foodi/shared';
 import type { AuthStore } from '../auth/store.js';
 import type { Config } from '../config.js';
 import type { Db } from '../db/index.js';
@@ -75,11 +75,29 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
       const code = err instanceof AiError ? err.code : 'unknown';
       record('failed', { errorCode: code });
       log.warn({ userId, vendor: client.vendor, code, err: (err as Error).message }, 'generation failed');
-      if (err instanceof AiError) {
-        const status = err.code === 'rate_limited' ? 429 : err.code === 'credential_rejected' || err.code === 'credential_unusable' ? 409 : 502;
-        throw new HttpError(status, `ai_${err.code}`, err.message);
-      }
-      throw err;
+      throw toHttpError(err);
+    }
+  }
+
+  /**
+   * Fridge check: which of these open shopping-list items a photo shows. Nothing to look for
+   * means no vendor call. Logged as a vision call so admin sees cost and failures.
+   */
+  async function scanIngredients(userId: string, image: Buffer, items: { id: string; text: string }[]): Promise<ListScan> {
+    const cred = store.getCredential(userId);
+    const client = cred ? clients[cred.vendor] : undefined;
+    if (!cred || !client?.scanIngredients) throw new HttpError(409, 'no_vision', 'The connected AI can’t look at photos. Connect a Claude or OpenAI key in Settings.');
+    if (!items.length) return { found: [], seen: [] };
+    const started = Date.now();
+    try {
+      const out = await client.scanIngredients(image, items, cred.payload);
+      recordAux(userId, 'vision', client.vendor, out.model, 'ok', Date.now() - started, out.usage);
+      return { found: out.found, seen: out.seen, model: out.model };
+    } catch (err) {
+      const code = err instanceof AiError ? err.code : 'unknown';
+      recordAux(userId, 'vision', client.vendor, client.model, 'failed', Date.now() - started, { errorCode: code });
+      log.warn({ userId, vendor: client.vendor, code, err: (err as Error).message }, 'list scan failed');
+      throw toHttpError(err);
     }
   }
 
@@ -116,7 +134,14 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     );
   }
 
-  return { generate, linkRecipeId, preflight, capabilities, recordAux, clients, store };
+  return { generate, scanIngredients, linkRecipeId, preflight, capabilities, recordAux, clients, store };
+}
+
+/** Vendor failures as API errors: busy → 429, a key that doesn't work → 409, anything else → 502. */
+function toHttpError(err: unknown): unknown {
+  if (!(err instanceof AiError)) return err;
+  const status = err.code === 'rate_limited' ? 429 : err.code === 'credential_rejected' || err.code === 'credential_unusable' ? 409 : 502;
+  return new HttpError(status, `ai_${err.code}`, err.message);
 }
 
 /** Link ingredient lines to the preset library and tidy up model output. */
