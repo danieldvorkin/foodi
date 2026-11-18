@@ -8,7 +8,7 @@ import { ToastProvider } from '../../components/Toast';
 import { BrowsePage, browseLoader, BrowseRecipePage, browseRecipeLoader } from '../browse';
 import { apiError, stubApi } from '../../test/helpers';
 
-const tile = (id: string, title: string, over: Partial<BrowseRecipe> = {}): BrowseRecipe => ({ id, emoji: '🌮', title, summary: 'Quick and good', mealType: 'dinner', cuisine: 'Mexican', totalMinutes: 25, difficulty: 'easy', servings: 2, dietLabels: ['gluten-free'], tags: [], cover: `/share/recipes/${id}/cover.jpg`, author: { handle: 'foodi', displayName: 'foodi kitchen', avatar: '🥘', isHouse: true }, createdAt: '2026-09-01T00:00:00.000Z', ...over });
+const tile = (id: string, title: string, over: Partial<BrowseRecipe> = {}): BrowseRecipe => ({ id, emoji: '🌮', title, summary: 'Quick and good', mealType: 'dinner', cuisine: 'Mexican', totalMinutes: 25, difficulty: 'easy', servings: 2, dietLabels: ['gluten-free'], tags: [], cover: `/share/recipes/${id}/cover.jpg`, author: { handle: 'foodi', displayName: 'Fooodi kitchen', avatar: '🥘', isHouse: true }, createdAt: '2026-09-01T00:00:00.000Z', ...over });
 
 function mount(path: string) {
   const router = createMemoryRouter(

@@ -16,7 +16,7 @@ export function csrfOriginCheck(allowedOrigins: string[]) {
     if (fetchSite === 'same-origin') return next();
     const origin = req.headers.origin ?? (req.headers.referer ? safeOrigin(req.headers.referer) : undefined);
     if (origin && allowed.has(origin)) return next();
-    next(forbidden('This request did not come from foodi.'));
+    next(forbidden('This request did not come from Fooodi.'));
   };
 }
 

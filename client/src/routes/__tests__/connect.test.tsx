@@ -45,14 +45,14 @@ function mount(path: string) {
 
 describe('Connect', () => {
   beforeEach(() => window.localStorage.clear());
-  it('offers foodi’s AI first when the server hands out keys, and one tap gets you cooking', async () => {
+  it('offers Fooodi’s AI first when the server hands out keys, and one tap gets you cooking', async () => {
     const calls = stubApi({
       'GET /api/auth/me': me,
       'GET /api/auth/providers': providers,
       'POST /api/auth/managed': { ...me, vendor: 'openai', credentialKind: 'managed', managedAvailable: false, managed: { limitPerDay: 10, usedToday: 0, images: false } },
     });
     const router = mount('/connect');
-    const button = await screen.findByRole('button', { name: 'Start cooking with foodi’s AI' });
+    const button = await screen.findByRole('button', { name: 'Start cooking with Fooodi’s AI' });
     expect(screen.getByRole('link', { name: /OpenAI/ })).toHaveAttribute('href', '/connect/openai'); // your own is still right there
     await userEvent.setup().click(button);
     await waitFor(() => expect(router.state.location.pathname).toBe('/app'));
@@ -63,7 +63,7 @@ describe('Connect', () => {
     stubApi({ 'GET /api/auth/me': { ...me, managedAvailable: false }, 'GET /api/auth/providers': providers });
     mount('/connect');
     expect(await screen.findByRole('heading', { name: /Connect your AI/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /foodi’s AI/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Fooodi’s AI/ })).toBeNull();
   });
 
   it('walks through bringing your own key in four illustrated steps, remembers ticks, and connects', async () => {

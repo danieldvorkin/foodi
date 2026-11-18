@@ -252,7 +252,7 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
   /** Ask foodi for a key right now (the automatic one is queued after onboarding; this is the button). */
   r.post('/managed', requireAuth, async (req, res, next) => {
     try {
-      if (!managed.enabled()) throw new HttpError(409, 'managed_off', 'foodi isn’t handing out keys on this server. Connect your own.');
+      if (!managed.enabled()) throw new HttpError(409, 'managed_off', 'Fooodi isn’t handing out keys on this server. Connect your own.');
       if (store.getCredentialMeta(req.user!.id)) throw new HttpError(409, 'has_credential', 'An AI is already connected. Remove it first.');
       const outcome = await managed.provision(req.user!.id);
       if (outcome === 'created') audit.record(req.user!.id, 'credential.managed', 'user', req.user!.id);

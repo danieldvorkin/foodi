@@ -44,7 +44,7 @@ export function SalesPage() {
         <div>
           <div className="n num">{formatMoney(e.netCents)}</div>
           <div className="l">
-            earned from {plural(e.salesCount, 'sale')} (after foodi’s {config.platformFeePercent}%)
+            earned from {plural(e.salesCount, 'sale')} (after Fooodi’s {config.platformFeePercent}%)
           </div>
         </div>
         <div>
@@ -61,7 +61,7 @@ export function SalesPage() {
         <button type="button" className="btn btn-primary" onClick={requestPayout} disabled={e.availableCents <= 0 || e.payouts.some((p) => p.status === 'requested')}>
           Request payout {e.availableCents > 0 ? `· ${formatMoney(e.availableCents)}` : ''}
         </button>
-        <span className="hint">Payouts are sent by hand by the foodi team; you’ll get a notification when it goes out.</span>
+        <span className="hint">Payouts are sent by hand by the Fooodi team; you’ll get a notification when it goes out.</span>
       </div>
 
       <section className="stack">

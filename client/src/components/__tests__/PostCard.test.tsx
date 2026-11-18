@@ -12,7 +12,7 @@ const post = (over: Partial<Post> = {}): Post => ({
   id: 'pst_1',
   caption: 'Made this tonight',
   createdAt: new Date().toISOString(),
-  author: { id: 'u1', handle: 'foodi', displayName: 'foodi kitchen', avatar: '🥘' },
+  author: { id: 'u1', handle: 'foodi', displayName: 'Fooodi kitchen', avatar: '🥘' },
   media: [],
   recipe: { id: 'rcp_1', emoji: '🌮', cover: null, title: 'Tacos', summary: 'Quick tacos', mealType: 'dinner', totalMinutes: 20, difficulty: 'easy', servings: 2, source: 'user', ingredientCount: 8, dietLabels: ['gluten-free'], adaptedFrom: null },
   likeCount: 3,

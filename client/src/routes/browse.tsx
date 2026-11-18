@@ -105,7 +105,7 @@ export function BrowsePage() {
       <main className="browse-main">
         <section className="browse-hero">
           <h1>What are you cooking tonight?</h1>
-          <p className="muted">Recipes from the foodi kitchen and its cooks — every one has a photo, timings and diet labels. No account needed to look.</p>
+          <p className="muted">Recipes from the Fooodi kitchen and its cooks — every one has a photo, timings and diet labels. No account needed to look.</p>
           <form className="browse-search" onSubmit={search} role="search">
             <label htmlFor="browse-q" className="sr-only">
               Search recipes
@@ -188,7 +188,7 @@ export function BrowsePage() {
         )}
       </main>
       <footer className="browse-foot muted small">
-        <Link to="/">foodi</Link> — guided recipes, your AI. {data.me ? '' : 'Create a free account to cook these step by step.'}
+        <Link to="/">Fooodi</Link> — guided recipes, your AI. {data.me ? '' : 'Create a free account to cook these step by step.'}
       </footer>
     </div>
   );
@@ -269,7 +269,7 @@ export function BrowseRecipePage() {
             </ol>
             <div className="browse-wall">
               <p>
-                <b>The method is for members.</b> Create a free account and foodi walks you through {recipe.stepCount} steps one at a time, with timers, a shopping list, and recipes written for your own diet.
+                <b>The method is for members.</b> Create a free account and Fooodi walks you through {recipe.stepCount} steps one at a time, with timers, a shopping list, and recipes written for your own diet.
               </p>
               <div className="row">
                 <Link to={`/?returnTo=${encodeURIComponent(returnTo)}#signin`} className="btn btn-primary">
@@ -283,7 +283,7 @@ export function BrowseRecipePage() {
           </section>
         </div>
       </main>
-      <Sheet open={join !== null} onClose={() => setJoin(null)} title="Join foodi — it’s free">
+      <Sheet open={join !== null} onClose={() => setJoin(null)} title="Join Fooodi — it’s free">
         <div className="stack">
           <p>
             To {join}, you need an account. It takes a minute, and you’ll land right back on <b>{recipe.title}</b>.

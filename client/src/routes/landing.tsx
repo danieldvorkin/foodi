@@ -63,7 +63,7 @@ export function Landing() {
               We’ll walk you through it.
             </h1>
             <p className="lede">
-              foodi writes recipes around your answers — allergies, skill, time, what’s in the kitchen — then guides you one step at a time with timers that
+              Fooodi writes recipes around your answers — allergies, skill, time, what’s in the kitchen — then guides you one step at a time with timers that
               start when you tap them. It runs on the AI account you already have.
             </p>
 
@@ -171,7 +171,7 @@ export function Landing() {
               <span className="how-n num">2</span>
               <div>
                 <h3>🔌 Connect the AI you already pay for</h3>
-                <p className="muted">An OpenAI or Anthropic developer account with $5 of credit — about 2¢ a recipe, and we walk you through it screen by screen. foodi never bills you; your account does the writing. Or skip it and cook from the house kitchen.</p>
+                <p className="muted">An OpenAI or Anthropic developer account with $5 of credit — about 2¢ a recipe, and we walk you through it screen by screen. Fooodi never bills you; your account does the writing. Or skip it and cook from the house kitchen.</p>
               </div>
             </li>
             <li>
@@ -201,7 +201,7 @@ export function Landing() {
       </main>
 
       <footer className="landing-foot">
-        <span className="muted small">foodi — guided recipes, your AI.</span>
+        <span className="muted small">Fooodi — guided recipes, your AI.</span>
         <nav className="landing-foot-links" aria-label="More">
           <a href="https://github.com/danieldvorkin/foodi" className="muted small" target="_blank" rel="noopener noreferrer">
             GitHub

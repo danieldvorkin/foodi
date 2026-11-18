@@ -69,7 +69,7 @@ export function SellSheet({ book, config, open, onClose, onSaved }: { book: Reci
           <p className="hint">
             {cents >= config.minPriceCents && cents <= config.maxPriceCents ? (
               <>
-                foodi keeps {config.platformFeePercent}% ({formatMoney(fee)}); you earn <b>{formatMoney(cents - fee)}</b> per sale.
+                Fooodi keeps {config.platformFeePercent}% ({formatMoney(fee)}); you earn <b>{formatMoney(cents - fee)}</b> per sale.
               </>
             ) : (
               `Between ${formatMoney(config.minPriceCents)} and ${formatMoney(config.maxPriceCents)}.`

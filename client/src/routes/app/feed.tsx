@@ -125,7 +125,7 @@ function RightRail({ people, items, featured }: { people: Person[]; items: FeedI
   const blogs = items.filter((i) => i.type === 'blog').slice(0, 4);
   const suggestions = people.filter((p) => !gone.has(p.id));
   return (
-    <aside className="rail rail-right" aria-label="Around foodi">
+    <aside className="rail rail-right" aria-label="Around Fooodi">
       {featured.length > 0 && (
         <div className="rail-section">
           <h3>Featured books · promoted</h3>

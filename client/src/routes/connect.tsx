@@ -52,23 +52,23 @@ export function Connect() {
         <div className="stack">
           <h1>🔌 Connect your AI</h1>
           <p className="muted measure">
-            foodi writes recipes with an AI account you control — an OpenAI or Anthropic developer account with a few dollars of credit (about 2¢ a recipe). Nothing is billed by foodi. Pick one and we’ll walk you through it in four steps; swap or disconnect any time in Settings.
+            Fooodi writes recipes with an AI account you control — an OpenAI or Anthropic developer account with a few dollars of credit (about 2¢ a recipe). Nothing is billed by Fooodi. Pick one and we’ll walk you through it in four steps; swap or disconnect any time in Settings.
           </p>
         </div>
         {me.vendor && (
           <div className="notice notice-sage">
-            Connected: <b>{me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : 'mock account'}</b> ({me.credentialKind === 'oauth' ? 'linked account' : me.credentialKind === 'managed' ? 'provided by foodi' : 'API key'}).{' '}
+            Connected: <b>{me.vendor === 'anthropic' ? 'Claude' : me.vendor === 'openai' ? 'OpenAI' : 'mock account'}</b> ({me.credentialKind === 'oauth' ? 'linked account' : me.credentialKind === 'managed' ? 'provided by Fooodi' : 'API key'}).{' '}
             <Link to={after}>Continue →</Link>
           </div>
         )}
         {me.managedAvailable && (
           <div className="connect-managed">
             <div className="stack" style={{ gap: 'var(--s-2)' }}>
-              <h2>✨ Use foodi’s AI — no setup</h2>
-              <p className="muted measure">One tap and you can cook. foodi gives you an OpenAI key of your own, with a daily allowance. Bring your own key any time for more.</p>
+              <h2>✨ Use Fooodi’s AI — no setup</h2>
+              <p className="muted measure">One tap and you can cook. Fooodi gives you an OpenAI key of your own, with a daily allowance. Bring your own key any time for more.</p>
             </div>
             <button type="button" className="btn btn-primary btn-lg" onClick={useFoodisAi} disabled={gettingManaged}>
-              {gettingManaged ? 'Setting up…' : 'Start cooking with foodi’s AI'}
+              {gettingManaged ? 'Setting up…' : 'Start cooking with Fooodi’s AI'}
             </button>
             {error && (
               <p className="error-text" role="alert">
@@ -93,7 +93,7 @@ export function Connect() {
             <a key={p.id} href={`/api/auth/${p.id}/start?returnTo=${encodeURIComponent(after)}`} className="connect-card">
               <span className="connect-emoji" aria-hidden="true">{p.vendor === 'mock' ? '🧪' : '🔗'}</span>
               <h3>{p.vendor === 'mock' ? 'Mock account' : p.label.replace(/^Continue with /, 'Link ')}</h3>
-              <p className="muted small">{p.note ?? 'Links the account to your foodi login and uses it for recipes.'}</p>
+              <p className="muted small">{p.note ?? 'Links the account to your Fooodi login and uses it for recipes.'}</p>
             </a>
           ))}
         </div>

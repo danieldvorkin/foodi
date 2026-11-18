@@ -1614,7 +1614,7 @@ describe('link previews', () => {
       await request(b.base).post(`/api/recipes/${id}/photo/shuffle`).set('cookie', ada).set('origin', ORIGIN);
       await request(b.base).post(`/api/social/posts`).set('cookie', ada).set('origin', ORIGIN).send({ recipeId: id, caption: 'Soup night', mediaIds: [] });
       const tags = tagsForPath(b.db, origin, `/app/recipes/${id}`)!;
-      expect(tags.title).toBe('🥣 Ada & the soup — foodi');
+      expect(tags.title).toBe('🥣 Ada & the soup — Fooodi');
       expect(tags.description).toContain('A soup for sharing. (20 min · serves 2)');
       expect(tags.image).toBe(`${origin}/share/recipes/${id}/cover.png`);
       expect(tags.url).toBe(`${origin}/browse/${id}`); // the public page, so crawlers and previews land somewhere they can read
@@ -1626,9 +1626,9 @@ describe('link previews', () => {
 
       // People and the house kitchen's books; the featured list is public and only lists house recipes with photos.
       const me = await request(b.base).get('/api/auth/me').set('cookie', ada);
-      expect(tagsForPath(b.db, origin, `/app/u/${me.body.handle}`)!.title).toContain('on foodi');
+      expect(tagsForPath(b.db, origin, `/app/u/${me.body.handle}`)!.title).toContain('on Fooodi');
       const book = b.db.prepare(`SELECT id FROM recipe_books WHERE visibility = 'public' LIMIT 1`).get() as { id: string };
-      expect(tagsForPath(b.db, origin, `/app/books/${book.id}`)!.title).toContain('recipe book on foodi');
+      expect(tagsForPath(b.db, origin, `/app/books/${book.id}`)!.title).toContain('recipe book on Fooodi');
       const featured = await request(b.base).get('/share/featured.json');
       expect(featured.status).toBe(200);
       expect(featured.body.total).toBeGreaterThan(50);
@@ -1953,7 +1953,7 @@ describe('managed OpenAI keys', () => {
       expect(g1.status).toBe(201);
       const g2 = await request(b.base).post('/api/recipes/generate?sync=1').set('cookie', nell).set('origin', ORIGIN).send({ prompt: 'more soup' });
       expect(g2.status).toBe(429);
-      expect(g2.body.error.message).toContain("foodi's AI");
+      expect(g2.body.error.message).toContain("Fooodi's AI");
       expect((await request(b.base).get('/api/auth/me').set('cookie', nell)).body.managed.usedToday).toBe(1);
 
       // Fridge checks on foodi's key: the same allowance, counted apart from recipes.

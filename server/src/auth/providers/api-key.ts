@@ -40,7 +40,7 @@ export function createApiKeyProviders(config: Config, fetchOverride?: typeof fet
       if (!probe.ok) {
         const text = await bodyText(probe);
         if (/credit balance|billing|purchase credits/i.test(text)) return { ok: false, reason: NO_CREDITS.anthropic };
-        if (probe.status === 404 || /not_found_error|model/i.test(text)) return { ok: false, reason: `That key can’t use the model foodi needs (${config.anthropic.model}). Check the account’s model access.` };
+        if (probe.status === 404 || /not_found_error|model/i.test(text)) return { ok: false, reason: `That key can’t use the model Fooodi needs (${config.anthropic.model}). Check the account’s model access.` };
       }
       return { ok: true, identity: { provider: 'anthropic', subject: subjectFor('anthropic', apiKey), email: null, emailVerified: false, displayName: null } };
     },
@@ -68,7 +68,7 @@ export function createApiKeyProviders(config: Config, fetchOverride?: typeof fet
       if (!probe.ok) {
         const text = await bodyText(probe);
         if (probe.status === 429 && /insufficient_quota/i.test(text)) return { ok: false, reason: NO_CREDITS.openai };
-        if (probe.status === 404 || /model_not_found|does not exist/i.test(text)) return { ok: false, reason: `That key can’t use the model foodi needs (${config.openai.model}). Check the account’s model access.` };
+        if (probe.status === 404 || /model_not_found|does not exist/i.test(text)) return { ok: false, reason: `That key can’t use the model Fooodi needs (${config.openai.model}). Check the account’s model access.` };
       }
       return { ok: true, identity: { provider: 'openai-key', subject: subjectFor('openai', apiKey), email: null, emailVerified: false, displayName: null } };
     },

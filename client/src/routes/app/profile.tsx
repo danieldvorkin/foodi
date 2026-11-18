@@ -91,7 +91,7 @@ export function ProfilePage() {
   async function share() {
     const url = `${window.location.origin}/app/u/${profile.handle}`;
     try {
-      if (navigator.share) await navigator.share({ title: `${profile.displayName} on foodi`, url });
+      if (navigator.share) await navigator.share({ title: `${profile.displayName} on Fooodi`, url });
       else {
         await navigator.clipboard.writeText(url);
         toast('Profile link copied');

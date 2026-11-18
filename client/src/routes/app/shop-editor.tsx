@@ -103,7 +103,7 @@ export function ListingEditor() {
             <input id="lp" className="input" type="number" step="0.01" min={1} max={10000} value={f.price} onChange={(e) => patch({ price: e.target.value })} required />
             {cents >= 100 && (
               <p className="hint">
-                You keep {formatMoney(cents - fee)} after foodi’s {config.platformFeePercent}%.
+                You keep {formatMoney(cents - fee)} after Fooodi’s {config.platformFeePercent}%.
               </p>
             )}
           </div>

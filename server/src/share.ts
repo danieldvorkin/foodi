@@ -23,15 +23,15 @@ export interface ShareTags {
 
 export const SHARE_START = '<!-- share:start -->';
 export const SHARE_END = '<!-- share:end -->';
-const SITE_NAME = 'foodi';
+const SITE_NAME = 'Fooodi';
 const TAGLINE = 'Guided recipes, written around you — allergies, skill, time, what’s in the kitchen — cooked one step at a time with the AI you already have.';
 
 export function defaultTags(origin: string): ShareTags {
   return {
-    title: 'foodi — cook something tonight, we’ll walk you through it',
+    title: 'Fooodi — cook something tonight, we’ll walk you through it',
     description: TAGLINE,
     image: `${origin}/og.png`,
-    imageAlt: 'foodi: a recipe card with step-by-step cooking and a timer',
+    imageAlt: 'Fooodi: a recipe card with step-by-step cooking and a timer',
     url: `${origin}/`,
     type: 'website',
   };
@@ -103,8 +103,8 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
     const facts = [c.totalMinutes ? `${c.totalMinutes} min` : '', c.servings ? `serves ${c.servings}` : ''].filter(Boolean).join(' · ');
     return {
       ...base,
-      title: `${c.emoji ? `${c.emoji} ` : ''}${r.title} — foodi`,
-      description: clip(`${c.summary ?? ''}${facts ? ` (${facts})` : ''} By ${r.display_name ?? `@${r.handle}`} on foodi.`, 200),
+      title: `${c.emoji ? `${c.emoji} ` : ''}${r.title} — Fooodi`,
+      description: clip(`${c.summary ?? ''}${facts ? ` (${facts})` : ''} By ${r.display_name ?? `@${r.handle}`} on Fooodi.`, 200),
       image: cover ? `${origin}/share/recipes/${r.id}/cover.${cover.ext}` : base.image,
       imageAlt: cover ? `Photo of ${r.title}` : base.imageAlt,
       url: `${origin}/browse/${r.id}`,
@@ -122,7 +122,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
     if (!u) return null;
     return {
       ...base,
-      title: `${u.avatar_emoji} ${u.display_name ?? `@${u.handle}`} on foodi`,
+      title: `${u.avatar_emoji} ${u.display_name ?? `@${u.handle}`} on Fooodi`,
       description: clip(`${u.bio || `@${u.handle}`} · ${u.n} shared ${u.n === 1 ? 'recipe' : 'recipes'}.`, 200),
       url: `${origin}/app/u/${u.handle}`,
       type: 'profile',
@@ -139,7 +139,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
     if (!b) return null;
     return {
       ...base,
-      title: `${b.emoji} ${b.name} — a recipe book on foodi`,
+      title: `${b.emoji} ${b.name} — a recipe book on Fooodi`,
       description: clip(`${b.description || 'A recipe book'} · ${b.n} ${b.n === 1 ? 'recipe' : 'recipes'}, by ${b.display_name ?? `@${b.handle}`}.`, 200),
       url: `${origin}/app/books/${b.id}`,
       type: 'article',
@@ -157,7 +157,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
     if (!p) return null;
     return {
       ...base,
-      title: `${p.title} — foodi blog`,
+      title: `${p.title} — Fooodi blog`,
       description: clip(`${p.body.replace(/[#*_`>[\]()!-]/g, ' ')} — by ${p.display_name ?? `@${p.handle}`}`, 200),
       image: p.cover ? `${origin}/share/blog/${p.id}/cover.${p.ext}` : base.image,
       imageAlt: p.cover ? `Cover photo for ${p.title}` : base.imageAlt,
@@ -178,7 +178,7 @@ export function tagsForPath(db: Db, origin: string, path: string): ShareTags | n
     if (!l) return null;
     return {
       ...base,
-      title: `${l.title} · ${formatMoney(l.price_cents, l.currency)} — foodi shop`,
+      title: `${l.title} · ${formatMoney(l.price_cents, l.currency)} — Fooodi shop`,
       description: clip(`${l.description} — sold by ${l.display_name ?? `@${l.handle}`}.`, 200),
       image: l.cover ? `${origin}/share/shop/${l.id}/cover.${l.ext}` : base.image,
       imageAlt: l.cover ? `Photo of ${l.title}` : base.imageAlt,

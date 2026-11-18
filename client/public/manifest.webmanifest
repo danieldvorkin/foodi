@@ -1,6 +1,6 @@
 {
-  "name": "foodi",
-  "short_name": "foodi",
+  "name": "Fooodi",
+  "short_name": "Fooodi",
   "description": "Guided recipes, written around you, cooked one step at a time.",
   "start_url": "/app",
   "scope": "/",

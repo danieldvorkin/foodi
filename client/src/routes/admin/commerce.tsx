@@ -53,7 +53,7 @@ export function AdminCommerce() {
       <div className="numbers">
         <div>
           <div className="n num">{formatMoney(stats.platformFeesCents + stats.promotionRevenueCents)}</div>
-          <div className="l">foodi revenue (fees + promotions)</div>
+          <div className="l">Fooodi revenue (fees + promotions)</div>
         </div>
         <div>
           <div className="n num">{formatMoney(stats.salesGrossCents)}</div>
@@ -122,7 +122,7 @@ export function AdminCommerce() {
             </table>
           </div>
         )}
-        <p className="hint">Payouts are sent outside foodi (bank transfer, e-transfer, PayPal). Mark them paid here once the money has gone.</p>
+        <p className="hint">Payouts are sent outside Fooodi (bank transfer, e-transfer, PayPal). Mark them paid here once the money has gone.</p>
       </section>
 
       <section className="stack">
@@ -251,7 +251,7 @@ export function AdminCommerce() {
           <span>People can buy promotions</span>
         </label>
         <div className="field">
-          <label htmlFor="fee">foodi’s cut of each book sale (%)</label>
+          <label htmlFor="fee">Fooodi’s cut of each book sale (%)</label>
           <input id="fee" className="input" type="number" min={0} max={50} value={s.platformFeePercent} onChange={(e) => setS({ ...s, platformFeePercent: Number(e.target.value) || 0 })} style={{ maxWidth: 160 }} />
           <p className="hint">Applied to new sales only. Promotion prices are fixed in code (`shared/src/commerce.ts`).</p>
         </div>
