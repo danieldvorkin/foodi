@@ -512,7 +512,7 @@ export function RecipePage() {
       </Sheet>
 
       <Sheet open={shareOpen} onClose={() => setShareOpen(false)} title="📣 Share to the feed">
-        <p className="muted small">Everyone signed in to this foodi can see it and save it. You can take it down any time.</p>
+        <p className="muted small">Everyone signed in to this Fooodi can see it and save it. You can take it down any time.</p>
         <textarea className="textarea" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="How did it go? Anything you changed?" maxLength={1000} />
         <MediaUploader compact onUploaded={(m) => setAttachments((a) => [...a, m])} label="Add a photo of how it turned out" />
         {attachments.length > 0 && (

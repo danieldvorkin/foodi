@@ -30,7 +30,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     const max = Math.min(...caps);
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND created_at > ? AND status = 'ok' AND kind = 'recipe'`, userId, since);
-    if ((row?.n ?? 0) + pending >= max) throw new HttpError(429, 'quota', managed ? `You've used today's ${max} recipes on foodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.` : `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
+    if ((row?.n ?? 0) + pending >= max) throw new HttpError(429, 'quota', managed ? `You've used today's ${max} recipes on Fooodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.` : `You've reached today's limit of ${max} recipes. Try again tomorrow.`);
   }
 
   /** Everything that must be true before a generation is even queued. */
@@ -95,7 +95,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
       // Fridge checks are the vision calls without a recipe (photo checks always carry one); a
       // failure the vendor still billed for counts too.
       const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND kind = 'vision' AND recipe_id IS NULL AND (status = 'ok' OR input_tokens IS NOT NULL OR output_tokens IS NOT NULL) AND created_at > ?`, userId, since);
-      if ((row?.n ?? 0) >= max) throw new HttpError(429, 'quota', `You've used today's ${max} fridge checks on foodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.`);
+      if ((row?.n ?? 0) >= max) throw new HttpError(429, 'quota', `You've used today's ${max} fridge checks on Fooodi's AI. Connect your own OpenAI or Claude key in Settings for more, or try again tomorrow.`);
     }
     const started = Date.now();
     try {

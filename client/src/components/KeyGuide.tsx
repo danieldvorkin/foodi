@@ -23,14 +23,14 @@ function stepsFor(vendor: GuideVendor): Step[] {
       { title: 'Create a free OpenAI platform account', detail: <>This is OpenAI’s developer site — separate from ChatGPT. A ChatGPT subscription doesn’t include it, and you don’t need one.</>, href: 'https://platform.openai.com/signup', cta: 'Open platform.openai.com ↗', art: <ArtAccount brand="OpenAI" /> },
       { title: 'Add $5 of credit', detail: <>{COST} Under Billing, add a payment method and buy $5. You can switch auto-recharge off.</>, href: 'https://platform.openai.com/settings/organization/billing/overview', cta: 'Open Billing ↗', art: <ArtCredit /> },
       { title: 'Create a secret key', detail: <>On the API keys page click <b>Create new secret key</b>, name it <b>foodi</b>, then <b>Copy</b>. It’s shown once — if you lose it, make another.</>, href: 'https://platform.openai.com/api-keys', cta: 'Open API keys ↗', art: <ArtKey label="Create new secret key" prefix="sk-proj-" /> },
-      { title: 'Paste it here', detail: <>foodi checks it with one tiny request (a fraction of a cent) and tells you if the account still needs credit. Then it’s encrypted and never shown again.</>, art: <ArtPaste /> },
+      { title: 'Paste it here', detail: <>Fooodi checks it with one tiny request (a fraction of a cent) and tells you if the account still needs credit. Then it’s encrypted and never shown again.</>, art: <ArtPaste /> },
     ];
   }
   return [
     { title: 'Create a free Anthropic Console account', detail: <>The Console is Anthropic’s developer site — separate from the Claude app. A Claude subscription doesn’t include it, and you don’t need one.</>, href: 'https://console.anthropic.com/', cta: 'Open console.anthropic.com ↗', art: <ArtAccount brand="Anthropic" /> },
     { title: 'Add $5 of credit', detail: <>{COST} Under Billing, add a payment method and buy $5 of credit.</>, href: 'https://console.anthropic.com/settings/billing', cta: 'Open Billing ↗', art: <ArtCredit /> },
     { title: 'Create an API key', detail: <>On the API keys page click <b>Create Key</b>, name it <b>foodi</b>, then <b>Copy</b>. It’s shown once — if you lose it, make another.</>, href: 'https://console.anthropic.com/settings/keys', cta: 'Open API keys ↗', art: <ArtKey label="Create Key" prefix="sk-ant-" /> },
-    { title: 'Paste it here', detail: <>foodi checks it with one tiny request (a fraction of a cent) and tells you if the account still needs credit. Then it’s encrypted and never shown again.</>, art: <ArtPaste /> },
+    { title: 'Paste it here', detail: <>Fooodi checks it with one tiny request (a fraction of a cent) and tells you if the account still needs credit. Then it’s encrypted and never shown again.</>, art: <ArtPaste /> },
   ];
 }
 
@@ -225,7 +225,7 @@ function ArtKey({ label, prefix }: { label: string; prefix: string }) {
 
 function ArtPaste() {
   return (
-    <Window title="foodi">
+    <Window title="Fooodi">
       <rect x="22" y="48" width="140" height="22" rx="6" fill="var(--ground)" stroke="var(--sage)" />
       <text x="30" y="62" fontSize="8" fill="var(--ink)" fontFamily="ui-monospace, monospace">
         sk-••••••••••••••••

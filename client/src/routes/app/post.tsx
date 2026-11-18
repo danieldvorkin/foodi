@@ -16,7 +16,7 @@ export function PostPage() {
         ← Feed
       </Link>
       <PostCard post={post} detail comments={comments} onDeleted={() => nav('/app')} />
-      {!post.commentsEnabled && <p className="muted small">🥘 This is a house recipe from the foodi kitchen — comments are off, but you can like it, save a copy, adapt it, or add it to one of your books from the recipe page.</p>}
+      {!post.commentsEnabled && <p className="muted small">🥘 This is a house recipe from the Fooodi kitchen — comments are off, but you can like it, save a copy, adapt it, or add it to one of your books from the recipe page.</p>}
     </main>
   );
 }

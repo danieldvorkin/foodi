@@ -43,7 +43,7 @@ export function ErrorPage() {
   let title = 'Something went wrong';
   let detail = 'Reload the page. If it keeps happening, the API server may be down.';
   if (outage) {
-    title = 'foodi is restarting';
+    title = 'Fooodi is restarting';
     detail = 'The server is briefly unavailable — usually a deploy, which takes under a minute. This page will reload itself as soon as it’s back.';
   } else if (isRouteErrorResponse(err)) {
     title = err.status === 404 ? 'That page doesn’t exist' : `Error ${err.status}`;

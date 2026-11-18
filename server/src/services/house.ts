@@ -24,6 +24,8 @@ export function createHouse(db: Db, settings: Settings, notifier: Notifier, log:
     if (existing) {
       // 🍳 reads as a magnifying glass at small sizes; the pan is clearer.
       run(db, `UPDATE users SET avatar_emoji = '🥘' WHERE id = ? AND avatar_emoji = '🍳'`, existing.id);
+      // Brand rename to Fooodi; only touch accounts still on the old default name.
+      run(db, `UPDATE users SET display_name = 'Fooodi kitchen' WHERE id = ? AND display_name = 'foodi kitchen'`, existing.id);
       return existing;
     }
     // If a person already took the handle, fall back rather than fail.
@@ -32,7 +34,7 @@ export function createHouse(db: Db, settings: Settings, notifier: Notifier, log:
     run(
       db,
       `INSERT INTO users (id, role, display_name, email, handle, bio, avatar_emoji, disabled_at, created_at, last_seen_at, is_system)
-       VALUES (?, 'consumer', 'foodi kitchen', NULL, ?, ?, '🥘', NULL, ?, NULL, 1)`,
+       VALUES (?, 'consumer', 'Fooodi kitchen', NULL, ?, ?, '🥘', NULL, ?, NULL, 1)`,
       id,
       handle,
       'Recipes from the house kitchen — tested, varied, and free to save, shelve or adapt. No AI needed.',

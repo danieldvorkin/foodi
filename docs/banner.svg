@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="foodi — guided recipes, your AI">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="Fooodi — guided recipes, your AI">
   <defs>
     <style>
       .f { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
@@ -9,7 +9,7 @@
   <rect x="72" y="72" width="44" height="44" rx="11" fill="#5A6B4B"/>
   <circle cx="94" cy="94" r="11" fill="none" stroke="#FAFAF8" stroke-width="3.5"/>
   <circle cx="94" cy="94" r="3.4" fill="#FAFAF8"/>
-  <text x="130" y="108" class="f" font-size="40" font-weight="600" fill="#2A2926" letter-spacing="-1">foodi</text>
+  <text x="130" y="108" class="f" font-size="40" font-weight="600" fill="#2A2926" letter-spacing="-1">Fooodi</text>
   <text x="72" y="188" class="f" font-size="46" font-weight="600" fill="#2A2926" letter-spacing="-1.2">Cook something tonight.</text>
   <text x="72" y="238" class="f" font-size="46" font-weight="600" fill="#2A2926" letter-spacing="-1.2">We’ll walk you through it.</text>
   <text x="72" y="290" class="f" font-size="19" fill="#6F6C66">Recipes written around your answers, by the AI account you already have. One step at a time, with timers.</text>

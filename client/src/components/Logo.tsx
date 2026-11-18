@@ -12,9 +12,9 @@ export function Mark({ size = 26 }: { size?: number }) {
 
 export function Wordmark({ to = '/' }: { to?: string }) {
   return (
-    <Link to={to} className="wordmark" aria-label="foodi home">
+    <Link to={to} className="wordmark" aria-label="Fooodi home">
       <Mark />
-      <span>foodi</span>
+      <span>Fooodi</span>
     </Link>
   );
 }

@@ -133,7 +133,7 @@ export function ListingPage() {
         <h2 style={{ fontSize: 'var(--t-20)' }}>About this listing</h2>
         <Prose text={l.description} />
       </section>
-      <p className="hint">Payments go through foodi; the seller sends the item and marks it as sent. Problems with an order? Contact an admin from Settings.</p>
+      <p className="hint">Payments go through Fooodi; the seller sends the item and marks it as sent. Problems with an order? Contact an admin from Settings.</p>
 
       <Sheet open={buying} onClose={() => setBuying(false)} title={`Buy ${l.title}`}>
         <div className="stack">

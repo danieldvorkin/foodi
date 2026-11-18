@@ -63,7 +63,7 @@ export function BookForm({ initial, onSave, busy, submitLabel = 'Create book' }:
         <span className="label">Who can see it</span>
         <div className="chips" role="radiogroup">
           <button type="button" role="radio" className="chip" aria-checked={visibility === 'public'} onClick={() => setVisibility('public')}>
-            🌐 Anyone on foodi
+            🌐 Anyone on Fooodi
           </button>
           <button type="button" role="radio" className="chip" aria-checked={visibility === 'private'} onClick={() => setVisibility('private')}>
             🔒 Only me

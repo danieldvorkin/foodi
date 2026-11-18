@@ -120,11 +120,11 @@ export function SettingsPage() {
             {me.vendor && me.managed ? (
               <div className="notice notice-sage stack" style={{ gap: 'var(--s-2)' }}>
                 <span>
-                  <b>OpenAI, provided by foodi</b> · {me.managed.usedToday} of {me.managed.limitPerDay || '∞'} recipes used today
+                  <b>OpenAI, provided by Fooodi</b> · {me.managed.usedToday} of {me.managed.limitPerDay || '∞'} recipes used today
                   {me.credentialUpdatedAt ? ` · since ${timeAgo(me.credentialUpdatedAt)}` : ''}
                 </span>
                 <span className="small">
-                  Your own key on foodi’s OpenAI organisation, with a daily allowance{me.managed.images ? '' : ' (photos come from the library)'}. Connect your own account below for more.
+                  Your own key on Fooodi’s OpenAI organisation, with a daily allowance{me.managed.images ? '' : ' (photos come from the library)'}. Connect your own account below for more.
                 </span>
               </div>
             ) : me.vendor ? (
@@ -136,7 +136,7 @@ export function SettingsPage() {
             ) : me.managedAvailable ? (
               <div className="notice notice-sage row-between" style={{ gap: 'var(--s-3)', flexWrap: 'wrap' }}>
                 <span>
-                  <b>Nothing connected.</b> foodi can give you an OpenAI key right now.
+                  <b>Nothing connected.</b> Fooodi can give you an OpenAI key right now.
                 </span>
                 <button
                   type="button"
@@ -151,7 +151,7 @@ export function SettingsPage() {
                     }
                   }}
                 >
-                  ✨ Use foodi’s AI
+                  ✨ Use Fooodi’s AI
                 </button>
               </div>
             ) : (
@@ -159,8 +159,8 @@ export function SettingsPage() {
             )}
             <p className="muted small measure">
               {me.managed
-                ? 'Recipes written on foodi’s key are billed to foodi, which is why there’s a daily allowance. The key is encrypted at rest and never shown.'
-                : 'Recipes are written with this account and billed to it, never to foodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.'}
+                ? 'Recipes written on Fooodi’s key are billed to Fooodi, which is why there’s a daily allowance. The key is encrypted at rest and never shown.'
+                : 'Recipes are written with this account and billed to it, never to Fooodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.'}
             </p>
           </div>
 
