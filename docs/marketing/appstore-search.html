@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- App Store Search Result creative asset — composed tight so the centre reads when cropped square. Render at a supported size (e.g. 5244x2950 or 3840x1646). -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: 'Bricolage';
+        src: url('../../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2') format('woff2');
+        font-weight: 200 800;
+      }
+      html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; }
+      body {
+        font-family: 'Bricolage', ui-sans-serif, system-ui, sans-serif;
+        position: relative;
+        background: radial-gradient(70% 70% at 50% 46%, #68794e 0%, #5a6b4b 46%, #4f5e42 100%);
+        color: #fafaf8;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      /* Food kept inside the centre square (≈22–78% across) so it survives the search crop */
+      .food { position: absolute; line-height: 1; opacity: 0.17; filter: blur(0.3vmin); }
+      .tl { top: 11%;    left: 24%;  font-size: 20vmin; transform: rotate(-12deg); }
+      .tr { top: 9%;     right: 24%; font-size: 18vmin; transform: rotate(10deg); }
+      .bl { bottom: 11%; left: 26%;  font-size: 20vmin; transform: rotate(8deg); }
+      .br { bottom: 9%;  right: 25%; font-size: 19vmin; transform: rotate(-10deg); }
+      .mark {
+        display: flex; align-items: center; gap: 2.6vmin;
+        font-weight: 600; letter-spacing: -0.03em; font-size: 23vmin;
+        text-shadow: 0 0.4vmin 3.4vmin rgba(30,36,24,0.34);
+      }
+      .mark .plate { font-size: 17vmin; filter: drop-shadow(0 0.6vmin 1.6vmin rgba(30,36,24,0.38)); }
+      .tag {
+        margin-top: 3.4vmin; font-size: 6.4vmin; font-weight: 600; letter-spacing: -0.01em;
+        color: #eef1ea; text-align: center; text-shadow: 0 0.2vmin 1.8vmin rgba(30,36,24,0.28);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="food tl">🍔</div>
+    <div class="food tr">🌮</div>
+    <div class="food bl">🥑</div>
+    <div class="food br">🍜</div>
+    <div class="mark"><span class="plate">🍽️</span>Fooodi</div>
+    <div class="tag">figure out what to eat, together</div>
+  </body>
+</html>
