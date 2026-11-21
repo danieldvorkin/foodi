@@ -1,4 +1,4 @@
-import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent } from '@foodi/shared';
+import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent, type Vendor } from '@foodi/shared';
 import type { AuthStore } from '../auth/store.js';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import type { Config } from '../config.js';
@@ -33,26 +33,33 @@ export function createAiService(deps: {
   settings: Settings;
   clients?: Partial<Record<string, AiClient>>;
   /** How to swap a stale OAuth credential for a fresh one; the auth providers supply this. */
-  refreshCredential?: (vendor: string, credential: CredentialPayload) => Promise<CredentialPayload | null>;
+  refreshCredential?: (vendor: Vendor, credential: CredentialPayload) => Promise<CredentialPayload | null>;
 }) {
   const { config, db, log, store, settings } = deps;
 
-  /**
-   * The credential to call the vendor with, refreshed first when its token is about to run out.
-   * A refusal is left alone: the vendor then answers 401 and the AI layer says to reconnect,
-   * which is the right message either way.
-   */
-  async function credentialFor(userId: string): Promise<{ vendor: string; payload: CredentialPayload } | null> {
+  type ConnectedCredential = NonNullable<ReturnType<AuthStore['getCredential']>>;
+  const refreshing = new Map<string, Promise<ConnectedCredential | null>>();
+
+  /** Share one refresh per user. A refused refresh leaves an unchanged credential usable as before. */
+  async function credentialFor(userId: string): Promise<ConnectedCredential | null> {
     const cred = store.getCredential(userId);
-    if (!cred || !deps.refreshCredential || !needsRefresh(cred.payload)) return cred;
-    const fresh = await deps.refreshCredential(cred.vendor, cred.payload).catch((err: unknown) => {
-      log.warn({ userId, vendor: cred.vendor, err: (err as Error).message }, 'could not refresh the connected AI');
-      return null;
-    });
-    if (!fresh) return cred;
-    store.setCredential(userId, cred.vendor, fresh);
-    log.info({ userId, vendor: cred.vendor }, 'refreshed the connected AI credential');
-    return { vendor: cred.vendor, payload: fresh };
+    const refresh = deps.refreshCredential;
+    if (!cred || !refresh || !needsRefresh(cred.payload)) return cred;
+    const pending = refreshing.get(userId);
+    if (pending) return pending;
+
+    const task = Promise.resolve().then(async () => {
+      const fresh = await refresh(cred.vendor, cred.payload).catch((err: unknown) => {
+        log.warn({ userId, vendor: cred.vendor, err: (err as Error).message }, 'could not refresh the connected AI');
+        return null;
+      });
+      if (fresh && store.saveRefreshedCredential(userId, cred.version, fresh)) {
+        log.info({ userId, vendor: cred.vendor }, 'refreshed the connected AI credential');
+      }
+      return store.getCredential(userId);
+    }).finally(() => refreshing.delete(userId));
+    refreshing.set(userId, task);
+    return task;
   }
   const clients: Record<string, AiClient> = {
     anthropic: deps.clients?.['anthropic'] ?? createAnthropicClient({ apiBase: config.anthropic.apiBase, model: config.anthropic.model }),

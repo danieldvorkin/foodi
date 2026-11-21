@@ -9,7 +9,7 @@ import { createApiKeyProviders } from './auth/providers/api-key.js';
 import { createMockProvider, MOCK_CLIENT_ID } from './auth/providers/mock.js';
 import { createOidcProvider } from './auth/providers/oidc.js';
 import { createOpenAiProvider } from './auth/providers/openai.js';
-import type { AuthProvider } from './auth/providers/types.js';
+import { credentialProvider, type AuthProvider } from './auth/providers/types.js';
 import { authRoutes } from './auth/routes.js';
 import { createAuthStore } from './auth/store.js';
 import type { Config } from './config.js';
@@ -91,10 +91,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
     log,
     store,
     settings,
-    refreshCredential: async (vendor, credential) => {
-      const p = providers.find((x) => x.kind === 'oauth' && x.vendor === vendor);
-      return p?.kind === 'oauth' && p.refresh ? p.refresh(credential) : null;
-    },
+    refreshCredential: async (vendor, credential) => credentialProvider(providers, vendor, credential)?.refresh?.(credential) ?? null,
     ...(aiClients ? { clients: aiClients } : {}),
   });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
