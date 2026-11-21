@@ -35,6 +35,11 @@ export interface OAuthProvider {
     redirectUri: string;
     transaction: Record<string, string>;
   }): Promise<{ identity: Identity; credential: CredentialPayload }>;
+  /**
+   * A fresh credential from the refresh token, or null when the vendor won't give one (the person
+   * has to connect again). Called just before the token would expire, not on a schedule.
+   */
+  refresh?(credential: CredentialPayload): Promise<CredentialPayload | null>;
   /** Called on sign-out where the vendor supports revocation. Best effort. */
   revoke?(credential: CredentialPayload): Promise<void>;
 }

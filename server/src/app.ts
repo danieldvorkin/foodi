@@ -82,7 +82,21 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   const paymentProvider = config.stripe ? createStripeProvider(config.stripe) : createTestProvider(config.appOrigin);
   if (!config.stripe) log.warn('no STRIPE_SECRET_KEY: payments run in test mode (fake checkout, nothing is charged)');
   const commerce = createCommerce({ db, settings, notifier, provider: paymentProvider, appOrigin: config.appOrigin, log });
-  const ai = createAiService({ config, db, log, store, settings, ...(aiClients ? { clients: aiClients } : {}) });
+  // Declared up here so the AI service can refresh an OAuth credential through the provider that
+  // issued it; the providers themselves are pushed in further down.
+  const providers: AuthProvider[] = [];
+  const ai = createAiService({
+    config,
+    db,
+    log,
+    store,
+    settings,
+    refreshCredential: async (vendor, credential) => {
+      const p = providers.find((x) => x.kind === 'oauth' && x.vendor === vendor);
+      return p?.kind === 'oauth' && p.refresh ? p.refresh(credential) : null;
+    },
+    ...(aiClients ? { clients: aiClients } : {}),
+  });
   const mediaStore = createMediaStore(db, config.uploadDir, log);
   // Library photos, best first: Pexels and Google when keys are set, Wikimedia Commons always.
   const sources = photoSources ?? [
@@ -108,7 +122,6 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
   }
 
   // ---- providers --------------------------------------------------------------------------
-  const providers: AuthProvider[] = [];
   const openai = createOpenAiProvider(config, log);
   if (openai) providers.push(openai);
   if (config.genericOAuth) {

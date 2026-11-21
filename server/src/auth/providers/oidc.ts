@@ -173,6 +173,30 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
       return { identity, credential };
     },
 
+    /**
+     * Swap the refresh token for a new access token. The vendor may or may not hand back a new
+     * refresh token; when it doesn't, the old one is still the one to keep.
+     */
+    async refresh(credential) {
+      if (credential.kind !== 'oauth' || !credential.refreshToken) return null;
+      const url = opts.tokenUrl ?? (await discover().catch(() => null))?.token_endpoint;
+      if (!url) return null;
+      const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: credential.refreshToken, client_id: opts.clientId });
+      if (opts.clientSecret) body.set('client_secret', opts.clientSecret);
+      const res = await f(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body }).catch(() => null);
+      // A refused refresh means the person has to connect again; the caller reports that.
+      if (!res?.ok) return null;
+      const tokens = (await res.json().catch(() => null)) as TokenResponse | null;
+      if (!tokens?.access_token) return null;
+      return {
+        kind: 'oauth',
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? credential.refreshToken,
+        expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
+        idToken: tokens.id_token ?? credential.idToken,
+      };
+    },
+
     async revoke(credential) {
       if (credential.kind !== 'oauth') return;
       const d = await discover().catch(() => null);

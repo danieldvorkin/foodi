@@ -1,5 +1,6 @@
 import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent } from '@foodi/shared';
 import type { AuthStore } from '../auth/store.js';
+import type { CredentialPayload } from '../auth/providers/types.js';
 import type { Config } from '../config.js';
 import type { Db } from '../db/index.js';
 import { one, run } from '../db/index.js';
@@ -13,8 +14,46 @@ import { createMockClient } from './mock.js';
 import { createOpenAiClient } from './openai.js';
 import { AiError, type AiClient, type GenerateInput } from './types.js';
 
-export function createAiService(deps: { config: Config; db: Db; log: Logger; store: AuthStore; settings: Settings; clients?: Partial<Record<string, AiClient>> }) {
+/**
+ * Whether an OAuth credential should be refreshed before the vendor is called. A minute's grace,
+ * because a token that dies halfway through a 90-second generation is as good as dead already.
+ * Nothing to refresh with, or no expiry given, means use it as it is and let the vendor judge.
+ */
+export function needsRefresh(credential: CredentialPayload, at = Date.now()): boolean {
+  if (credential.kind !== 'oauth' || !credential.refreshToken || !credential.expiresAt) return false;
+  const expires = Date.parse(credential.expiresAt);
+  return Number.isFinite(expires) && expires - at < 60_000;
+}
+
+export function createAiService(deps: {
+  config: Config;
+  db: Db;
+  log: Logger;
+  store: AuthStore;
+  settings: Settings;
+  clients?: Partial<Record<string, AiClient>>;
+  /** How to swap a stale OAuth credential for a fresh one; the auth providers supply this. */
+  refreshCredential?: (vendor: string, credential: CredentialPayload) => Promise<CredentialPayload | null>;
+}) {
   const { config, db, log, store, settings } = deps;
+
+  /**
+   * The credential to call the vendor with, refreshed first when its token is about to run out.
+   * A refusal is left alone: the vendor then answers 401 and the AI layer says to reconnect,
+   * which is the right message either way.
+   */
+  async function credentialFor(userId: string): Promise<{ vendor: string; payload: CredentialPayload } | null> {
+    const cred = store.getCredential(userId);
+    if (!cred || !deps.refreshCredential || !needsRefresh(cred.payload)) return cred;
+    const fresh = await deps.refreshCredential(cred.vendor, cred.payload).catch((err: unknown) => {
+      log.warn({ userId, vendor: cred.vendor, err: (err as Error).message }, 'could not refresh the connected AI');
+      return null;
+    });
+    if (!fresh) return cred;
+    store.setCredential(userId, cred.vendor, fresh);
+    log.info({ userId, vendor: cred.vendor }, 'refreshed the connected AI credential');
+    return { vendor: cred.vendor, payload: fresh };
+  }
   const clients: Record<string, AiClient> = {
     anthropic: deps.clients?.['anthropic'] ?? createAnthropicClient({ apiBase: config.anthropic.apiBase, model: config.anthropic.model }),
     openai: deps.clients?.['openai'] ?? createOpenAiClient({ apiBase: config.openai.apiBase, model: config.openai.model, imageModel: config.openai.imageModel }),
@@ -43,7 +82,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
 
   async function generate(userId: string, input: GenerateInput): Promise<{ content: RecipeContent; vendor: string; model: string; generationId: string }> {
     assertQuota(userId);
-    const cred = store.getCredential(userId);
+    const cred = await credentialFor(userId);
     if (!cred) throw new HttpError(409, 'no_credential', 'No AI account is connected. Connect one in Settings.');
     const client = clients[cred.vendor];
     if (!client) throw new HttpError(409, 'vendor_unavailable', `The ${cred.vendor} provider is not enabled on this server.`);
@@ -84,7 +123,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
    * means no vendor call. Logged as a vision call so admin sees cost and failures.
    */
   async function scanIngredients(userId: string, image: Buffer, items: { id: string; text: string }[]): Promise<ListScan> {
-    const cred = store.getCredential(userId);
+    const cred = await credentialFor(userId);
     const client = cred ? clients[cred.vendor] : undefined;
     if (!cred || !canSee(client)) throw new HttpError(409, 'no_vision', 'The connected AI can’t look at photos. Connect a Claude or OpenAI key in Settings.');
     if (!items.length) return { found: [], seen: [] };
