@@ -13,7 +13,7 @@ export interface Identity {
 /** The secret we use to call the AI vendor on the person's behalf. Stored encrypted. */
 export type CredentialPayload =
   | { kind: 'api_key'; apiKey: string }
-  | { kind: 'oauth'; accessToken: string; refreshToken: string | null; expiresAt: string | null; idToken: string | null }
+  | { kind: 'oauth'; accessToken: string; refreshToken: string | null; expiresAt: string | null; idToken: string | null; source?: { providerId: string; binding: string } }
   /** A key foodi created for this person on its own OpenAI organisation; the ids let us revoke it. */
   | { kind: 'managed'; apiKey: string; projectId: string; serviceAccountId: string; keyId: string | null };
 
@@ -35,6 +35,11 @@ export interface OAuthProvider {
     redirectUri: string;
     transaction: Record<string, string>;
   }): Promise<{ identity: Identity; credential: CredentialPayload }>;
+  /**
+   * A fresh credential from the refresh token, or null when the vendor won't give one (the person
+   * has to connect again). Called just before the token would expire, not on a schedule.
+   */
+  refresh?(credential: CredentialPayload): Promise<CredentialPayload | null>;
   /** Called on sign-out where the vendor supports revocation. Best effort. */
   revoke?(credential: CredentialPayload): Promise<void>;
 }
@@ -50,3 +55,9 @@ export interface ApiKeyProvider {
 }
 
 export type AuthProvider = OAuthProvider | ApiKeyProvider;
+
+/** Legacy credentials do not identify their issuer. Never guess from the AI vendor. */
+export function credentialProvider(providers: AuthProvider[], vendor: Vendor, credential: CredentialPayload) {
+  const providerId = credential.kind === 'oauth' ? credential.source?.providerId : undefined;
+  return providers.find((p): p is OAuthProvider => p.kind === 'oauth' && p.vendor === vendor && p.id === providerId);
+}

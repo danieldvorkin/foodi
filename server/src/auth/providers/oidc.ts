@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify, decodeJwt } from 'jose';
-import { pkcePair, randomToken } from '../../lib/crypto.js';
+import { pkcePair, randomToken, sha256 } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import type { CredentialPayload, Identity, OAuthProvider } from './types.js';
 import type { Vendor } from '@foodi/shared';
@@ -72,6 +72,11 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
       };
     })();
     return discovery;
+  }
+
+  // A provider id can stay the same when the issuer or OAuth client changes.
+  function binding(tokenEndpoint: string) {
+    return sha256(JSON.stringify([opts.id, opts.issuer, opts.clientId, tokenEndpoint]));
   }
 
   async function verifyIdToken(idToken: string, nonce: string): Promise<Record<string, unknown>> {
@@ -170,13 +175,40 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
             expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
             idToken: tokens.id_token ?? null,
           };
+      if (credential.kind === 'oauth') {
+        credential.source = { providerId: opts.id, binding: binding(d.token_endpoint) };
+      }
       return { identity, credential };
     },
 
+    /**
+     * Swap the refresh token for a new access token. The vendor may or may not hand back a new
+     * refresh token; when it doesn't, the old one is still the one to keep.
+     */
+    async refresh(credential) {
+      if (credential.kind !== 'oauth' || !credential.refreshToken || credential.source?.providerId !== opts.id) return null;
+      const url = opts.tokenUrl ?? (await discover().catch(() => null))?.token_endpoint;
+      if (!url || credential.source.binding !== binding(url)) return null;
+      const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: credential.refreshToken, client_id: opts.clientId });
+      if (opts.clientSecret) body.set('client_secret', opts.clientSecret);
+      const res = await f(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body }).catch(() => null);
+      // A refused refresh means the person has to connect again; the caller reports that.
+      if (!res?.ok) return null;
+      const tokens = (await res.json().catch(() => null)) as TokenResponse | null;
+      if (!tokens?.access_token) return null;
+      return {
+        ...credential,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? credential.refreshToken,
+        expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000).toISOString() : null,
+        idToken: tokens.id_token ?? credential.idToken,
+      };
+    },
+
     async revoke(credential) {
-      if (credential.kind !== 'oauth') return;
+      if (credential.kind !== 'oauth' || credential.source?.providerId !== opts.id) return;
       const d = await discover().catch(() => null);
-      if (!d?.revocation_endpoint) return;
+      if (!d?.revocation_endpoint || credential.source.binding !== binding(d.token_endpoint)) return;
       const body = new URLSearchParams({ token: credential.refreshToken ?? credential.accessToken, client_id: opts.clientId });
       if (opts.clientSecret) body.set('client_secret', opts.clientSecret);
       await f(d.revocation_endpoint, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body }).catch(() => {});
