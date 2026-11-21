@@ -4,15 +4,22 @@ import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, recipeJsonSchema, SCAN_SCHEMA, scanPrompt, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
 import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type ImageInput, type ImageOutput, type ScanOutput, type VisionOutput } from './types.js';
 
+// Models that accept low reasoning effort. Leave other models at their provider defaults.
+const LOW_REASONING_MODELS = new Set([
+  'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.3-codex',
+  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.5',
+  'o1', 'o3', 'o3-mini', 'o4-mini',
+]);
+
 /** Calls the Responses API with a strict JSON schema output. Works with an API key (from the
  *  key form or from the post-sign-in token exchange); a bare OAuth access token is tried as a
  *  bearer and reported clearly if the vendor won't accept it. */
 export function createOpenAiClient(opts: { apiBase: string; model: string; imageModel?: string; fetchImpl?: typeof fetch }): AiClient {
   const f = opts.fetchImpl ?? fetch;
   const imageModel = opts.imageModel ?? 'gpt-image-1';
-  // gpt-5 and the o-series spend max_output_tokens on hidden reasoning before they answer, so a
-  // tight budget comes back empty or cut off. Keep the thinking short and leave room for the answer.
-  const reasoning: Record<string, unknown> = /^(gpt-5|o\d)/.test(opts.model) ? { reasoning: { effort: 'low' } } : {};
+  // Reasoning shares the output budget with the answer. Match dated snapshots to their model.
+  const baseModel = opts.model.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  const reasoning = LOW_REASONING_MODELS.has(baseModel) ? { reasoning: { effort: 'low' } } : {};
   const bearerOf = (credential: CredentialPayload) => (credential.kind === 'oauth' ? credential.accessToken : credential.apiKey);
   const failFor = (res: Response, credential: CredentialPayload, text: string) => {
     if (res.status === 401 || res.status === 403) {

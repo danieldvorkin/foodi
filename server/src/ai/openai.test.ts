@@ -17,13 +17,22 @@ describe('openai generate', () => {
 
   it('leaves a reasoning model room to think, and says so when it still runs out', async () => {
     const client = createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-5', fetchImpl: reply(truncated) });
-    await expect(client.generate(input, credential)).rejects.toMatchObject({ code: 'bad_output', message: /max_output_tokens/, usage: { inputTokens: 900, outputTokens: 6000 } });
+    await expect(client.generate(input, credential)).rejects.toMatchObject({ code: 'bad_output', message: expect.stringMatching(/max_output_tokens/), usage: { inputTokens: 900, outputTokens: 6000 } });
     expect(sent.at(-1)).toMatchObject({ reasoning: { effort: 'low' }, max_output_tokens: 16000 });
   });
 
-  it('omits the reasoning setting for a model that would reject it', async () => {
-    const client = createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-4o', fetchImpl: reply(truncated) });
+  it.each(['gpt-4o', 'gpt-5-pro', 'gpt-5-pro-2025-10-06'])('leaves reasoning at the provider default for %s', async (model) => {
+    const client = createOpenAiClient({ apiBase: 'http://vendor.test', model, fetchImpl: reply(truncated) });
     await expect(client.generate(input, credential)).rejects.toMatchObject({ code: 'bad_output' });
+    expect(sent.at(-1)!.reasoning).toBeUndefined();
+  });
+
+  it('leaves reasoning at the provider default for GPT-5 Pro vision requests', async () => {
+    const client = createOpenAiClient({ apiBase: 'http://vendor.test', model: 'gpt-5-pro', fetchImpl: reply(truncated) });
+    const image = Buffer.alloc(0);
+    await expect(client.describeImage!(image, { title: 'Soup', keyIngredients: [] }, credential)).rejects.toMatchObject({ code: 'bad_output' });
+    expect(sent.at(-1)!.reasoning).toBeUndefined();
+    await expect(client.scanIngredients!(image, [{ id: '1', text: 'carrot' }], credential)).rejects.toMatchObject({ code: 'bad_output' });
     expect(sent.at(-1)!.reasoning).toBeUndefined();
   });
 });
