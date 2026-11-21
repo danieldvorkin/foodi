@@ -573,4 +573,10 @@ export const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX plan_user_date ON plan_entries(user_id, date, slot, position);
     `,
   },
+  {
+    name: 'shopping-list-manual-category',
+    sql: `
+      ALTER TABLE shopping_items ADD COLUMN category_manual INTEGER NOT NULL DEFAULT 0 CHECK (category_manual IN (0, 1));
+    `,
+  },
 ];
