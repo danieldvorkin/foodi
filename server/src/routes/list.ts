@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { AddListItemsSchema, canonicalUnit, categorize, ClearListSchema, parseQuantity, parseQuickAdd, tidy, UpdateListItemSchema, type ShoppingItem } from '@foodi/shared';
+import { AddListItemsSchema, canonicalUnit, categorize, ClearListSchema, parseQuantity, parseQuickAdd, ReorderListSchema, tidy, UpdateListItemSchema, type ShoppingItem } from '@foodi/shared';
 import type { createAiService } from '../ai/service.js';
 import type { Db } from '../db/index.js';
 import { all, one, run, tx } from '../db/index.js';
@@ -159,7 +159,9 @@ export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
     const row = one<ItemRow>(db, 'SELECT * FROM shopping_items WHERE id = ? AND user_id = ?', req.params['id'], userId);
     if (!row) throw notFound('That line is gone.');
     const text = body.text ?? row.text;
-    const cat = body.text !== undefined ? categorize(text, null) : { category: row.category, ingredientId: row.ingredient_id };
+    const guessed = body.text !== undefined ? categorize(text, null) : { category: row.category, ingredientId: row.ingredient_id };
+    // An aisle picked by hand wins over the one the text implies, and survives a later rename.
+    const cat = { category: body.category ?? guessed.category, ingredientId: guessed.ingredientId };
     run(
       db,
       'UPDATE shopping_items SET text = ?, quantity = ?, unit = ?, checked = ?, category = ?, ingredient_id = ?, updated_at = ? WHERE id = ?',
@@ -173,6 +175,26 @@ export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
       row.id,
     );
     res.json({ item: toItem(one<ItemRow>(db, 'SELECT * FROM shopping_items WHERE id = ?', row.id)!) });
+  });
+
+  /**
+   * Reorder: `ids` are some of the person's lines in the order they should now sit in (one aisle's,
+   * as the app sends it). They take back the slots they already occupied between the other lines, so
+   * nothing else moves. The whole list is then renumbered, which also repairs any duplicate positions.
+   */
+  r.post('/items/reorder', (req, res) => {
+    const userId = req.user!.id;
+    const { ids } = parse(ReorderListSchema, req.body);
+    const rows = all<ItemRow>(db, 'SELECT * FROM shopping_items WHERE user_id = ? ORDER BY position, created_at', userId);
+    const moving = new Set(ids);
+    if (ids.length !== moving.size) throw badRequest('That list has the same line twice.');
+    const known = new Set(rows.map((r) => r.id));
+    if (ids.some((id) => !known.has(id))) throw notFound('One of those lines is gone.');
+    let next = 0;
+    const order = rows.map((r) => (moving.has(r.id) ? ids[next++]! : r.id));
+    const t = now();
+    tx(db, () => order.forEach((id, i) => run(db, 'UPDATE shopping_items SET position = ?, updated_at = ? WHERE id = ? AND user_id = ?', i, t, id, userId)));
+    res.json({ items: mine(userId) });
   });
 
   r.delete('/items/:id', (req, res) => {
@@ -194,9 +216,12 @@ export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
   });
 
   r.post('/clear', (req, res) => {
-    const { checkedOnly } = parse(ClearListSchema, req.body ?? {});
-    const { changes } = run(db, checkedOnly ? 'DELETE FROM shopping_items WHERE user_id = ? AND checked = 1' : 'DELETE FROM shopping_items WHERE user_id = ?', req.user!.id);
-    res.json({ removed: Number(changes), items: mine(req.user!.id) });
+    const { checkedOnly, ids } = parse(ClearListSchema, req.body ?? {});
+    const userId = req.user!.id;
+    const { changes } = ids
+      ? run(db, `DELETE FROM shopping_items WHERE user_id = ? AND id IN (${ids.map(() => '?').join(',')})`, userId, ...ids)
+      : run(db, checkedOnly ? 'DELETE FROM shopping_items WHERE user_id = ? AND checked = 1' : 'DELETE FROM shopping_items WHERE user_id = ?', userId);
+    res.json({ removed: Number(changes), items: mine(userId) });
   });
 
   return { router: r, addLines };

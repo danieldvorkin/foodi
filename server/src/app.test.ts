@@ -1718,6 +1718,45 @@ describe('shopping list', () => {
       b.close();
     }
   });
+
+  it('reorders lines, keeps an aisle picked by hand, and clears exactly the lines asked for', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+      const add = (text: string) => request(b.base).post('/api/list/items').set('cookie', ada).set('origin', ORIGIN).send({ text });
+      await add('lemons');
+      await add('rice');
+      const third = await add('birthday candles');
+      const [lemons, rice, candles] = third.body.items as { id: string; text: string; category: string }[];
+      expect([lemons!.text, rice!.text, candles!.text]).toEqual(['lemons', 'rice', 'birthday candles']);
+
+      // Dragging within an aisle: the ids come back in the order they were sent.
+      const moved = await request(b.base).post('/api/list/items/reorder').set('cookie', ada).set('origin', ORIGIN).send({ ids: [candles!.id, lemons!.id] });
+      expect(moved.body.items.map((i: { text: string }) => i.text)).toEqual(['birthday candles', 'rice', 'lemons']);
+
+      // An aisle picked by hand sticks, even when the line is renamed afterwards.
+      expect(candles!.category).toBe('other');
+      const toBaking = await request(b.base).patch(`/api/list/items/${candles!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ category: 'baking' });
+      expect(toBaking.body.item.category).toBe('baking');
+      const renamed = await request(b.base).patch(`/api/list/items/${candles!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ text: 'cake candles', category: 'baking' });
+      expect(renamed.body.item).toMatchObject({ text: 'cake candles', category: 'baking' });
+
+      // A line someone else owns can't be dragged into your list.
+      const sam = await signIn(b, 'mock-sam');
+      await request(b.base).put('/api/profile').set('cookie', sam).set('origin', ORIGIN).send(PROFILE);
+      expect((await request(b.base).post('/api/list/items/reorder').set('cookie', sam).set('origin', ORIGIN).send({ ids: [lemons!.id] })).status).toBe(404);
+      expect((await request(b.base).post('/api/list/items/reorder').set('cookie', ada).set('origin', ORIGIN).send({ ids: [lemons!.id, lemons!.id] })).status).toBe(400);
+
+      // Bulk delete takes exactly the ids given, ticked or not.
+      const gone = await request(b.base).post('/api/list/clear').set('cookie', ada).set('origin', ORIGIN).send({ ids: [candles!.id, rice!.id] });
+      expect(gone.body.removed).toBe(2);
+      expect(gone.body.items.map((i: { text: string }) => i.text)).toEqual(['lemons']);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
 });
 
 describe('fridge check (list scan)', () => {
