@@ -77,13 +77,17 @@ export function StepList({ steps, ingredients }: { steps: Step[]; ingredients: R
                 {s.timerSeconds ? <span>⏱ {Math.round(s.timerSeconds / 60)} min</span> : null}
               </div>
             )}
+            {/* Full lines with their amounts, as cook mode shows them: the step shouldn't send you back up the page. */}
             {s.ingredientRefs.length > 0 && (
               <div className="badges">
-                {[...new Set(s.ingredientRefs.map((r) => ingredients[r]?.item.toLowerCase()).filter(Boolean))].map((item) => (
-                  <span key={item} className="chip chip-static">
-                    {item}
-                  </span>
-                ))}
+                {[...new Set(s.ingredientRefs)]
+                  .map((r) => ingredients[r])
+                  .filter((ing): ing is RecipeIngredient => Boolean(ing))
+                  .map((ing, k) => (
+                    <span key={k} className="chip chip-static">
+                      {ingredientLine(ing)}
+                    </span>
+                  ))}
               </div>
             )}
             {s.tip && <p className="small muted">Tip: {s.tip}</p>}
