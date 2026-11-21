@@ -1739,8 +1739,13 @@ describe('shopping list', () => {
       expect(candles!.category).toBe('other');
       const toBaking = await request(b.base).patch(`/api/list/items/${candles!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ category: 'baking' });
       expect(toBaking.body.item.category).toBe('baking');
-      const renamed = await request(b.base).patch(`/api/list/items/${candles!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ text: 'cake candles', category: 'baking' });
-      expect(renamed.body.item).toMatchObject({ text: 'cake candles', category: 'baking' });
+      const renamed = await request(b.base).patch(`/api/list/items/${candles!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ text: 'apples' });
+      expect(renamed.body.item).toMatchObject({ text: 'apples', category: 'baking', ingredientId: 'apple' });
+
+      // A line without a manual choice still follows the ingredient on rename.
+      expect(rice!.category).toBe('grains & pasta');
+      const inferred = await request(b.base).patch(`/api/list/items/${rice!.id}`).set('cookie', ada).set('origin', ORIGIN).send({ text: 'apples' });
+      expect(inferred.body.item).toMatchObject({ text: 'apples', category: 'fruit', ingredientId: 'apple' });
 
       // A line someone else owns can't be dragged into your list.
       const sam = await signIn(b, 'mock-sam');

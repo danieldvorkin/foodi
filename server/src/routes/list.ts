@@ -20,6 +20,7 @@ interface ItemRow {
   unit: string | null;
   ingredient_id: string | null;
   category: ShoppingItem['category'];
+  category_manual: number;
   checked: number;
   recipe_id: string | null;
   recipe_title: string | null;
@@ -161,16 +162,17 @@ export function listRoutes(db: Db, ai: ReturnType<typeof createAiService>) {
     const text = body.text ?? row.text;
     const guessed = body.text !== undefined ? categorize(text, null) : { category: row.category, ingredientId: row.ingredient_id };
     // An aisle picked by hand wins over the one the text implies, and survives a later rename.
-    const cat = { category: body.category ?? guessed.category, ingredientId: guessed.ingredientId };
+    const category = body.category ?? (row.category_manual ? row.category : guessed.category);
     run(
       db,
-      'UPDATE shopping_items SET text = ?, quantity = ?, unit = ?, checked = ?, category = ?, ingredient_id = ?, updated_at = ? WHERE id = ?',
+      'UPDATE shopping_items SET text = ?, quantity = ?, unit = ?, checked = ?, category = ?, category_manual = ?, ingredient_id = ?, updated_at = ? WHERE id = ?',
       text,
       body.quantity !== undefined ? body.quantity : row.quantity,
       body.unit !== undefined ? canonicalUnit(body.unit) : row.unit,
       body.checked !== undefined ? (body.checked ? 1 : 0) : row.checked,
-      cat.category,
-      cat.ingredientId,
+      category,
+      body.category !== undefined ? 1 : row.category_manual,
+      guessed.ingredientId,
       now(),
       row.id,
     );
