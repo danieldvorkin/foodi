@@ -74,6 +74,9 @@ export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier, jobs: Job
     } catch {
       throw new JobError('bad_payload', 'The request could not be read.', false);
     }
+    // A cut-off or malformed answer is worth one more go, not three: it rarely comes good, each
+    // attempt is billed to the person's key, and the app stops waiting long before the third.
+    const worthRetrying = (code: string) => !PERMANENT.has(code) && (code !== 'bad_output' || job.attempts < 2);
     try {
       const { recipe } = await runGeneration(db, ai, job.user_id, payload);
       notifier.send(job.user_id, 'recipe', { recipeId: recipe.id, message: `Your recipe is ready: “${recipe.content.title}”` });
@@ -85,9 +88,9 @@ export function generateJobHandler(db: Db, ai: Ai, notifier: Notifier, jobs: Job
       if (err instanceof HttpError) {
         const code = err.code.replace(/^ai_/, '');
         const transient = code === 'rate_limited' || code === 'bad_output' || code === 'network' || code === 'vendor_error' || err.status >= 500;
-        throw new JobError(code, err.message, !PERMANENT.has(code) && transient);
+        throw new JobError(code, err.message, worthRetrying(code) && transient);
       }
-      if (err instanceof AiError) throw new JobError(err.code, err.message, !PERMANENT.has(err.code));
+      if (err instanceof AiError) throw new JobError(err.code, err.message, worthRetrying(err.code));
       throw err;
     }
   };
