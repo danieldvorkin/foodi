@@ -4,12 +4,22 @@ import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, recipeJsonSchema, SCAN_SCHEMA, scanPrompt, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
 import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type ImageInput, type ImageOutput, type ScanOutput, type VisionOutput } from './types.js';
 
+// Models that accept low reasoning effort. Leave other models at their provider defaults.
+const LOW_REASONING_MODELS = new Set([
+  'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5.1', 'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.3-codex',
+  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.5',
+  'o1', 'o3', 'o3-mini', 'o4-mini',
+]);
+
 /** Calls the Responses API with a strict JSON schema output. Works with an API key (from the
  *  key form or from the post-sign-in token exchange); a bare OAuth access token is tried as a
  *  bearer and reported clearly if the vendor won't accept it. */
 export function createOpenAiClient(opts: { apiBase: string; model: string; imageModel?: string; fetchImpl?: typeof fetch }): AiClient {
   const f = opts.fetchImpl ?? fetch;
   const imageModel = opts.imageModel ?? 'gpt-image-1';
+  // Reasoning shares the output budget with the answer. Match dated snapshots to their model.
+  const baseModel = opts.model.replace(/-\d{4}-\d{2}-\d{2}$/, '');
+  const reasoning = LOW_REASONING_MODELS.has(baseModel) ? { reasoning: { effort: 'low' } } : {};
   const bearerOf = (credential: CredentialPayload) => (credential.kind === 'oauth' ? credential.accessToken : credential.apiKey);
   const failFor = (res: Response, credential: CredentialPayload, text: string) => {
     if (res.status === 401 || res.status === 403) {
@@ -50,7 +60,8 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
             model: opts.model,
             input: [{ role: 'user', content: [{ type: 'input_text', text: visionRubric(recipe) }, { type: 'input_image', image_url: `data:${imageMime(image)};base64,${image.toString('base64')}`, detail: 'low' }] }],
             text: { format: { type: 'json_schema', name: 'verdict', strict: true, schema: VERDICT_SCHEMA } },
-            max_output_tokens: 200,
+            ...reasoning,
+            max_output_tokens: 2000,
           }),
           signal: AbortSignal.timeout(60_000),
         });
@@ -75,8 +86,9 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
             // High detail: small items on a crowded fridge shelf vanish at 512 px.
             input: [{ role: 'user', content: [{ type: 'input_text', text: scanPrompt(items) }, { type: 'input_image', image_url: `data:${imageMime(image)};base64,${image.toString('base64')}`, detail: 'high' }] }],
             text: { format: { type: 'json_schema', name: 'scan', strict: true, schema: SCAN_SCHEMA } },
+            ...reasoning,
             // Room for a reasoning model's thinking as well as the answer, like generate.
-            max_output_tokens: 6000,
+            max_output_tokens: 8000,
           }),
           signal: AbortSignal.timeout(60_000),
         });
@@ -109,7 +121,9 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
             instructions: SYSTEM_PROMPT,
             input: buildUserMessage(input),
             text: { format: { type: 'json_schema', name: 'recipe', strict: true, schema: recipeJsonSchema() } },
-            max_output_tokens: 6000,
+            ...reasoning,
+            // A recipe is ~1.5k tokens; the rest is headroom for the model's thinking.
+            max_output_tokens: 16000,
           }),
           signal: AbortSignal.timeout(90_000),
         });
@@ -127,27 +141,29 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
       }
       if (!res.ok) throw failFor(res, credential, await res.text().catch(() => ''));
       const data = (await res.json()) as {
+        status?: string;
+        incomplete_details?: { reason?: string };
         output?: { type: string; content?: { type: string; text?: string }[] }[];
         usage?: { input_tokens?: number; output_tokens?: number };
       };
+      const usage = { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null };
+      // Why it came back unusable: almost always `incomplete: max_output_tokens`. Logged, and the
+      // tokens are still billed, so they go on the generation record too.
+      const why = `${data.status ?? 'unknown'}${data.incomplete_details?.reason ? `: ${data.incomplete_details.reason}` : ''}`;
       const text = data.output
         ?.filter((o) => o.type === 'message')
         .flatMap((o) => o.content ?? [])
         .find((c) => c.type === 'output_text')?.text;
-      if (!text) throw new AiError('bad_output', 'The model did not return a recipe.');
+      if (!text) throw new AiError('bad_output', `The model did not return a recipe (${why}).`, undefined, usage);
       let json: unknown;
       try {
         json = JSON.parse(text);
       } catch {
-        throw new AiError('bad_output', 'The recipe came back as invalid JSON.');
+        throw new AiError('bad_output', `The recipe came back as invalid JSON (${why}).`, undefined, usage);
       }
       const parsed = RecipeContentSchema.safeParse(coerceRecipeShape(json));
-      if (!parsed.success) throw new AiError('bad_output', `The recipe came back malformed: ${parsed.error.issues[0]?.path.join('.')} — ${parsed.error.issues[0]?.message}`);
-      return {
-        content: parsed.data,
-        model: opts.model,
-        usage: { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null },
-      };
+      if (!parsed.success) throw new AiError('bad_output', `The recipe came back malformed: ${parsed.error.issues[0]?.path.join('.')} — ${parsed.error.issues[0]?.message}`, undefined, usage);
+      return { content: parsed.data, model: opts.model, usage };
     },
   };
 }
