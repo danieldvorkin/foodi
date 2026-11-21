@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLoaderData, useLocation, useNavigate, useRevalidator, type LoaderFunctionArgs } from 'react-router';
-import { MEAL_EMOJI, type MediaItem } from '@foodi/shared';
+import { MEAL_EMOJI, type MediaItem, type Nutrition } from '@foodi/shared';
 import { errorMessage } from '../../api/client';
 import { media as mediaApi, recipes as recipesApi, social as socialApi } from '../../api/types';
 import { AddToBook } from '../../components/Books';
@@ -466,7 +466,7 @@ export function RecipePage() {
             <span className="muted small">{c.steps.length} steps</span>
           </div>
           <StepList steps={c.steps} ingredients={c.ingredients} />
-          {(c.makeAhead || c.storage || c.nutritionPerServing) && (
+          {(c.makeAhead || c.storage) && (
             <div className="recipe-notes">
               {c.makeAhead && (
                 <p>
@@ -478,14 +478,9 @@ export function RecipePage() {
                   <b>🧊 Leftovers.</b> {c.storage}
                 </p>
               )}
-              {c.nutritionPerServing && (
-                <p className="muted small">
-                  Per serving, roughly: {Math.round(c.nutritionPerServing.calories)} kcal · {Math.round(c.nutritionPerServing.proteinGrams)} g protein ·{' '}
-                  {Math.round(c.nutritionPerServing.carbsGrams)} g carbs · {Math.round(c.nutritionPerServing.fatGrams)} g fat
-                </p>
-              )}
             </div>
           )}
+          {c.nutritionPerServing && <NutritionBlock n={c.nutritionPerServing} />}
           {recipe.prompt && (
             <p className="muted small" style={{ marginTop: 'var(--s-5)' }}>
               Written from: “{recipe.prompt}” · {recipe.provider === 'mock' ? 'mock chef' : recipe.model}
@@ -564,5 +559,42 @@ function PhotoCredit({ m }: { m: MediaItem }) {
         label
       )}
     </p>
+  );
+}
+
+/** Per-serving nutrition. Recipes written before nutrition was required show only what they carry. */
+function NutritionBlock({ n }: { n: Nutrition }) {
+  const rows: [string, number | null, string][] = [
+    ['Protein', n.proteinGrams, 'g'],
+    ['Carbs', n.carbsGrams, 'g'],
+    ['Fat', n.fatGrams, 'g'],
+    ['Fibre', n.fiberGrams, 'g'],
+    ['Sugar', n.sugarGrams, 'g'],
+    ['Sodium', n.sodiumMg, 'mg'],
+  ];
+  return (
+    <div className="nutrition">
+      <div className="section-head">
+        <h2>🥗 Nutrition</h2>
+        <span className="muted small">per serving, estimated</span>
+      </div>
+      <div className="nutrition-grid">
+        <div className="nutrition-cell nutrition-kcal">
+          <b>{Math.round(n.calories)}</b>
+          <span className="muted small">kcal</span>
+        </div>
+        {rows
+          .filter((r): r is [string, number, string] => r[1] !== null)
+          .map(([label, value, unit]) => (
+            <div className="nutrition-cell" key={label}>
+              <b>
+                {Math.round(value)}
+                {unit}
+              </b>
+              <span className="muted small">{label}</span>
+            </div>
+          ))}
+      </div>
+    </div>
   );
 }

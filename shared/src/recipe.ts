@@ -110,6 +110,19 @@ export const RecipeContentSchema = z.object({
   nutritionPerServing: NutritionSchema.nullable(),
 });
 
+/**
+ * What a freshly written recipe must carry: every nutrition number filled in, nothing left null.
+ * Only the schema we hand the AI is this strict — stored recipes are read with
+ * `RecipeContentSchema`, which stays tolerant so recipes written before this still open.
+ */
+export const RecipeDraftSchema = RecipeContentSchema.extend({
+  nutritionPerServing: NutritionSchema.extend({
+    fiberGrams: z.number().min(0).max(200),
+    sugarGrams: z.number().min(0).max(500),
+    sodiumMg: z.number().min(0).max(20000),
+  }),
+});
+
 export type RecipeContent = z.infer<typeof RecipeContentSchema>;
 export type RecipeIngredient = z.infer<typeof RecipeIngredientSchema>;
 export type Step = z.infer<typeof StepSchema>;
