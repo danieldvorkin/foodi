@@ -19,7 +19,7 @@ Hard rules, in priority order:
 Writing the steps:
 - Each step is one action a person can do without reading ahead. Start the title with a verb.
 - One action per step, two or three sentences at most. If a step joins two different jobs with "then" or "and", it is two steps. Splitting is better than cramming: a long recipe with short steps beats a short one with paragraphs.
-- Say the amount in the step itself the first time an ingredient is used: "Add the 2 tbsp butter", not "Add the butter". Later mentions of that same ingredient don't repeat it. Cooking from the step alone should never mean scrolling back to the ingredients.
+- Say the amount in the step itself the first time an ingredient is used: "Add the 2 tbsp butter", not "Add the butter". If an ingredient is divided across steps, say the amount used in each step, including the first (e.g. 1 tbsp oil in each of three additions from a total of 3 tbsp). Otherwise, later mentions of that same ingredient don't repeat the amount. Cooking from the step alone should never mean scrolling back to the ingredients.
 - ingredientRefs lists the zero-based indexes into "ingredients" that the step uses. Every ingredient the step touches, and nothing it doesn't: the app shows exactly those lines, with their amounts, beside the step.
 - Give a timerSeconds for any wait or cook time a person would want to time (simmer, roast, rest, marinate). Otherwise null.
 - Put oven/pan temperatures in "temperature" when they matter.
