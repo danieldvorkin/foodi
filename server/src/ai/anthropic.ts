@@ -1,4 +1,4 @@
-import { RecipeContentSchema } from '@foodi/shared';
+import { RecipeDraftSchema } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, RECIPE_TOOL_NAME, recipeJsonSchema, SCAN_SCHEMA, SCAN_TOOL_NAME, scanPrompt, SYSTEM_PROMPT, visionRubric } from './prompt.js';
@@ -104,7 +104,7 @@ export function createAnthropicClient(opts: { apiBase: string; model: string; fe
       };
       const tool = data.content.find((c) => c.type === 'tool_use' && c.name === RECIPE_TOOL_NAME);
       if (!tool) throw new AiError('bad_output', 'The model did not return a recipe.');
-      const parsed = RecipeContentSchema.safeParse(coerceRecipeShape(tool.input));
+      const parsed = RecipeDraftSchema.safeParse(coerceRecipeShape(tool.input));
       if (!parsed.success) throw new AiError('bad_output', `The recipe came back malformed: ${parsed.error.issues[0]?.path.join('.')} — ${parsed.error.issues[0]?.message}`);
       return {
         content: parsed.data,
