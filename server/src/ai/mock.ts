@@ -290,7 +290,7 @@ function compose(input: GenerateInput): RecipeContent {
     ],
     makeAhead: style === 'soup' || style === 'curry' ? 'Tastes better the next day. Keep the herbs for serving.' : null,
     storage: 'Keeps 3 days in the fridge. Reheat gently with a splash of water.',
-    nutritionPerServing: { calories: kcal, proteinGrams: protG, carbsGrams: Math.round(kcal * 0.12), fatGrams: Math.round(kcal * 0.04), fiberGrams: 6, sugarGrams: null, sodiumMg: null },
+    nutritionPerServing: { calories: kcal, proteinGrams: protG, carbsGrams: Math.round(kcal * 0.12), fatGrams: Math.round(kcal * 0.04), fiberGrams: 6, sugarGrams: Math.round(kcal * 0.02), sodiumMg: 300 + (kcal % 400) },
   };
 }
 

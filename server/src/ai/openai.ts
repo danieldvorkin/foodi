@@ -1,4 +1,4 @@
-import { RecipeContentSchema } from '@foodi/shared';
+import { RecipeDraftSchema } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { imageMime } from '../lib/media-scrub.js';
 import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, recipeJsonSchema, SCAN_SCHEMA, scanPrompt, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
@@ -161,7 +161,7 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
       } catch {
         throw new AiError('bad_output', `The recipe came back as invalid JSON (${why}).`, undefined, usage);
       }
-      const parsed = RecipeContentSchema.safeParse(coerceRecipeShape(json));
+      const parsed = RecipeDraftSchema.safeParse(coerceRecipeShape(json));
       if (!parsed.success) throw new AiError('bad_output', `The recipe came back malformed: ${parsed.error.issues[0]?.path.join('.')} — ${parsed.error.issues[0]?.message}`, undefined, usage);
       return { content: parsed.data, model: opts.model, usage };
     },
