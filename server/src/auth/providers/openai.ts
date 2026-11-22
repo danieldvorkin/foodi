@@ -27,6 +27,7 @@ export function createOpenAiProvider(config: Config, log: Logger): OAuthProvider
         });
         const res = await fetch(tokenUrl, {
           method: 'POST',
+          redirect: 'error',
           headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
           body,
         });

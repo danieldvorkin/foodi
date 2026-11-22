@@ -15,7 +15,7 @@ import type { ManagedKeys } from '../services/managed-keys.js';
 import type { Audit } from '../services/audit.js';
 import type { Permissions } from '../services/permissions.js';
 import { clearOAuthCookie, clearSessionCookie, readOAuthCookie, setOAuthCookie, setSessionCookie } from './cookies.js';
-import type { AuthProvider, OAuthProvider } from './providers/types.js';
+import { credentialProvider, type AuthProvider, type OAuthProvider } from './providers/types.js';
 import type { AuthStore } from './store.js';
 
 interface Deps {
@@ -277,13 +277,13 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
   /** Delete account and every trace: identities, credential, sessions, recipes, posts. */
   r.delete('/account', requireAuth, async (req, res) => {
     const user = req.user!;
-    const cred = store.getCredential(user.id);
-    const p = providers.find((x) => x.vendor === cred?.vendor && x.kind === 'oauth') as OAuthProvider | undefined;
-    if (cred && p?.revoke) await p.revoke(cred.payload).catch(() => {});
-    store.deleteUser(user.id);
+    const cred = store.deleteAccount(user.id);
+    const p = cred && credentialProvider(providers, cred.vendor, cred.payload);
     clearSessionCookie(res, cookieOpts);
     log.info({ userId: user.id }, 'account deleted');
     res.json({ ok: true });
+    // Local deletion is complete; provider cleanup must not delay the response.
+    if (cred && p?.revoke) await p.revoke(cred.payload).catch(() => {});
   });
 
   return r;

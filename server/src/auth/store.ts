@@ -218,14 +218,30 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     );
   }
 
+  /** The randomized ciphertext changes on every write, including a reconnect with identical tokens. */
+  function saveRefreshedCredential(userId: string, version: string, credential: CredentialPayload): boolean {
+    const result = run(
+      db,
+      `UPDATE credentials SET kind = ?, payload_enc = ?, expires_at = ?, updated_at = ?, hint = ? WHERE user_id = ? AND payload_enc = ?`,
+      credential.kind,
+      encrypt(JSON.stringify(credential), opts.encryptionKey),
+      credential.kind === 'oauth' ? credential.expiresAt : null,
+      now(),
+      credential.kind === 'oauth' ? null : credential.apiKey.slice(-4),
+      userId,
+      version,
+    );
+    return result.changes === 1;
+  }
+
   function clearCredential(userId: string) {
     run(db, 'DELETE FROM credentials WHERE user_id = ?', userId);
   }
 
-  function getCredential(userId: string): { vendor: Vendor; payload: CredentialPayload } | null {
+  function getCredential(userId: string): { vendor: Vendor; payload: CredentialPayload; version: string } | null {
     const row = one<CredentialRow>(db, 'SELECT * FROM credentials WHERE user_id = ?', userId);
     if (!row) return null;
-    return { vendor: row.vendor, payload: JSON.parse(decrypt(row.payload_enc, opts.encryptionKey)) as CredentialPayload };
+    return { vendor: row.vendor, version: row.payload_enc, payload: JSON.parse(decrypt(row.payload_enc, opts.encryptionKey)) as CredentialPayload };
   }
 
   function getCredentialMeta(userId: string): { vendor: Vendor; kind: 'oauth' | 'api_key' | 'managed'; hint: string | null; updatedAt: string } | null {
@@ -317,6 +333,7 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     addPasswordLogin,
     touch,
     setCredential,
+    saveRefreshedCredential,
     setAutoPhotos,
     clearCredential,
     getCredential,
@@ -329,6 +346,13 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     getUser,
     hasProfile,
     deleteUser,
+    deleteAccount(userId: string) {
+      return tx(db, () => {
+        const credential = getCredential(userId);
+        deleteUser(userId);
+        return credential;
+      });
+    },
     listIdentities,
   };
 }
