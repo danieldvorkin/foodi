@@ -73,7 +73,8 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
       return { content, vendor: client.vendor, model: out.model, generationId };
     } catch (err) {
       const code = err instanceof AiError ? err.code : 'unknown';
-      record('failed', { errorCode: code });
+      // A cut-off answer is still billed, so the tokens go on the record like the vision path.
+      record('failed', { errorCode: code, ...(err instanceof AiError ? err.usage : {}) });
       log.warn({ userId, vendor: client.vendor, code, err: (err as Error).message }, 'generation failed');
       throw toHttpError(err);
     }

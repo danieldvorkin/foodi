@@ -57,10 +57,16 @@ export const UpdateListItemSchema = z
     quantity: z.number().min(0).max(100000).nullable().optional(),
     unit: z.string().trim().max(30).nullable().optional(),
     checked: z.boolean().optional(),
+    /** Move the line to another aisle by hand. Sticks even when the text changes. */
+    category: z.enum(LIST_CATEGORIES).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'Nothing to change.');
 
-export const ClearListSchema = z.object({ checkedOnly: z.boolean().default(true) });
+/** Without `ids`, clears the checked lines (or the whole list); with `ids`, exactly those lines. */
+export const ClearListSchema = z.object({ checkedOnly: z.boolean().default(true), ids: z.array(z.string().min(1)).min(1).max(500).optional() });
+
+/** The ids of one aisle's lines in their new order; everything else keeps the order it had. */
+export const ReorderListSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(500) });
 
 /** Box around an item in the photo: fractions of the image, top-left origin. */
 export const ScanBoxSchema = z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().min(0).max(1), h: z.number().min(0).max(1) });

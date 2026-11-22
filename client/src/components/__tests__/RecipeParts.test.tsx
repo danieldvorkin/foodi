@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecipeIngredient, Step } from '@foodi/shared';
 import { IngredientList, StepList } from '../RecipeParts';
 
-const line = (item: string, group: string | null = null): RecipeIngredient => ({ item, quantity: '1', unit: 'tbsp', preparation: null, note: null, group, optional: false, ingredientId: null });
+const line = (item: string, group: string | null = null, quantity: string | null = '1', unit: string | null = 'tbsp'): RecipeIngredient => ({ item, quantity, unit, preparation: null, note: null, group, optional: false, ingredientId: null });
 
 describe('IngredientList', () => {
   it('shows named groups first and loose lines last under "Also", with no empty heading', () => {
@@ -22,11 +22,19 @@ describe('IngredientList', () => {
 });
 
 describe('StepList', () => {
-  it('de-duplicates "you need" chips that point at the same item', () => {
-    const ingredients = [line('garlic', 'Kofta'), line('garlic', 'Tzatziki'), line('olive oil')];
-    const steps: Step[] = [{ title: 'Mix', text: 'Mix the garlic in.', timerSeconds: null, ingredientRefs: [0, 1, 2], temperature: null, tip: null }];
+  it('shows what a step needs with the amounts, one chip per line', () => {
+    // The same item in two groups is two lines with two amounts, so it earns two chips (as in cook
+    // mode); pointing at the same line twice does not.
+    const ingredients = [line('garlic', 'Kofta', '2', 'cloves'), line('garlic', 'Tzatziki', '1', 'clove'), line('olive oil', null, '3', 'tbsp')];
+    const steps: Step[] = [{ title: 'Mix', text: 'Mix the garlic in.', timerSeconds: null, ingredientRefs: [0, 1, 2, 2], temperature: null, tip: null }];
     render(<StepList steps={steps} ingredients={ingredients} />);
     const chips = screen.getAllByText(/garlic|olive oil/, { selector: '.chip' }).map((c) => c.textContent);
-    expect(chips).toEqual(['garlic', 'olive oil']);
+    expect(chips).toEqual(['2 cloves garlic', '1 clove garlic', '3 tbsp olive oil']);
+  });
+
+  it('ignores a ref that points past the end of the ingredients', () => {
+    const steps: Step[] = [{ title: 'Mix', text: 'Mix it.', timerSeconds: null, ingredientRefs: [0, 9], temperature: null, tip: null }];
+    render(<StepList steps={steps} ingredients={[line('salt', null, '1', 'tsp')]} />);
+    expect(screen.getAllByText(/salt/, { selector: '.chip' }).map((c) => c.textContent)).toEqual(['1 tsp salt']);
   });
 });
