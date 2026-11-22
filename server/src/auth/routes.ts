@@ -279,10 +279,11 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
     const user = req.user!;
     const cred = store.deleteAccount(user.id);
     const p = cred && credentialProvider(providers, cred.vendor, cred.payload);
-    if (cred && p?.revoke) await p.revoke(cred.payload).catch(() => {});
     clearSessionCookie(res, cookieOpts);
     log.info({ userId: user.id }, 'account deleted');
     res.json({ ok: true });
+    // Local deletion is complete; provider cleanup must not delay the response.
+    if (cred && p?.revoke) await p.revoke(cred.payload).catch(() => {});
   });
 
   return r;

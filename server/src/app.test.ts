@@ -147,6 +147,25 @@ describe('auth', () => {
     expect(ok.status).toBe(200);
   });
 
+  it('confirms account deletion while provider revocation is still pending', async () => {
+    const session = await signIn(b);
+    const provider = b.providers.find((p) => p.id === 'mock');
+    if (provider?.kind !== 'oauth') throw new Error('missing mock OAuth provider');
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    const revoke = vi.spyOn(provider, 'revoke').mockReturnValue(pending);
+    try {
+      const res = await request(b.base).delete('/api/auth/account').set('cookie', session).set('origin', ORIGIN).timeout(2000);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect(res.headers['set-cookie']).toEqual(expect.arrayContaining([expect.stringMatching(/^foodi_session=;/)]));
+      expect(revoke).toHaveBeenCalledOnce();
+      expect((await request(b.base).get('/api/auth/me').set('cookie', session)).status).toBe(401);
+    } finally {
+      finish();
+    }
+  });
+
   it('logs out and the cookie stops working', async () => {
     const session = await signIn(b);
     await request(b.base).post('/api/auth/logout').set('cookie', session).set('origin', ORIGIN);
