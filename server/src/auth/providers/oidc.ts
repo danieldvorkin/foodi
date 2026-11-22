@@ -15,6 +15,8 @@ export interface OidcProviderOptions {
   scopes: string;
   authorizationUrl?: string | undefined;
   tokenUrl?: string | undefined;
+  /** Exact token endpoint of the development-only mock provider. */
+  mockTokenUrl?: string;
   jwksUrl?: string | undefined;
   /** Extra query params on the authorize URL. */
   extraAuthParams?: Record<string, string>;
@@ -47,6 +49,11 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
   const f = opts.fetchImpl ?? fetch;
   let discovery: Promise<Discovery> | null = null;
   let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+  function allowsTokenEndpoint(endpoint: string): boolean {
+    const url = URL.parse(endpoint);
+    return url?.protocol === 'https:' || (url?.protocol === 'http:' && endpoint === opts.mockTokenUrl);
+  }
 
   async function discover(): Promise<Discovery> {
     if (opts.authorizationUrl && opts.tokenUrl) {
@@ -121,6 +128,9 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
 
     async callback({ code, redirectUri, transaction }) {
       const d = await discover();
+      if (!allowsTokenEndpoint(d.token_endpoint)) {
+        throw new HttpError(502, 'oauth_insecure_token_endpoint', `${opts.label}: the token endpoint must use HTTPS.`);
+      }
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
         code,
@@ -131,6 +141,7 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
       if (opts.clientSecret) body.set('client_secret', opts.clientSecret);
       const res = await f(d.token_endpoint, {
         method: 'POST',
+        redirect: 'error',
         headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
         body,
       });
@@ -188,10 +199,10 @@ export function createOidcProvider(opts: OidcProviderOptions): OAuthProvider {
     async refresh(credential) {
       if (credential.kind !== 'oauth' || !credential.refreshToken || credential.source?.providerId !== opts.id) return null;
       const url = opts.tokenUrl ?? (await discover().catch(() => null))?.token_endpoint;
-      if (!url || credential.source.binding !== binding(url)) return null;
+      if (!url || !allowsTokenEndpoint(url) || credential.source.binding !== binding(url)) return null;
       const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: credential.refreshToken, client_id: opts.clientId });
       if (opts.clientSecret) body.set('client_secret', opts.clientSecret);
-      const res = await f(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body }).catch(() => null);
+      const res = await f(url, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' }, body }).catch(() => null);
       // A refused refresh means the person has to connect again; the caller reports that.
       if (!res?.ok) return null;
       const tokens = (await res.json().catch(() => null)) as TokenResponse | null;

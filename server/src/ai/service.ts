@@ -49,14 +49,23 @@ export function createAiService(deps: {
     if (pending) return pending;
 
     const task = Promise.resolve().then(async () => {
-      const fresh = await refresh(cred.vendor, cred.payload).catch((err: unknown) => {
-        log.warn({ userId, vendor: cred.vendor, err: (err as Error).message }, 'could not refresh the connected AI');
-        return null;
-      });
-      if (fresh && store.saveRefreshedCredential(userId, cred.version, fresh)) {
-        log.info({ userId, vendor: cred.vendor }, 'refreshed the connected AI credential');
+      let current: ConnectedCredential | null = cred;
+      while (current && needsRefresh(current.payload)) {
+        const { vendor, payload } = current;
+        const version: string = current.version;
+        const fresh = await refresh(vendor, payload).catch((err: unknown) => {
+          log.warn({ userId, vendor, err: (err as Error).message }, 'could not refresh the connected AI');
+          return null;
+        });
+        if (fresh && store.saveRefreshedCredential(userId, version, fresh)) {
+          log.info({ userId, vendor }, 'refreshed the connected AI credential');
+          return store.getCredential(userId);
+        }
+        current = store.getCredential(userId);
+        // Only retry for a replacement. A refusal on the same version leaves it usable as before.
+        if (current?.version === version) return current;
       }
-      return store.getCredential(userId);
+      return current;
     }).finally(() => refreshing.delete(userId));
     refreshing.set(userId, task);
     return task;
@@ -67,10 +76,9 @@ export function createAiService(deps: {
     ...(config.enableMockProvider ? { mock: deps.clients?.['mock'] ?? createMockClient() } : {}),
   };
 
-  function assertQuota(userId: string, pending = 0) {
+  function assertQuota(userId: string, pending = 0, managed = store.getCredentialMeta(userId)?.kind === 'managed') {
     const s = settings.get();
     // People on a key foodi provided have their own, usually smaller, allowance.
-    const managed = store.getCredentialMeta(userId)?.kind === 'managed';
     const caps = [s.maxGenerationsPerUserPerDay, ...(managed ? [s.managedGenerationsPerUserPerDay] : [])].filter((n) => n > 0);
     if (!caps.length) return;
     const max = Math.min(...caps);
@@ -91,6 +99,8 @@ export function createAiService(deps: {
     assertQuota(userId);
     const cred = await credentialFor(userId);
     if (!cred) throw new HttpError(409, 'no_credential', 'No AI account is connected. Connect one in Settings.');
+    // A managed key may have replaced the OAuth credential while its refresh was pending.
+    if (cred.payload.kind === 'managed') assertQuota(userId, 0, true);
     const client = clients[cred.vendor];
     if (!client) throw new HttpError(409, 'vendor_unavailable', `The ${cred.vendor} provider is not enabled on this server.`);
 

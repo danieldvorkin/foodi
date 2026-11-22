@@ -13,6 +13,7 @@ export function createMockProvider(config: Config): OAuthProvider {
     label: 'Continue with a mock account',
     note: 'Development only. Uses a fake identity provider and a fake AI so you can try everything without credentials.',
     issuer,
+    mockTokenUrl: `${issuer}/token`,
     clientId: MOCK_CLIENT_ID,
     scopes: 'openid profile email',
   });
