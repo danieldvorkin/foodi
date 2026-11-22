@@ -33,6 +33,7 @@ export function createAiService(deps: {
   settings: Settings;
   clients?: Partial<Record<string, AiClient>>;
   /** How to swap a stale OAuth credential for a fresh one; the auth providers supply this. */
+  revokeCredential?: (vendor: Vendor, credential: CredentialPayload) => Promise<void>;
   refreshCredential?: (vendor: Vendor, credential: CredentialPayload) => Promise<CredentialPayload | null>;
 }) {
   const { config, db, log, store, settings } = deps;
@@ -60,6 +61,11 @@ export function createAiService(deps: {
         if (fresh && store.saveRefreshedCredential(userId, version, fresh)) {
           log.info({ userId, vendor }, 'refreshed the connected AI credential');
           return store.getCredential(userId);
+        }
+        // Deletion owns the stored snapshot; we own any rotation that missed it.
+        if (fresh && !store.getUser(userId)) {
+          await deps.revokeCredential?.(vendor, fresh).catch(() => {});
+          return null;
         }
         current = store.getCredential(userId);
         // Only retry for a replacement. A refusal on the same version leaves it usable as before.

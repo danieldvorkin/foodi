@@ -346,6 +346,13 @@ export function createAuthStore(db: Db, opts: { encryptionKey: Buffer; bootstrap
     getUser,
     hasProfile,
     deleteUser,
+    deleteAccount(userId: string) {
+      return tx(db, () => {
+        const credential = getCredential(userId);
+        deleteUser(userId);
+        return credential;
+      });
+    },
     listIdentities,
   };
 }

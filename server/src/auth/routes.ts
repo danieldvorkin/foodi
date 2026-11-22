@@ -277,10 +277,9 @@ export function authRoutes({ config, log, store, providers, settings, audit, per
   /** Delete account and every trace: identities, credential, sessions, recipes, posts. */
   r.delete('/account', requireAuth, async (req, res) => {
     const user = req.user!;
-    const cred = store.getCredential(user.id);
+    const cred = store.deleteAccount(user.id);
     const p = cred && credentialProvider(providers, cred.vendor, cred.payload);
     if (cred && p?.revoke) await p.revoke(cred.payload).catch(() => {});
-    store.deleteUser(user.id);
     clearSessionCookie(res, cookieOpts);
     log.info({ userId: user.id }, 'account deleted');
     res.json({ ok: true });

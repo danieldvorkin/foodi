@@ -91,6 +91,7 @@ export async function createApp({ config, log, aiClients, photoSources, photoFet
     log,
     store,
     settings,
+    revokeCredential: async (vendor, credential) => credentialProvider(providers, vendor, credential)?.revoke?.(credential),
     refreshCredential: async (vendor, credential) => credentialProvider(providers, vendor, credential)?.refresh?.(credential) ?? null,
     ...(aiClients ? { clients: aiClients } : {}),
   });

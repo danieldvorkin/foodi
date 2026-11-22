@@ -377,6 +377,7 @@ export function SettingsPage() {
           <div className="stack">
             <h3>Delete account</h3>
             <p className="muted small">Removes your answers, recipes, posts, comments and the connected key. Other people’s saved copies of your recipes stay with them.</p>
+            {me.credentialKind === 'oauth' && <p className="muted small">Older connections may keep access after deletion. To revoke access, remove Fooodi from the connected apps in your sign-in provider’s account settings.</p>}
             <div className="row">
               <button type="button" className="btn btn-danger btn-sm" onClick={deleteAccount}>
                 Delete my account

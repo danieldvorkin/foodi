@@ -137,10 +137,11 @@ function refreshFixture() {
   const result = new Promise<CredentialPayload | null>((done) => { resolve = done; });
   const refresh = vi.fn(() => result);
   const settings = createSettings(db);
-  const ai = createAiService({ config, db, log: createLogger('silent', false), store, settings, clients: { openai: client }, refreshCredential: refresh });
+  const revoke = vi.fn(async () => {});
+  const ai = createAiService({ config, db, log: createLogger('silent', false), store, settings, clients: { openai: client }, refreshCredential: refresh, revokeCredential: revoke });
   const stale = oauth({ expiresAt: new Date(0).toISOString() });
   store.setCredential(user.id, 'openai', stale);
-  return { ai, db, store, user, scan, generate, settings, refresh, resolve, stale, call: () => ai.scanIngredients(user.id, Buffer.alloc(0), [{ id: '1', text: 'carrot' }]) };
+  return { revoke, ai, db, store, user, scan, generate, settings, refresh, resolve, stale, call: () => ai.scanIngredients(user.id, Buffer.alloc(0), [{ id: '1', text: 'carrot' }]) };
 }
 
 it('shares overlapping refresh calls, saves the rotated token, and releases the refresh slot', async () => {
@@ -161,6 +162,24 @@ it('shares overlapping refresh calls, saves the rotated token, and releases the 
     await f.call();
     expect(f.refresh).toHaveBeenCalledTimes(2);
     expect(f.scan.mock.lastCall?.[2]).toEqual(f.stale);
+  } finally {
+    f.db.close();
+  }
+});
+
+it('revokes a rotation that arrives after deletion took its snapshot', async () => {
+  const f = refreshFixture();
+  try {
+    const pending = f.call();
+    await Promise.resolve();
+    expect(f.refresh).toHaveBeenCalledTimes(1);
+    expect(f.store.deleteAccount(f.user.id)?.payload).toEqual(f.stale);
+    const rotated = oauth({ refreshToken: 'rotated' });
+    f.resolve(rotated);
+    await expect(pending).rejects.toMatchObject({ code: 'no_vision' });
+    expect(f.revoke.mock.calls).toEqual([['openai', rotated]]);
+    expect(f.scan).not.toHaveBeenCalled();
+    expect(f.store.getCredential(f.user.id)).toBeNull();
   } finally {
     f.db.close();
   }
@@ -188,6 +207,7 @@ it.each(['api key', 'unexpired OAuth', 'same tokens', 'disconnect'])('preserves 
       expect(f.store.getCredential(f.user.id)?.payload).toEqual(replacement);
       expect(f.scan.mock.lastCall?.[2]).toEqual(replacement);
     }
+    expect(f.revoke).not.toHaveBeenCalled();
     expect(f.refresh).toHaveBeenCalledTimes(change === 'same tokens' ? 2 : 1);
   } finally {
     f.db.close();
