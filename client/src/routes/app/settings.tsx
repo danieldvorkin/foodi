@@ -162,6 +162,11 @@ export function SettingsPage() {
                 ? 'Recipes written on Fooodi’s key are billed to Fooodi, which is why there’s a daily allowance. The key is encrypted at rest and never shown.'
                 : 'Recipes are written with this account and billed to it, never to Fooodi. The key is encrypted with AES-256-GCM on this machine, only decrypted to call the vendor, and never shown again — only its last four characters are kept in the clear.'}
             </p>
+            {me.credentialKind === 'oauth' && (
+              <p className="muted small measure">
+                Reconnecting or replacing your AI connection won’t revoke the old grant. To revoke it, remove Fooodi from the connected apps in the account you originally linked. Do this before reconnecting so you don’t remove the new connection.
+              </p>
+            )}
           </div>
 
           <div className="stack" style={{ maxWidth: 560 }}>
@@ -377,7 +382,11 @@ export function SettingsPage() {
           <div className="stack">
             <h3>Delete account</h3>
             <p className="muted small">Removes your answers, recipes, posts, comments and the connected key. Other people’s saved copies of your recipes stay with them.</p>
-            {me.credentialKind === 'oauth' && <p className="muted small">Older connections may keep access after deletion. To revoke access, remove Fooodi from the connected apps in your sign-in provider’s account settings.</p>}
+            {me.credentialKind === 'oauth' && (
+              <p className="muted small">
+                Deleting your Fooodi account may leave your AI grant active at the provider. To revoke it, remove Fooodi from the connected apps in the account you originally linked before deleting your Fooodi account.
+              </p>
+            )}
             <div className="row">
               <button type="button" className="btn btn-danger btn-sm" onClick={deleteAccount}>
                 Delete my account
