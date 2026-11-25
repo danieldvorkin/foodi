@@ -1,4 +1,4 @@
-import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent } from '@foodi/shared';
+import { getIngredient, matchIngredient, type ListScan, type Profile, type RecipeContent, type RecipeIdea } from '@foodi/shared';
 import type { AuthStore } from '../auth/store.js';
 import type { Config } from '../config.js';
 import type { Db } from '../db/index.js';
@@ -7,6 +7,7 @@ import { HttpError } from '../lib/errors.js';
 import { newId } from '../lib/crypto.js';
 import type { Logger } from '../lib/logger.js';
 import { now } from '../lib/time.js';
+import { getProfile } from '../routes/profile.js';
 import type { Settings } from '../services/settings.js';
 import { createAnthropicClient } from './anthropic.js';
 import { createMockClient } from './mock.js';
@@ -112,6 +113,37 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     }
   }
 
+  /**
+   * A few takes on a dish, for search. One small call rather than five recipes: the full recipe is
+   * only written when one is tapped. On foodi's own key these count against the managed allowance,
+   * since searching is cheap but not free.
+   */
+  async function suggestIdeas(userId: string, dish: string): Promise<RecipeIdea[]> {
+    const profile = getProfile(db, userId);
+    if (!profile) throw new HttpError(400, 'no_profile', 'Finish onboarding before searching for dishes.');
+    const cred = store.getCredential(userId);
+    const client = cred ? clients[cred.vendor] : undefined;
+    if (!cred || !client?.suggestIdeas) throw new HttpError(409, 'no_credential', 'No AI account is connected. Connect one in Settings.');
+    const max = settings.get().managedGenerationsPerUserPerDay;
+    if (cred.payload.kind === 'managed' && max > 0) {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const row = one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM generations WHERE user_id = ? AND kind = 'ideas' AND status = 'ok' AND created_at > ?`, userId, since);
+      if (row && row.n >= max) throw new HttpError(429, 'quota', `That's ${max} searches today on foodi's AI. Connect your own key in Settings for more.`);
+    }
+    const started = Date.now();
+    try {
+      const out = await client.suggestIdeas(dish, profile, cred.payload);
+      recordAux(userId, 'ideas', client.vendor, out.model, 'ok', Date.now() - started, out.usage);
+      return out.ideas;
+    } catch (err) {
+      const code = err instanceof AiError ? err.code : 'unknown';
+      recordAux(userId, 'ideas', client.vendor, client.model, 'failed', Date.now() - started, { errorCode: code, ...(err instanceof AiError ? err.usage : {}) });
+      log.warn({ userId, vendor: client.vendor, code, err: (err as Error).message }, 'ideas failed');
+      const http = toHttpError(err);
+      return http instanceof HttpError && http.status === 502 ? Promise.reject(new HttpError(502, http.code, 'The AI couldn’t come up with anything. Try again in a moment.')) : Promise.reject(http);
+    }
+  }
+
   function linkRecipeId(generationId: string, recipeId: string) {
     run(db, 'UPDATE generations SET recipe_id = ? WHERE id = ?', recipeId, generationId);
   }
@@ -125,8 +157,8 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     return { images, vision: canSee(client) };
   }
 
-  /** Log an image or vision call the same way recipe calls are logged, so admin sees cost and failure rate. */
-  function recordAux(userId: string, kind: 'image' | 'vision', vendor: string, model: string, status: 'ok' | 'failed', latencyMs: number, extra: { inputTokens?: number | null; outputTokens?: number | null; errorCode?: string | null; recipeId?: string | null } = {}) {
+  /** Log an image, vision or ideas call the same way recipe calls are logged, so admin sees cost and failure rate. */
+  function recordAux(userId: string, kind: 'image' | 'vision' | 'ideas', vendor: string, model: string, status: 'ok' | 'failed', latencyMs: number, extra: { inputTokens?: number | null; outputTokens?: number | null; errorCode?: string | null; recipeId?: string | null } = {}) {
     run(
       db,
       `INSERT INTO generations (id, user_id, vendor, model, status, latency_ms, input_tokens, output_tokens, error_code, recipe_id, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -145,7 +177,7 @@ export function createAiService(deps: { config: Config; db: Db; log: Logger; sto
     );
   }
 
-  return { generate, scanIngredients, linkRecipeId, preflight, capabilities, recordAux, clients, store };
+  return { generate, suggestIdeas, scanIngredients, linkRecipeId, preflight, capabilities, recordAux, clients, store };
 }
 
 /** Clients that look at photos do both kinds of looking, so /auth/me and the fridge check agree. */

@@ -1,8 +1,8 @@
-import { RecipeContentSchema } from '@foodi/shared';
+import { RecipeContentSchema, type Profile } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { imageMime } from '../lib/media-scrub.js';
-import { buildUserMessage, coerceRecipeShape, parseScan, parseVerdict, recipeJsonSchema, SCAN_SCHEMA, scanPrompt, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
-import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type ImageInput, type ImageOutput, type ScanOutput, type VisionOutput } from './types.js';
+import { buildUserMessage, coerceRecipeShape, IDEAS_SCHEMA, ideasPrompt, parseIdeas, parseScan, parseVerdict, recipeJsonSchema, SCAN_SCHEMA, scanPrompt, SYSTEM_PROMPT, VERDICT_SCHEMA, visionRubric } from './prompt.js';
+import { AiError, type AiClient, type GenerateInput, type GenerateOutput, type IdeasOutput, type ImageInput, type ImageOutput, type ScanOutput, type VisionOutput } from './types.js';
 
 /** Calls the Responses API with a strict JSON schema output. Works with an API key (from the
  *  key form or from the post-sign-in token exchange); a bare OAuth access token is tried as a
@@ -96,6 +96,38 @@ export function createOpenAiClient(opts: { apiBase: string; model: string; image
       const scan = parseScan(raw, items);
       if (!scan) throw new AiError('bad_output', `The vision model did not return a list of what it saw (${data.status ?? 'unknown'}${data.incomplete_details?.reason ? `: ${data.incomplete_details.reason}` : ''}).`, undefined, usage);
       return { ...scan, model: opts.model, usage };
+    },
+    async suggestIdeas(dish: string, profile: Profile, credential: CredentialPayload): Promise<IdeasOutput> {
+      let res: Response;
+      try {
+        res = await f(`${opts.apiBase}/v1/responses`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${bearerOf(credential)}` },
+          body: JSON.stringify({
+            model: opts.model,
+            input: ideasPrompt(dish, profile),
+            text: { format: { type: 'json_schema', name: 'ideas', strict: true, schema: IDEAS_SCHEMA } },
+            // The answer is a few hundred tokens; the rest is headroom for a reasoning model's thinking.
+            max_output_tokens: 6000,
+          }),
+          signal: AbortSignal.timeout(60_000),
+        });
+      } catch (e) {
+        throw new AiError('network', `Could not reach OpenAI: ${(e as Error).message}`);
+      }
+      if (!res.ok) throw failFor(res, credential, await res.text().catch(() => ''));
+      const data = (await res.json()) as { status?: string; incomplete_details?: { reason?: string }; output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number } };
+      const usage = { inputTokens: data.usage?.input_tokens ?? null, outputTokens: data.usage?.output_tokens ?? null };
+      const text = data.output?.filter((o) => o.type === 'message').flatMap((o) => o.content ?? []).find((c) => c.type === 'output_text')?.text ?? '';
+      let raw: unknown = null;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        // Cut off or empty; reported below with the vendor's own reason.
+      }
+      const ideas = parseIdeas(raw);
+      if (!ideas.length) throw new AiError('bad_output', `The model offered no ideas (${data.status ?? 'unknown'}${data.incomplete_details?.reason ? `: ${data.incomplete_details.reason}` : ''}).`, undefined, usage);
+      return { ideas, model: opts.model, usage };
     },
     async generate(input: GenerateInput, credential: CredentialPayload): Promise<GenerateOutput> {
       const bearer = credential.kind === 'oauth' ? credential.accessToken : credential.apiKey;

@@ -1720,6 +1720,41 @@ describe('shopping list', () => {
   });
 });
 
+describe('dish search', () => {
+  const ideas = (b: Booted, cookie: string | null, dish: unknown) => {
+    const r = request(b.base).post('/api/recipes/ideas').set('origin', ORIGIN);
+    return (cookie ? r.set('cookie', cookie) : r).send({ dish });
+  };
+
+  it('offers a few different takes on a dish, logged for cost, and only to someone onboarded', async () => {
+    const b = await boot();
+    try {
+      const ada = await signIn(b, 'mock-ada');
+      // Onboarding first: the ideas have to respect allergies, so there has to be a profile.
+      expect((await ideas(b, ada, 'carbonara')).status).toBe(400);
+      await request(b.base).put('/api/profile').set('cookie', ada).set('origin', ORIGIN).send(PROFILE);
+
+      const res = await ideas(b, ada, 'carbonara');
+      expect(res.status).toBe(200);
+      expect(res.body.ideas).toHaveLength(5);
+      // Different takes, not the same title five times.
+      expect(new Set(res.body.ideas.map((i: { title: string }) => i.title)).size).toBe(5);
+      expect(res.body.ideas[0]).toMatchObject({ emoji: expect.any(String), title: expect.stringContaining('carbonara'), angle: expect.any(String), totalMinutes: expect.any(Number), difficulty: expect.any(String) });
+
+      // Logged like any other AI call, so admin sees what search costs.
+      const admin = await request(b.base).get('/api/admin/generations').set('cookie', ada);
+      if (admin.status === 200) expect(admin.body.generations.some((g: { kind: string }) => g.kind === 'ideas')).toBe(true);
+
+      expect((await ideas(b, ada, '   ')).status).toBe(400);
+      expect((await ideas(b, ada, 'x'.repeat(200))).status).toBe(400);
+      expect((await ideas(b, null, 'carbonara')).status).toBe(401);
+    } finally {
+      b.server.close();
+      b.close();
+    }
+  });
+});
+
 describe('fridge check (list scan)', () => {
   const photo = encodePng(8, 8, () => [220, 220, 210]);
   const scan = (b: Booted, cookie: string | null, body: Buffer | string = photo, type = 'image/png') => {
