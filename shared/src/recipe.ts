@@ -110,6 +110,23 @@ export const RecipeContentSchema = z.object({
   nutritionPerServing: NutritionSchema.nullable(),
 });
 
+/**
+ * One take on a dish, offered before anything is written. A handful of these costs a fraction of
+ * a recipe, so a search can show options and only write the one that gets picked.
+ */
+export const RecipeIdeaSchema = z.object({
+  emoji: z.string().trim().min(1).max(8),
+  title: z.string().trim().min(1).max(80),
+  /** What makes this one different from the others, in a line. */
+  angle: z.string().trim().min(1).max(140),
+  totalMinutes: z.number().int().min(1).max(24 * 60),
+  difficulty: z.enum(DIFFICULTY),
+});
+export type RecipeIdea = z.infer<typeof RecipeIdeaSchema>;
+
+/** "carbonara", "something with the leftover lamb". */
+export const IdeasRequestSchema = z.object({ dish: z.string().trim().min(1).max(80) });
+
 export type RecipeContent = z.infer<typeof RecipeContentSchema>;
 export type RecipeIngredient = z.infer<typeof RecipeIngredientSchema>;
 export type Step = z.infer<typeof StepSchema>;

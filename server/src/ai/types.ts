@@ -1,4 +1,4 @@
-import type { Ingredient, ListScan, Profile, RecipeContent } from '@foodi/shared';
+import type { Ingredient, ListScan, Profile, RecipeContent, RecipeIdea } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 
 export interface GenerateInput {
@@ -50,6 +50,12 @@ export interface ScanOutput {
   usage: { inputTokens: number | null; outputTokens: number | null };
 }
 
+export interface IdeasOutput {
+  ideas: RecipeIdea[];
+  model: string;
+  usage: { inputTokens: number | null; outputTokens: number | null };
+}
+
 export interface AiClient {
   vendor: string;
   model: string;
@@ -60,6 +66,8 @@ export interface AiClient {
   describeImage?(image: Buffer, recipe: { title: string; keyIngredients: string[]; library?: boolean }, credential: CredentialPayload): Promise<VisionOutput>;
   /** Optional: which of these shopping-list items a photo (JPEG or PNG) shows, plus other ingredients spotted. */
   scanIngredients?(image: Buffer, items: { id: string; text: string }[], credential: CredentialPayload): Promise<ScanOutput>;
+  /** Optional: a few takes on a dish, for search. Far cheaper than a recipe: no method, no ingredients. */
+  suggestIdeas?(dish: string, profile: Profile, credential: CredentialPayload): Promise<IdeasOutput>;
 }
 
 export class AiError extends Error {

@@ -1,7 +1,7 @@
 import { getIngredient, INGREDIENTS, matchIngredient, type Ingredient, type Profile, type RecipeContent, type RecipeIngredient, type Step } from '@foodi/shared';
 import type { CredentialPayload } from '../auth/providers/types.js';
 import { encodePng } from '../lib/png.js';
-import type { AiClient, GenerateInput, GenerateOutput, ImageInput, ImageOutput, ScanOutput, VisionOutput } from './types.js';
+import type { AiClient, GenerateInput, GenerateOutput, IdeasOutput, ImageInput, ImageOutput, ScanOutput, VisionOutput } from './types.js';
 
 /**
  * A deterministic, offline recipe writer. It is not clever, but it respects the same hard
@@ -15,6 +15,24 @@ export function createMockClient(): AiClient {
     async generate(input: GenerateInput, _credential: CredentialPayload): Promise<GenerateOutput> {
       await new Promise((r) => setTimeout(r, 400 + (hash(input.prompt + (input.seed ?? '')) % 600)));
       return { content: compose(input), model: 'mock-chef-1', usage: { inputTokens: 900, outputTokens: 1400 } };
+    },
+    /** Five deterministic takes, so search looks real offline and in tests. */
+    async suggestIdeas(dish: string, _profile: Profile, _credential: CredentialPayload): Promise<IdeasOutput> {
+      await new Promise((r) => setTimeout(r, 150 + (hash(dish) % 250)));
+      const name = dish.trim().replace(/\s+/g, ' ').slice(0, 40) || 'dinner';
+      const takes: [string, string, number, 'easy' | 'medium' | 'hard'][] = [
+        ['Classic', 'The version most people picture, done properly.', 45, 'medium'],
+        ['Weeknight', 'Same idea, on the table in half the time.', 25, 'easy'],
+        ['Lighter', 'Less fat, more vegetables, the flavour kept.', 35, 'easy'],
+        ['Slow', 'Left alone in the oven until it falls apart.', 180, 'easy'],
+        ['Showing off', 'A few extra steps, for when someone is coming.', 75, 'hard'],
+      ];
+      const emoji = ['🍽️', '⚡️', '🥗', '🕰️', '✨'];
+      return {
+        ideas: takes.map(([label, angle, minutes, difficulty], i) => ({ emoji: emoji[i]!, title: `${label} ${name}`, angle, totalMinutes: minutes, difficulty })),
+        model: 'mock-chef-1',
+        usage: { inputTokens: 300, outputTokens: 200 },
+      };
     },
     /** A warm, plate-like gradient seeded by the prompt — recognisably "a photo", never the same twice. */
     async generateImage(input: ImageInput, _credential: CredentialPayload): Promise<ImageOutput> {

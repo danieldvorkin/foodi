@@ -4,6 +4,7 @@ import {
   AuthoredRecipeSchema,
   EditRecipeSchema,
   GenerateRequestSchema,
+  IdeasRequestSchema,
   RecipeContentSchema,
   type Recipe,
   type RecipeContent,
@@ -135,6 +136,19 @@ export function recipeRoutes(db: Db, ai: ReturnType<typeof createAiService>, not
     const profile = getProfile(db, req.user!.id);
     const rows = all<RecipeRow>(db, 'SELECT * FROM recipes WHERE user_id = ? ORDER BY favorite DESC, created_at DESC LIMIT 200', req.user!.id);
     res.json({ recipes: rows.map((row) => toSummary(db, row, allergenWarnings(parseContent(row), profile))) });
+  });
+
+  /**
+   * Takes on a dish, for the search screen: one small call, no recipe written. Tapping one goes
+   * through /generate like anything else.
+   */
+  r.post('/ideas', async (req, res, next) => {
+    try {
+      const { dish } = parse(IdeasRequestSchema, req.body);
+      res.json({ ideas: await ai.suggestIdeas(req.user!.id, dish) });
+    } catch (e) {
+      next(e);
+    }
   });
 
   /**
